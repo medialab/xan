@@ -21,6 +21,7 @@
 * Renaming `xan join -L/--prefix-left & -R/--prefix-right` short flags to `-l` & `-r` respectively to avoid colliding with the added `-R/--reverse` flag that can be used for merge joins.
 * Dropping `xan plot -B/--bars`. It never worked very well and its use-case will be redirected to `xan spark`.
 * Changing `xan heatmap --width` short flag from `-w` to `-W` so that adding a `-H/--height` flag remain consistent and avoids clashing with `-h/--help`.
+* Dropping `xan heatmap --show-gradients` in favor of `xan help gradients`.
 
 *Features*
 

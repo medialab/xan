@@ -45,12 +45,10 @@ labels on top of the x-axis instead.
 Increasing -S/--size also means you can try fitting the numbers within the heatmap's
 cells themselves using -N/--show-numbers.
 
-Finally, if you want a showcase of available color gradients, use the --show-gradients
-flag.
+Finally, if you want a showcase of available color gradients, use `xan help gradients`.
 
 Usage:
     xan heatmap [options] [<input>]
-    xan heatmap --show-gradients
     xan heatmap --green-hills
     xan heatmap --help
 
@@ -60,7 +58,7 @@ heatmap options:
     -v, --values <columns>  Columns containing numerical values to display in the
                             heatmap. Defaults to all columns of the file beyond
                             the first one.
-    -G, --gradient <name>   Gradient to use. Use --show-gradients to see what is
+    -G, --gradient <name>   Gradient to use. Use `xan help gradients` to see what is
                             available.
                             [default: or_rd]
     -A, --ascii             Use ascii shade characters (░▒▓█) to draw the heatmap instead
@@ -100,7 +98,6 @@ heatmap options:
     --repeat-headers <n>    Repeat headers every <n> heatmap rows. This can also
                             be set to "auto" to choose a suitable number based
                             on the height of your terminal.
-    --show-gradients        Display a showcase of available gradients.
     --color <when>          When to color the output using ANSI escape codes.
                             Use `auto` for automatic detection, `never` to
                             disable colors completely and `always` to force

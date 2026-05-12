@@ -5,6 +5,7 @@ use lazy_static::lazy_static;
 use regex::{Captures, Regex};
 use textwrap::{fill, indent};
 
+use crate::scales::GradientName;
 use crate::util;
 use crate::CliResult;
 
@@ -731,7 +732,7 @@ fn parse_scraping_help() -> ScrapingHelp {
 }
 
 static USAGE: &str = "
-Print help about the `xan` expression language.
+Print help about the `xan` expression language and other various tidbits.
 
 `xan help cheatsheet` will print a short cheatsheet about
 how the language works. It can also be found online here:
@@ -756,6 +757,9 @@ window aggregation functions (as used in `xan window`).
 It can also be found online here:
 https://github.com/medialab/xan/blob/master/docs/moonblade/window.md
 
+`xan help gradients` will print the reference of all gradients used in
+visualization commands such as `xan heatmap` or `xan spark`.
+
 Use the -p/--pager flag to open desired documentation in a suitable
 pager.
 
@@ -768,6 +772,7 @@ Usage:
     xan help aggs [options]
     xan help scraping [options]
     xan help window [options]
+    xan help gradients [options]
     xan help --help
 
 help options:
@@ -796,6 +801,7 @@ struct Args {
     cmd_aggs: bool,
     cmd_scraping: bool,
     cmd_window: bool,
+    cmd_gradients: bool,
     flag_open: bool,
     flag_pager: bool,
     flag_section: Option<String>,
@@ -805,7 +811,11 @@ struct Args {
 }
 
 impl Args {
-    fn open(&self) {
+    fn open(&self) -> CliResult<()> {
+        if self.cmd_gradients {
+            Err("-O/--open does not work with `xan help gradients`")?;
+        }
+
         let url = format!(
             "https://github.com/medialab/xan/blob/master/docs/moonblade/{}.md",
             if self.cmd_cheatsheet {
@@ -824,6 +834,8 @@ impl Args {
         );
 
         opener::open_browser(url).expect("could not open browser");
+
+        Ok(())
     }
 
     fn setup_pager(&self) -> CliResult<()> {
@@ -850,9 +862,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     args.flag_color.apply();
 
     if args.flag_open {
-        args.open();
-
-        return Ok(());
+        return args.open();
     }
 
     if args.flag_pager && (args.flag_json || args.flag_md) {
@@ -920,6 +930,44 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             args.setup_pager()?;
             write!(&mut out, "{}", parse_window_help().to_txt())?;
         }
+    } else if args.cmd_gradients {
+        if args.flag_json || args.flag_md {
+            Err("`xan help gradients` does not work with --json nor --md!")?;
+        }
+
+        writeln!(&mut out, "{}", "Sequential scales (Single-Hue)".bold())?;
+        writeln!(&mut out)?;
+        for gradient_name in GradientName::single_hue_sequential_iter() {
+            writeln!(&mut out, "{}", gradient_name.as_str())?;
+            writeln!(&mut out, "{}", gradient_name.sample())?;
+        }
+        writeln!(&mut out, "\n")?;
+
+        writeln!(&mut out, "{}", "Sequential scales (Multi-Hue)".bold())?;
+        writeln!(&mut out)?;
+        for gradient_name in GradientName::multi_hue_sequential_iter() {
+            writeln!(&mut out, "{}", gradient_name.as_str())?;
+            writeln!(&mut out, "{}", gradient_name.sample())?;
+        }
+        writeln!(&mut out, "\n")?;
+
+        writeln!(&mut out, "{}", "Diverging scales".bold())?;
+        writeln!(&mut out)?;
+        for gradient_name in GradientName::diverging_iter() {
+            writeln!(&mut out, "{}", gradient_name.as_str())?;
+            writeln!(&mut out, "{}", gradient_name.sample())?;
+        }
+        writeln!(&mut out, "\n")?;
+
+        writeln!(&mut out, "{}", "Cyclical scales".bold())?;
+        writeln!(&mut out)?;
+        for gradient_name in GradientName::cyclical_iter() {
+            writeln!(&mut out, "{}", gradient_name.as_str())?;
+            writeln!(&mut out, "{}", gradient_name.sample())?;
+        }
+        writeln!(&mut out)?;
+
+        return Ok(());
     }
 
     Ok(())

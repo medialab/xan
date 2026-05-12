@@ -2,7 +2,7 @@
 # xan help
 
 ```txt
-Print help about the `xan` expression language.
+Print help about the `xan` expression language and other various tidbits.
 
 `xan help cheatsheet` will print a short cheatsheet about
 how the language works. It can also be found online here:
@@ -27,6 +27,9 @@ window aggregation functions (as used in `xan window`).
 It can also be found online here:
 https://github.com/medialab/xan/blob/master/docs/moonblade/window.md
 
+`xan help gradients` will print the reference of all gradients used in
+visualization commands such as `xan heatmap` or `xan spark`.
+
 Use the -p/--pager flag to open desired documentation in a suitable
 pager.
 
@@ -39,6 +42,7 @@ Usage:
     xan help aggs [options]
     xan help scraping [options]
     xan help window [options]
+    xan help gradients [options]
     xan help --help
 
 help options:

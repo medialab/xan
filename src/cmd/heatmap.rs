@@ -198,12 +198,10 @@ labels on top of the x-axis instead.
 Increasing -S/--size also means you can try fitting the numbers within the heatmap's
 cells themselves using -N/--show-numbers.
 
-Finally, if you want a showcase of available color gradients, use the --show-gradients
-flag.
+Finally, if you want a showcase of available color gradients, use `xan help gradients`.
 
 Usage:
     xan heatmap [options] [<input>]
-    xan heatmap --show-gradients
     xan heatmap --green-hills
     xan heatmap --help
 
@@ -213,7 +211,7 @@ heatmap options:
     -v, --values <columns>  Columns containing numerical values to display in the
                             heatmap. Defaults to all columns of the file beyond
                             the first one.
-    -G, --gradient <name>   Gradient to use. Use --show-gradients to see what is
+    -G, --gradient <name>   Gradient to use. Use `xan help gradients` to see what is
                             available.
                             [default: or_rd]
     -A, --ascii             Use ascii shade characters (░▒▓█) to draw the heatmap instead
@@ -253,7 +251,6 @@ heatmap options:
     --repeat-headers <n>    Repeat headers every <n> heatmap rows. This can also
                             be set to \"auto\" to choose a suitable number based
                             on the height of your terminal.
-    --show-gradients        Display a showcase of available gradients.
     --color <when>          When to color the output using ANSI escape codes.
                             Use `auto` for automatic detection, `never` to
                             disable colors completely and `always` to force
@@ -291,7 +288,6 @@ struct Args {
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_repeat_headers: Option<String>,
-    flag_show_gradients: bool,
     flag_green_hills: bool,
 }
 
@@ -347,43 +343,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("only one of -N/--show-numbers or -Z/--show-normalized must be given!")?;
     }
 
-    let mut out = stdout();
-
-    if args.flag_show_gradients {
-        writeln!(&mut out, "{}", "Sequential scales (Single-Hue)".bold())?;
-        writeln!(&mut out)?;
-        for gradient_name in GradientName::single_hue_sequential_iter() {
-            writeln!(&mut out, "{}", gradient_name.as_str())?;
-            writeln!(&mut out, "{}", gradient_name.sample())?;
-        }
-        writeln!(&mut out, "\n")?;
-
-        writeln!(&mut out, "{}", "Sequential scales (Multi-Hue)".bold())?;
-        writeln!(&mut out)?;
-        for gradient_name in GradientName::multi_hue_sequential_iter() {
-            writeln!(&mut out, "{}", gradient_name.as_str())?;
-            writeln!(&mut out, "{}", gradient_name.sample())?;
-        }
-        writeln!(&mut out, "\n")?;
-
-        writeln!(&mut out, "{}", "Diverging scales".bold())?;
-        writeln!(&mut out)?;
-        for gradient_name in GradientName::diverging_iter() {
-            writeln!(&mut out, "{}", gradient_name.as_str())?;
-            writeln!(&mut out, "{}", gradient_name.sample())?;
-        }
-        writeln!(&mut out, "\n")?;
-
-        writeln!(&mut out, "{}", "Cyclical scales".bold())?;
-        writeln!(&mut out)?;
-        for gradient_name in GradientName::cyclical_iter() {
-            writeln!(&mut out, "{}", gradient_name.as_str())?;
-            writeln!(&mut out, "{}", gradient_name.sample())?;
-        }
-        writeln!(&mut out)?;
-
-        return Ok(());
-    }
+    let out = stdout();
 
     if args.flag_green_hills {
         print_green_hills()?;
