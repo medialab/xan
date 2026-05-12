@@ -21,6 +21,7 @@ use crate::CliResult;
 const LABELS_TO_SHOW: usize = 5;
 const CATEGORIES_TO_SHOW: usize = 10;
 const HISTOGRAM_BINS: usize = 35;
+const CARDINALITY_RATIO_THRESHOLD: f64 = 0.7;
 
 fn float_cmp(a: &f64, b: &f64) -> Ordering {
     a.partial_cmp(b).unwrap()
@@ -92,12 +93,6 @@ impl ColumnType {
     }
 }
 
-// TODO: when we have seen 1024 values, we assess whether we have labels
-// TODO: for numbers we keep first seen and a counter until we spill over
-// that many times
-// TODO: this means we must have a "settle" method called at then end of read loop
-// TODO: collect lengths when we are in labels mode
-
 #[derive(Debug)]
 struct ColumnEstimator {
     name: String,
@@ -105,12 +100,11 @@ struct ColumnEstimator {
     numbers: Vec<f64>,
     numerical_welford: Welford,
     numerical_extent_builder: ExtentBuilder<f64>,
-    length_welford: Welford,
-    length_extent_builder: ExtentBuilder<f64>,
     int_count: u64,
     empty_count: u64,
     count: u64,
     first_seen: Vec<Vec<u8>>,
+    // first_seen_int: (i64, u64), conflate with int_count later and spillover for bool detection
 }
 
 impl ColumnEstimator {
@@ -121,8 +115,6 @@ impl ColumnEstimator {
             numbers: Vec::new(),
             numerical_welford: Welford::new(),
             numerical_extent_builder: ExtentBuilder::new(),
-            length_welford: Welford::new(),
-            length_extent_builder: ExtentBuilder::new(),
             int_count: 0,
             empty_count: 0,
             count: 0,
@@ -139,11 +131,6 @@ impl ColumnEstimator {
         } else if self.first_seen.len() < LABELS_TO_SHOW {
             self.first_seen.push(cell.to_vec());
         }
-
-        let length = cell.len() as f64;
-
-        self.length_welford.add(length);
-        self.length_extent_builder.process(length);
 
         if let Ok(n) = DynamicNumber::try_from(cell) {
             if !n.is_float() {
@@ -206,7 +193,7 @@ impl ColumnEstimator {
                 stddev: self.numerical_welford.stdev().unwrap(),
                 histogram,
             }
-        } else if self.string_cardinality_ratio() < 0.7 {
+        } else if self.string_cardinality_ratio() < CARDINALITY_RATIO_THRESHOLD {
             let (total, top) = self
                 .strings
                 .clone()
@@ -236,12 +223,12 @@ impl ColumnEstimator {
         } else if self.is_void() {
             ColumnType::Void
         } else {
-            let length_extent = self.length_extent_builder.build().unwrap();
+            // let length_extent = self.length_extent_builder.build().unwrap();
             // let length_histogram = Histogram::new(HISTOGRAM_BINS, length_extent);
 
             ColumnType::Labels {
                 sample: self.to_sample(),
-                length_extent,
+                length_extent: Extent::from((0.0, 1.0)),
                 // length_histogram,
             }
         }
