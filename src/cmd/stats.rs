@@ -150,6 +150,16 @@ impl ColumnEstimator {
         }
     }
 
+    fn name_hash(&self) -> usize {
+        let mut sum: usize = 0;
+
+        for byte in self.name.as_bytes() {
+            sum += *byte as usize;
+        }
+
+        sum
+    }
+
     fn non_empty_count(&self) -> u64 {
         self.count - self.empty_count
     }
@@ -541,6 +551,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     total,
                 } => {
                     let mut remaining = total;
+                    let name_hash = estimator.name_hash();
 
                     for (_, count) in top.iter() {
                         remaining -= *count;
@@ -567,7 +578,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     let mut color_overrides = vec![None; histogram.len()];
 
                     for (i, (value, count)) in top.iter().enumerate() {
-                        let color = util::colorizer_by_rainbow_with_fallback(i, value);
+                        let color = util::colorizer_by_rainbow_with_fallback(i, name_hash, value);
                         histogram[i] = *count as f64;
                         color_overrides[i] = Some(color);
 
@@ -726,7 +737,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     if length_extent.is_constant() {
                         writeln!(
                             &mut out,
-                            "only a single length: {}",
+                            "all have same length: {}",
                             length_extent.min().to_string().red()
                         )?;
                     } else {

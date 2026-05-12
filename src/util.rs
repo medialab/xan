@@ -481,9 +481,17 @@ pub fn colorizer_by_rainbow(index: usize, string: &str) -> ColorOrStyles {
     }
 }
 
-pub fn colorizer_by_rainbow_with_fallback(index: usize, string: &str) -> ColorOrStyles {
+pub fn colorizer_by_rainbow_with_fallback(
+    mut index: usize,
+    hash: usize,
+    string: &str,
+) -> ColorOrStyles {
     if string == "<empty>" {
         return ColorOrStyles::Styles(Styles::Dimmed);
+    }
+
+    if index < 7 {
+        index = (index + hash) % 7;
     }
 
     match index {
