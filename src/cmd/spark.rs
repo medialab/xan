@@ -350,7 +350,6 @@ spark options:
                       [default: 1]
     -H, --height <n>  Number of characters a sparkline bar is allowed to take as
                       its height. TODO: can take percentage
-                      [default: 1]
     -G, --gradient <name>
     -B, --background-gradient <name>
     -S, --small-multiples <n>
@@ -556,19 +555,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             while let Some(line) = row_lines[0].next() {
                 output_buffer.push_str(line);
-                output_buffer.push(' ');
 
                 for line_iter in row_lines[1..].iter_mut() {
-                    output_buffer.push_str(line_iter.next().unwrap());
                     output_buffer.push(' ');
+                    output_buffer.push_str(line_iter.next().unwrap());
                 }
-            }
 
-            output_buffer.pop();
-            output_buffer.push('\n');
+                output_buffer.push('\n');
+            }
         }
 
-        writeln!(&mut out, "{}", output_buffer)?;
+        write!(&mut out, "{}", output_buffer)?;
     }
 
     Ok(())
