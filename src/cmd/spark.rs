@@ -321,6 +321,8 @@ spark options:
                       [default: 1]
     -G, --gradient <name>
     -B, --background-gradient <name>
+    -S, --small-multiples <n>
+    --hide-names
     --cols <num>      Number of terminal columns, i.e. characters, that we can
                       use for drawing labels, legends and sparklines.
                       Defaults to using all your terminal's width or 80 if
@@ -349,18 +351,14 @@ struct Args {
     flag_along_rows: bool,
     flag_gradient: Option<GradientName>,
     flag_background_gradient: Option<GradientName>,
+    flag_small_multiples: Option<NonZeroUsize>,
+    flag_hide_names: bool,
     flag_width: NonZeroUsize,
     flag_height: NonZeroUsize,
     flag_cols: Option<String>,
     flag_color: ColorMode,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
-}
-
-impl Args {
-    fn series_have_name(&self) -> bool {
-        !self.flag_along_rows
-    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -379,7 +377,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     args.flag_color.apply();
 
-    let cols = util::acquire_term_cols_ratio(&args.flag_cols)?;
+    let mut cols = util::acquire_term_cols_ratio(&args.flag_cols)?;
 
     if cols < 10 {
         Err("not enough cols to draw!")?;
@@ -398,20 +396,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut record = ByteRecord::new();
 
-    let mut pool: Vec<(Option<String>, Series)> = Vec::new();
+    let mut pool: Vec<(String, Series)> = Vec::new();
 
     if !args.flag_along_rows {
         pool.reserve_exact(sel.len());
 
         for name in sel.select(&headers) {
-            pool.push((
-                Some(String::from_utf8_lossy(name).into_owned()),
-                Series::new(),
-            ));
+            pool.push((String::from_utf8_lossy(name).into_owned(), Series::new()));
         }
     }
 
     // Aggregating data
+    let mut index: usize = 0;
+
     while reader.read_byte_record(&mut record)? {
         if args.flag_along_rows {
             let mut series = Series::with_capacity(sel.len());
@@ -420,27 +417,36 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 series.try_push(cell)?;
             }
 
-            pool.push((None, series));
+            pool.push((format!("Row n°{}", index), series));
         } else {
             for (i, cell) in sel.select(&record).enumerate() {
                 pool[i].1.try_push(cell)?;
             }
         }
+
+        index += 1;
     }
 
+    if let Some(small_multiples) = args.flag_small_multiples {
+        let n = small_multiples.get();
+
+        if n < 2 {
+            Err("-S/--small-multiples cannot be less than 2!")?;
+        }
+
+        cols -= n - 1;
+        cols /= n;
+    }
+
+    // Layout
     let mut cols_for_sparkline = cols;
     let sparkline_width = args.flag_width.get();
     let sparkline_height = args.flag_height.get();
 
     let mut cols_for_series_name: usize = 0;
 
-    if args.series_have_name() {
-        let max_name_width = pool
-            .iter()
-            .map(|(name_opt, _)| name_opt.as_ref().map(|name| name.width()).unwrap_or(0))
-            .max()
-            .unwrap()
-            + 1;
+    if !args.flag_hide_names {
+        let max_name_width = pool.iter().map(|(name, _)| name.width()).max().unwrap() + 1;
 
         cols_for_series_name = max_name_width.min((cols as f64 * 0.3).floor() as usize);
         cols_for_sparkline -= cols_for_series_name;
@@ -461,13 +467,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut sparkline_renderer = sparkline_renderer_options.build();
 
+    let mut small_multiples_buffer_opt: Option<Vec<String>> =
+        args.flag_small_multiples.map(|_| Vec::new());
+
     // Rendering
-    for (name_opt, mut series) in pool.into_iter() {
+    for (name, mut series) in pool.into_iter() {
         if series.len() > max_bins {
             series.discretize(max_bins);
         }
 
-        let name_opt = name_opt.map(|name| {
+        let name_opt = (!args.flag_hide_names).then(|| {
             format!(
                 "{:<width$} ",
                 util::unicode_aware_ellipsis(
@@ -481,7 +490,38 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let scale = series.to_scale(ScaleType::Linear).unwrap();
         sparkline_renderer.render_impl(name_opt.as_deref(), &scale, &series.numbers, None);
 
-        writeln!(&mut out, "{}", sparkline_renderer)?;
+        if let Some(small_multiples_buffer) = small_multiples_buffer_opt.as_mut() {
+            small_multiples_buffer.push(sparkline_renderer.to_string());
+        } else {
+            writeln!(&mut out, "{}", sparkline_renderer)?;
+        }
+    }
+
+    // Rendering small multiples
+    if let Some(small_multiples_buffer) = small_multiples_buffer_opt {
+        let mut output_buffer = String::new();
+
+        for row in small_multiples_buffer.chunks(args.flag_small_multiples.unwrap().get()) {
+            let mut row_lines = row
+                .iter()
+                .map(|sparkline| sparkline.split('\n'))
+                .collect::<Vec<_>>();
+
+            while let Some(line) = row_lines[0].next() {
+                output_buffer.push_str(line);
+                output_buffer.push(' ');
+
+                for line_iter in row_lines[1..].iter_mut() {
+                    output_buffer.push_str(line_iter.next().unwrap());
+                    output_buffer.push(' ');
+                }
+            }
+
+            output_buffer.pop();
+            output_buffer.push('\n');
+        }
+
+        writeln!(&mut out, "{}", output_buffer)?;
     }
 
     Ok(())
