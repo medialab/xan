@@ -141,6 +141,8 @@ impl SparklineRenderer {
                         bar_index = bar_index.saturating_sub(1).min(len - 1);
 
                         SPARKLINE_CHARS[bar_index]
+                    } else if h == 0 {
+                        SPARKLINE_CHARS[0]
                     } else {
                         ' '
                     }
