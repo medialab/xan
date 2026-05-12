@@ -399,6 +399,10 @@ impl Histogram {
 
         histogram
     }
+
+    pub fn into_vec(self) -> Vec<f64> {
+        self.bins
+    }
 }
 
 impl Deref for Histogram {

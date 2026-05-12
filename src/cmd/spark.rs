@@ -8,7 +8,7 @@ use simd_csv::ByteRecord;
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
-use crate::scales::{ExtentBuilder, GradientName, Scale, ScaleType};
+use crate::scales::{ExtentBuilder, GradientName, Histogram, Scale, ScaleType};
 use crate::select::SelectedColumns;
 use crate::util::{self, ColorMode, ColorOrStyles};
 use crate::CliResult;
@@ -309,6 +309,24 @@ impl Series {
         Ok(())
     }
 
+    fn distribution(&mut self, bins: usize, log_scale: bool) {
+        let mut histogram = Histogram::new(bins, self.extent_builder.build().unwrap());
+
+        for x in self.numbers.iter().copied() {
+            histogram.add(x);
+        }
+
+        if log_scale {
+            histogram.ln_1p();
+        }
+
+        self.extent_builder.clear();
+        self.extent_builder.process(0.0);
+        self.extent_builder.process(histogram.max_value());
+
+        self.numbers = histogram.into_vec();
+    }
+
     fn discretize(&mut self, count: usize) {
         if count < self.numbers.len() {
             self.extent_builder.clear();
@@ -354,6 +372,9 @@ spark options:
     -B, --background-gradient <name>
     -S, --small-multiples <n>
     -R, --rainbow
+    -b, --bins <n>    Number of bins. [default: 35]
+    --log
+    -D, --dist
     --striped
     --hide-names
     --cols <num>      Number of terminal columns, i.e. characters, that we can
@@ -388,6 +409,9 @@ struct Args {
     flag_hide_names: bool,
     flag_striped: bool,
     flag_rainbow: bool,
+    flag_bins: NonZeroUsize,
+    flag_dist: bool,
+    flag_log: bool,
     flag_width: NonZeroUsize,
     flag_height: Option<String>,
     flag_cols: Option<String>,
@@ -518,6 +542,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     // Rendering
     for (i, (name, mut series)) in pool.into_iter().enumerate() {
+        if args.flag_dist {
+            series.distribution(args.flag_bins.get(), args.flag_log);
+        }
+
         if series.len() > max_bins {
             series.discretize(max_bins);
         }
