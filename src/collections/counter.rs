@@ -101,6 +101,10 @@ impl<K: Eq + Hash + Send + Ord> ExactCounter<K> {
         }
     }
 
+    fn iter(&self) -> impl Iterator<Item = (&K, u64)> {
+        self.map.iter().map(|(k, c)| (k, *c))
+    }
+
     fn cardinality(&self) -> u64 {
         self.map.len() as u64
     }
@@ -143,6 +147,10 @@ impl<K: Eq + Hash + Send + Ord + Clone> ApproxCounter<K> {
         self.map.count()
     }
 
+    fn iter(&self) -> impl Iterator<Item = (&K, u64)> {
+        self.map.iter().map(|(k, c)| (k, c.estimated_count()))
+    }
+
     pub fn merge(&mut self, other: Self) {
         self.map.merge(&other.map).unwrap()
     }
@@ -177,6 +185,13 @@ impl<K: Eq + Hash + Send + Ord + Clone> Counter<K> {
             Self::Approximate(inner) => {
                 inner.add(key);
             }
+        }
+    }
+
+    pub fn iter(&self) -> Box<dyn Iterator<Item = (&K, u64)> + '_> {
+        match self {
+            Self::Exact(inner) => Box::new(inner.iter()),
+            Self::Approximate(inner) => Box::new(inner.iter()),
         }
     }
 

@@ -59,7 +59,7 @@ enum ColumnType {
     Labels {
         sample: Vec<String>,
         length_extent: Extent<f64>,
-        // length_histogram: Histogram,
+        length_histogram: Histogram,
     },
     Void,
 }
@@ -100,6 +100,7 @@ struct ColumnEstimator {
     numbers: Vec<f64>,
     numerical_welford: Welford,
     numerical_extent_builder: ExtentBuilder<f64>,
+    length_extent_builder: ExtentBuilder<f64>,
     int_count: u64,
     empty_count: u64,
     count: u64,
@@ -115,6 +116,7 @@ impl ColumnEstimator {
             numbers: Vec::new(),
             numerical_welford: Welford::new(),
             numerical_extent_builder: ExtentBuilder::new(),
+            length_extent_builder: ExtentBuilder::new(),
             int_count: 0,
             empty_count: 0,
             count: 0,
@@ -143,6 +145,7 @@ impl ColumnEstimator {
             self.numerical_extent_builder.process(f);
             self.numbers.push(f);
         } else {
+            self.length_extent_builder.process(cell.len() as f64);
             self.strings.add(cell.to_vec());
         }
     }
@@ -201,14 +204,13 @@ impl ColumnEstimator {
 
             let mut is_bool = false;
 
-            if top.len() == 2 {
-                if (TRUE_VALUES.contains(&top[0].0.as_ref())
+            if top.len() == 2
+                && (TRUE_VALUES.contains(&top[0].0.as_ref())
                     && FALSE_VALUES.contains(&top[1].0.as_ref()))
-                    || (TRUE_VALUES.contains(&top[1].0.as_ref())
-                        && FALSE_VALUES.contains(&top[0].0.as_ref()))
-                {
-                    is_bool = true;
-                }
+                || (TRUE_VALUES.contains(&top[1].0.as_ref())
+                    && FALSE_VALUES.contains(&top[0].0.as_ref()))
+            {
+                is_bool = true;
             }
 
             ColumnType::Categorical {
@@ -223,13 +225,21 @@ impl ColumnEstimator {
         } else if self.is_void() {
             ColumnType::Void
         } else {
-            // let length_extent = self.length_extent_builder.build().unwrap();
-            // let length_histogram = Histogram::new(HISTOGRAM_BINS, length_extent);
+            let length_extent = self.length_extent_builder.build().unwrap();
+            let mut length_histogram = Histogram::new(HISTOGRAM_BINS, length_extent);
+            let mut length_welford = Welford::new();
+
+            for (name, count) in self.strings.iter() {
+                let length = name.len() as f64;
+
+                length_welford.add_n(length, count as usize);
+                length_histogram.add_n(length, count as usize);
+            }
 
             ColumnType::Labels {
                 sample: self.to_sample(),
-                length_extent: Extent::from((0.0, 1.0)),
-                // length_histogram,
+                length_extent,
+                length_histogram,
             }
         }
     }
@@ -684,7 +694,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         sparkline_renderer
                     )?;
                 }
-                ColumnType::Labels { sample, .. } => {
+                ColumnType::Labels {
+                    sample,
+                    mut length_histogram,
+                    length_extent,
+                } => {
                     writeln!(
                         &mut out,
                         "First {} non empty values{}:",
@@ -707,6 +721,46 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             )
                             .green()
                         )?;
+                    }
+
+                    if length_extent.is_constant() {
+                        writeln!(
+                            &mut out,
+                            "only a single length: {}",
+                            length_extent.min().to_string().red()
+                        )?;
+                    } else {
+                        let scale_denomination = if length_histogram.should_use_log_scale() {
+                            length_histogram.ln_1p();
+
+                            "log"
+                        } else {
+                            "linear"
+                        };
+
+                        let sparkline_scale = Scale::new(
+                            ScaleType::Linear,
+                            (0.0, length_histogram.max_value()),
+                            (0.0, 1.0),
+                        );
+
+                        let mut sparkline_renderer_options = SparklineRendererOptions::new();
+                        sparkline_renderer_options.height = 3;
+                        sparkline_renderer_options.set_striped();
+
+                        let mut sparkline_renderer = sparkline_renderer_options.build();
+                        sparkline_renderer.render(&sparkline_scale, &length_histogram);
+
+                        writeln!(
+                            &mut out,
+                            "length distribution ({} scale, {} … {}): {} … {}",
+                            scale_denomination.cyan(),
+                            "min".blue(),
+                            "max".red(),
+                            length_extent.min().to_string().blue(),
+                            length_extent.max().to_string().red()
+                        )?;
+                        writeln!(&mut out, "{}", sparkline_renderer)?;
                     }
                 }
             };

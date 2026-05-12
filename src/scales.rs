@@ -161,8 +161,14 @@ fn lerp(min: f64, max: f64, t: f64) -> f64 {
 pub struct Extent<T>((T, T));
 
 impl<T: Copy + PartialOrd> Extent<T> {
+    #[inline]
     fn constant(value: T) -> Self {
         Self((value, value))
+    }
+
+    #[inline]
+    pub fn is_constant(&self) -> bool {
+        self.0 .0 == self.0 .1
     }
 
     #[inline]
@@ -361,10 +367,15 @@ impl Histogram {
         (((x - self.domain_extent.min()) / self.bin_width).floor() as usize).min(self.bins() - 1)
     }
 
-    pub fn process(&mut self, x: f64) {
+    #[inline(always)]
+    pub fn add(&mut self, x: f64) {
+        self.add_n(x, 1);
+    }
+
+    pub fn add_n(&mut self, x: f64, n: usize) {
         let index = self.discrete_index(x);
 
-        let count = self.bins[index] + 1.0;
+        let count = self.bins[index] + n as f64;
 
         if count > self.max_count {
             self.max_count = count;
@@ -377,7 +388,7 @@ impl Histogram {
         let mut histogram = Self::new(bins, extent);
 
         for x in series.iter().copied() {
-            histogram.process(x);
+            histogram.add(x);
         }
 
         histogram

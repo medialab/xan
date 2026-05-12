@@ -32,6 +32,18 @@ impl Welford {
         self.m2 = m2;
     }
 
+    pub fn add_n(&mut self, value: f64, n: usize) {
+        if n == 0 {
+            return;
+        }
+        let (count, mean, m2) = (self.count, self.mean, self.m2);
+        let new_count = count + n;
+        let delta = value - mean;
+        self.mean = mean + (n as f64 * delta) / new_count as f64;
+        self.m2 = m2 + delta * delta * (count * n) as f64 / new_count as f64;
+        self.count = new_count;
+    }
+
     pub fn roll(&mut self, new_value: f64, old_value: f64) {
         let (count, mut mean, mut m2) = (self.count, self.mean, self.m2);
 
@@ -262,6 +274,27 @@ impl CovarianceWelford {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_welford_add_n() {
+        let numbers = [1.0, 2.0, 2.0, 2.0, 4.0, 6.0, 1.0, 5.0];
+        let numbers_grouped = [(1.0, 2usize), (2.0, 3), (4.0, 1), (6.0, 1), (5.0, 1)];
+
+        let mut welford = Welford::new();
+
+        for x in numbers {
+            welford.add(x);
+        }
+
+        let mut welford_many = Welford::new();
+
+        for (x, n) in numbers_grouped {
+            welford_many.add_n(x, n);
+        }
+
+        assert_eq!(welford.mean(), welford_many.mean());
+        assert_eq!(welford.variance(), welford_many.variance());
+    }
 
     #[test]
     fn test_covariance_correctness() {
