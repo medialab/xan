@@ -7,9 +7,10 @@ use colorgrad::Gradient;
 use simd_csv::ByteRecord;
 use unicode_width::UnicodeWidthStr;
 
+use crate::collections::ClusteredInsertHashmap;
 use crate::config::{Config, Delimiter};
 use crate::scales::{ExtentBuilder, GradientName, Histogram, Scale, ScaleType};
-use crate::select::SelectedColumns;
+use crate::select::{SelectedColumns, Selection};
 use crate::util::{self, ColorMode, ColorOrStyles};
 use crate::CliResult;
 
@@ -377,6 +378,7 @@ spark options:
     -D, --dist
     --striped
     --hide-names
+    -g, --groupby <cols>
     --cols <num>      Number of terminal columns, i.e. characters, that we can
                       use for drawing labels, legends and sparklines.
                       Defaults to using all your terminal's width or 80 if
@@ -402,6 +404,7 @@ struct Args {
     cmd_debate: bool,
     arg_input: Option<String>,
     arg_columns: SelectedColumns,
+    flag_groupby: Option<SelectedColumns>,
     flag_along_rows: bool,
     flag_gradient: Option<GradientName>,
     flag_background_gradient: Option<GradientName>,
@@ -434,6 +437,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("only one of -G/--gradient or -B/--background-gradient can be use at once!")?;
     }
 
+    if args.flag_groupby.is_some() && args.flag_along_rows {
+        Err("-g/--groupby does not work with --along-rows!")?;
+    }
+
     args.flag_color.apply();
 
     let mut cols = util::acquire_term_cols_ratio(&args.flag_cols)?;
@@ -453,37 +460,71 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let headers = reader.byte_headers()?.clone();
     let sel = rconf.selection(&headers)?;
 
+    let groupby_opt: Option<(Selection, ClusteredInsertHashmap<ByteRecord, Series>)> = args
+        .flag_groupby
+        .as_ref()
+        .map(|s| s.selection(&headers, !rconf.no_headers))
+        .transpose()?
+        .map(|s| (s, ClusteredInsertHashmap::new()));
+
+    if groupby_opt.is_some() && sel.len() > 1 {
+        Err("only one value column must be selected when using -g/--groupby!")?;
+    }
+
     let mut record = ByteRecord::new();
 
     let mut pool: Vec<(String, Series)> = Vec::new();
 
-    if !args.flag_along_rows {
-        pool.reserve_exact(sel.len());
-
-        for name in sel.select(&headers) {
-            pool.push((String::from_utf8_lossy(name).into_owned(), Series::new()));
-        }
-    }
-
     // Aggregating data
     let mut index: usize = 0;
 
-    while reader.read_byte_record(&mut record)? {
-        if args.flag_along_rows {
-            let mut series = Series::with_capacity(sel.len());
+    if let Some((groupby_sel, mut series_map)) = groupby_opt {
+        let column_index = sel[0];
 
-            for cell in sel.select(&record) {
-                series.try_push(cell)?;
-            }
+        while reader.read_byte_record(&mut record)? {
+            index += 1;
 
-            pool.push((format!("Row n°{}", index), series));
-        } else {
-            for (i, cell) in sel.select(&record).enumerate() {
-                pool[i].1.try_push(cell)?;
+            let group = groupby_sel.select(&record).collect();
+
+            let series = series_map.insert_with(group, Series::new);
+            series.try_push(&record[column_index])?;
+        }
+
+        for (group, series) in series_map.into_iter() {
+            let name = group
+                .iter()
+                .map(|cell| String::from_utf8_lossy(cell).into_owned())
+                .collect::<Vec<_>>()
+                .join(", ");
+
+            pool.push((name, series));
+        }
+    } else {
+        if !args.flag_along_rows {
+            pool.reserve_exact(sel.len());
+
+            for name in sel.select(&headers) {
+                pool.push((String::from_utf8_lossy(name).into_owned(), Series::new()));
             }
         }
 
-        index += 1;
+        while reader.read_byte_record(&mut record)? {
+            if args.flag_along_rows {
+                let mut series = Series::with_capacity(sel.len());
+
+                for cell in sel.select(&record) {
+                    series.try_push(cell)?;
+                }
+
+                pool.push((format!("Row n°{}", index), series));
+            } else {
+                for (i, cell) in sel.select(&record).enumerate() {
+                    pool[i].1.try_push(cell)?;
+                }
+            }
+
+            index += 1;
+        }
     }
 
     if let Some(small_multiples) = args.flag_small_multiples {
