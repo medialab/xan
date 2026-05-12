@@ -57,6 +57,8 @@ enum ColumnType {
     },
     Labels {
         sample: Vec<String>,
+        length_extent: Extent<f64>,
+        // length_histogram: Histogram,
     },
     Void,
 }
@@ -78,7 +80,13 @@ impl ColumnType {
                     "categorical"
                 }
             }
-            Self::Labels { .. } => "labels",
+            Self::Labels { length_extent, .. } => {
+                if length_extent.max() > 250.0 {
+                    "text"
+                } else {
+                    "labels"
+                }
+            }
             Self::Void => "void",
         }
     }
@@ -87,15 +95,18 @@ impl ColumnType {
 // TODO: when we have seen 1024 values, we assess whether we have labels
 // TODO: for numbers we keep first seen and a counter until we spill over
 // that many times
-// TODO: this means we must have a "decide" method called at then end of read loop
+// TODO: this means we must have a "settle" method called at then end of read loop
+// TODO: collect lengths when we are in labels mode
 
 #[derive(Debug)]
 struct ColumnEstimator {
     name: String,
     strings: Counter<Vec<u8>>,
     numbers: Vec<f64>,
-    welford: Welford,
-    extent_builder: ExtentBuilder<f64>,
+    numerical_welford: Welford,
+    numerical_extent_builder: ExtentBuilder<f64>,
+    length_welford: Welford,
+    length_extent_builder: ExtentBuilder<f64>,
     int_count: u64,
     empty_count: u64,
     count: u64,
@@ -108,8 +119,10 @@ impl ColumnEstimator {
             name: String::from_utf8_lossy(name).into_owned(),
             strings: Counter::new(None),
             numbers: Vec::new(),
-            welford: Welford::new(),
-            extent_builder: ExtentBuilder::new(),
+            numerical_welford: Welford::new(),
+            numerical_extent_builder: ExtentBuilder::new(),
+            length_welford: Welford::new(),
+            length_extent_builder: ExtentBuilder::new(),
             int_count: 0,
             empty_count: 0,
             count: 0,
@@ -127,6 +140,11 @@ impl ColumnEstimator {
             self.first_seen.push(cell.to_vec());
         }
 
+        let length = cell.len() as f64;
+
+        self.length_welford.add(length);
+        self.length_extent_builder.process(length);
+
         if let Ok(n) = DynamicNumber::try_from(cell) {
             if !n.is_float() {
                 self.int_count += 1;
@@ -134,8 +152,8 @@ impl ColumnEstimator {
 
             let f = n.as_float();
 
-            self.welford.add(f);
-            self.extent_builder.process(f);
+            self.numerical_welford.add(f);
+            self.numerical_extent_builder.process(f);
             self.numbers.push(f);
         } else {
             self.strings.add(cell.to_vec());
@@ -159,7 +177,7 @@ impl ColumnEstimator {
     }
 
     fn is_numerical(&self) -> bool {
-        !self.is_void() && self.non_empty_count() == self.welford.count() as u64
+        !self.is_void() && self.non_empty_count() == self.numerical_welford.count() as u64
     }
 
     fn is_int(&self) -> bool {
@@ -175,7 +193,7 @@ impl ColumnEstimator {
 
     fn infer_type(&mut self) -> ColumnType {
         if self.is_numerical() {
-            let extent = self.extent_builder.build().unwrap();
+            let extent = self.numerical_extent_builder.build().unwrap();
 
             let histogram =
                 Histogram::from_extent_and_series(HISTOGRAM_BINS, extent, &self.numbers);
@@ -183,9 +201,9 @@ impl ColumnEstimator {
             ColumnType::Numerical {
                 is_int: self.is_int(),
                 extent,
-                mean: self.welford.mean().unwrap(),
+                mean: self.numerical_welford.mean().unwrap(),
                 median: linear_time_median(&mut self.numbers),
-                stddev: self.welford.stdev().unwrap(),
+                stddev: self.numerical_welford.stdev().unwrap(),
                 histogram,
             }
         } else if self.string_cardinality_ratio() < 0.7 {
@@ -218,8 +236,13 @@ impl ColumnEstimator {
         } else if self.is_void() {
             ColumnType::Void
         } else {
+            let length_extent = self.length_extent_builder.build().unwrap();
+            // let length_histogram = Histogram::new(HISTOGRAM_BINS, length_extent);
+
             ColumnType::Labels {
                 sample: self.to_sample(),
+                length_extent,
+                // length_histogram,
             }
         }
     }
@@ -638,7 +661,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         format_number(median).yellow(),
                     )?;
 
-                    let scale_denomination = if extent.max() / extent.min() > 1_000.0 {
+                    let scale_denomination = if histogram.should_use_log_scale() {
                         histogram.ln_1p();
 
                         "log"
@@ -674,7 +697,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         sparkline_renderer
                     )?;
                 }
-                ColumnType::Labels { sample } => {
+                ColumnType::Labels { sample, .. } => {
                     writeln!(
                         &mut out,
                         "First {} non empty values{}:",

@@ -322,6 +322,16 @@ pub struct Histogram {
 }
 
 impl Histogram {
+    pub fn new(bins: usize, extent: Extent<f64>) -> Self {
+        Self {
+            bins: vec![0.0; bins],
+            domain_extent: extent,
+            bin_width: extent.width() / bins as f64,
+            max_count: 0.0,
+            max_value: None,
+        }
+    }
+
     #[inline(always)]
     pub fn bins(&self) -> usize {
         self.bins.len()
@@ -333,6 +343,10 @@ impl Histogram {
 
     pub fn max_value(&self) -> f64 {
         self.max_value.unwrap_or(self.max_count)
+    }
+
+    pub fn should_use_log_scale(&self) -> bool {
+        self.domain_extent.max() / self.domain_extent.min() > 1_000.0
     }
 
     pub fn ln_1p(&mut self) {
@@ -347,7 +361,7 @@ impl Histogram {
         (((x - self.domain_extent.min()) / self.bin_width).floor() as usize).min(self.bins() - 1)
     }
 
-    fn process(&mut self, x: f64) {
+    pub fn process(&mut self, x: f64) {
         let index = self.discrete_index(x);
 
         let count = self.bins[index] + 1.0;
@@ -360,13 +374,7 @@ impl Histogram {
     }
 
     pub fn from_extent_and_series(bins: usize, extent: Extent<f64>, series: &[f64]) -> Self {
-        let mut histogram = Self {
-            bins: vec![0.0; bins],
-            domain_extent: extent,
-            bin_width: extent.width() / bins as f64,
-            max_count: 0.0,
-            max_value: None,
-        };
+        let mut histogram = Self::new(bins, extent);
 
         for x in series.iter().copied() {
             histogram.process(x);
