@@ -363,6 +363,12 @@ impl Histogram {
         self.max_value = Some(self.max_count.ln_1p());
     }
 
+    // pub fn should_shrink(&self) -> bool {
+    //     let empty = self.bins.iter().map(|b| *b == 0.0).count();
+
+    //     empty >= self.bins() / 2
+    // }
+
     pub fn discrete_index(&self, x: f64) -> usize {
         (((x - self.domain_extent.min()) / self.bin_width).floor() as usize).min(self.bins() - 1)
     }
