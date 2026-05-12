@@ -21,6 +21,8 @@ enum SparklineColorMode {
     #[default]
     None,
     Striped,
+    Rainbow,
+    StripedRainbow,
     Gradient(Box<dyn Gradient>),
     BackgroundGradient(Box<dyn Gradient>),
 }
@@ -72,7 +74,7 @@ pub struct SparklineRenderer {
 impl SparklineRenderer {
     #[inline(always)]
     pub fn render(&mut self, scale: &Scale, bins: &[f64]) {
-        self.render_impl(None, scale, bins, None);
+        self.render_impl(0, None, scale, bins, None);
     }
 
     #[inline(always)]
@@ -82,11 +84,12 @@ impl SparklineRenderer {
         bins: &[f64],
         color_overrides_opt: Option<&[Option<ColorOrStyles>]>,
     ) {
-        self.render_impl(None, scale, bins, color_overrides_opt);
+        self.render_impl(0, None, scale, bins, color_overrides_opt);
     }
 
     pub fn render_impl(
         &mut self,
+        sparkline_index: usize,
         name_opt: Option<&str>,
         scale: &Scale,
         bins: &[f64],
@@ -170,6 +173,35 @@ impl SparklineRenderer {
                                     .unwrap();
                                 } else {
                                     self.draw_buffer.push(sparkline_char);
+                                }
+                            }
+                            SparklineColorMode::Rainbow => {
+                                let color = util::colorizer_by_rainbow(sparkline_index, "spark");
+
+                                write!(
+                                    &mut self.draw_buffer,
+                                    "{}",
+                                    color.colorize(&sparkline_char.to_string())
+                                )
+                                .unwrap();
+                            }
+                            SparklineColorMode::StripedRainbow => {
+                                let color = util::colorizer_by_rainbow(sparkline_index, "spark");
+
+                                if i % 2 == 0 {
+                                    write!(
+                                        &mut self.draw_buffer,
+                                        "{}",
+                                        color.colorize(&sparkline_char.to_string()).dimmed()
+                                    )
+                                    .unwrap();
+                                } else {
+                                    write!(
+                                        &mut self.draw_buffer,
+                                        "{}",
+                                        color.colorize(&sparkline_char.to_string())
+                                    )
+                                    .unwrap();
                                 }
                             }
                             SparklineColorMode::Gradient(gradient) => {
@@ -322,6 +354,8 @@ spark options:
     -G, --gradient <name>
     -B, --background-gradient <name>
     -S, --small-multiples <n>
+    -R, --rainbow
+    --striped
     --hide-names
     --cols <num>      Number of terminal columns, i.e. characters, that we can
                       use for drawing labels, legends and sparklines.
@@ -353,6 +387,8 @@ struct Args {
     flag_background_gradient: Option<GradientName>,
     flag_small_multiples: Option<NonZeroUsize>,
     flag_hide_names: bool,
+    flag_striped: bool,
+    flag_rainbow: bool,
     flag_width: NonZeroUsize,
     flag_height: NonZeroUsize,
     flag_cols: Option<String>,
@@ -463,6 +499,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     } else if let Some(gradient) = args.flag_background_gradient {
         sparkline_renderer_options.color_mode =
             SparklineColorMode::BackgroundGradient(gradient.build());
+    } else if args.flag_striped {
+        if args.flag_rainbow {
+            sparkline_renderer_options.color_mode = SparklineColorMode::StripedRainbow;
+        } else {
+            sparkline_renderer_options.color_mode = SparklineColorMode::Striped;
+        }
+    } else if args.flag_rainbow {
+        sparkline_renderer_options.color_mode = SparklineColorMode::Rainbow;
     }
 
     let mut sparkline_renderer = sparkline_renderer_options.build();
@@ -471,7 +515,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         args.flag_small_multiples.map(|_| Vec::new());
 
     // Rendering
-    for (name, mut series) in pool.into_iter() {
+    for (i, (name, mut series)) in pool.into_iter().enumerate() {
         if series.len() > max_bins {
             series.discretize(max_bins);
         }
@@ -488,7 +532,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         });
 
         let scale = series.to_scale(ScaleType::Linear).unwrap();
-        sparkline_renderer.render_impl(name_opt.as_deref(), &scale, &series.numbers, None);
+        sparkline_renderer.render_impl(i, name_opt.as_deref(), &scale, &series.numbers, None);
 
         if let Some(small_multiples_buffer) = small_multiples_buffer_opt.as_mut() {
             small_multiples_buffer.push(sparkline_renderer.to_string());
