@@ -349,7 +349,7 @@ spark options:
                       its width.
                       [default: 1]
     -H, --height <n>  Number of characters a sparkline bar is allowed to take as
-                      its height.
+                      its height. TODO: can take percentage
                       [default: 1]
     -G, --gradient <name>
     -B, --background-gradient <name>
@@ -390,7 +390,7 @@ struct Args {
     flag_striped: bool,
     flag_rainbow: bool,
     flag_width: NonZeroUsize,
-    flag_height: NonZeroUsize,
+    flag_height: Option<String>,
     flag_cols: Option<String>,
     flag_color: ColorMode,
     flag_no_headers: bool,
@@ -477,7 +477,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     // Layout
     let mut cols_for_sparkline = cols;
     let sparkline_width = args.flag_width.get();
-    let sparkline_height = args.flag_height.get();
+
+    let rows = util::acquire_term_rows_ratio(&args.flag_height)?;
+
+    let sparkline_height = if args.flag_height.is_some() { rows } else { 1 };
 
     let mut cols_for_series_name: usize = 0;
 
