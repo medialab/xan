@@ -124,7 +124,7 @@ macro_rules! command_list {
     network     Convert CSV data to network data
 
 ## Scripting
-    run   Run a `xan` pipeline or script
+    run   Run a xan pipeline or script
     eval  Evaluate/debug a single expression
 "
     };
