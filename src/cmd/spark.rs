@@ -512,16 +512,23 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         return Ok(());
     }
 
-    if args.flag_gradient.is_some() && args.flag_background_gradient.is_some() {
-        Err("only one of -G/--gradient or -B/--background-gradient can be use at once!")?;
+    let color_mode = args.flag_category.is_some() as u8
+        + args.flag_gradient.is_some() as u8
+        + args.flag_background_gradient.is_some() as u8
+        + args.flag_rainbow as u8;
+
+    if color_mode > 1 {
+        Err("only one of -c/--category, -R/--rainbow, -G/--gradient or -B/--background-gradient can be use at once!")?;
     }
 
-    if args.flag_groupby.is_some() && args.flag_along_rows {
-        Err("-g/--groupby does not work with --along-rows!")?;
-    }
+    if args.flag_along_rows {
+        if args.flag_groupby.is_some() {
+            Err("-g/--groupby does not work with --along-rows!")?;
+        }
 
-    if args.flag_category.is_some() && args.flag_along_rows {
-        Err("-c/--category does not work with --along-rows!")?;
+        if args.flag_category.is_some() {
+            Err("-c/--category does not work with --along-rows!")?;
+        }
     }
 
     if args.flag_dist && args.flag_category.is_some() {
