@@ -359,14 +359,6 @@ impl Histogram {
         self.domain_extent.max() / self.domain_extent.min() > 1_000.0
     }
 
-    pub fn ln_1p(&mut self) {
-        for x in self.bins.iter_mut() {
-            *x = x.ln_1p();
-        }
-
-        self.max_value = Some(self.max_count.ln_1p());
-    }
-
     // pub fn should_shrink(&self) -> bool {
     //     let empty = self.bins.iter().map(|b| *b == 0.0).count();
 
@@ -700,7 +692,7 @@ impl TryFrom<String> for ScaleType {
 impl fmt::Display for ScaleType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Linear => write!(f, "lin"),
+            Self::Linear => write!(f, "linear"),
             Self::Logarithmic(base) => match base {
                 LogBase::Base2 => write!(f, "log2"),
                 LogBase::Base10 => write!(f, "log10"),

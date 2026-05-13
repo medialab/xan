@@ -648,7 +648,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     mean,
                     median,
                     stddev,
-                    mut histogram,
+                    histogram,
                     ..
                 } => {
                     writeln!(
@@ -670,16 +670,24 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         format_number(median).yellow(),
                     )?;
 
-                    let scale_denomination = if histogram.should_use_log_scale() {
-                        histogram.ln_1p();
-
-                        "log"
+                    let scale_type = if histogram.should_use_log_scale() {
+                        ScaleType::ln()
                     } else {
-                        "linear"
+                        ScaleType::Linear
                     };
 
-                    let sparkline_scale =
-                        Scale::new(ScaleType::Linear, (0.0, histogram.max_value()), (0.0, 1.0));
+                    let sparkline_scale = Scale::new(
+                        scale_type,
+                        (
+                            if scale_type.disallows_zero() {
+                                1.0
+                            } else {
+                                0.0
+                            },
+                            histogram.max_value(),
+                        ),
+                        (0.0, 1.0),
+                    );
 
                     let mut sparkline_renderer_options = SparklineRendererOptions::new();
                     sparkline_renderer_options.height = 5;
@@ -698,7 +706,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     writeln!(
                         &mut out,
                         "distribution ({} scale, {}/total): {}/{} ({:.2}%)\n{}",
-                        scale_denomination.cyan(),
+                        scale_type.to_string().cyan(),
                         "highest".red(),
                         format_number(histogram.max_count()).red(),
                         format_number(estimator.count),
@@ -708,7 +716,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
                 ColumnType::Labels {
                     sample,
-                    mut length_histogram,
+                    length_histogram,
                     length_extent,
                 } => {
                     writeln!(
@@ -742,17 +750,22 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             length_extent.min().to_string().red()
                         )?;
                     } else {
-                        let scale_denomination = if length_histogram.should_use_log_scale() {
-                            length_histogram.ln_1p();
-
-                            "log"
+                        let scale_type = if length_histogram.should_use_log_scale() {
+                            ScaleType::ln()
                         } else {
-                            "linear"
+                            ScaleType::Linear
                         };
 
                         let sparkline_scale = Scale::new(
-                            ScaleType::Linear,
-                            (0.0, length_histogram.max_value()),
+                            scale_type,
+                            (
+                                if scale_type.disallows_zero() {
+                                    1.0
+                                } else {
+                                    0.0
+                                },
+                                length_histogram.max_value(),
+                            ),
                             (0.0, 1.0),
                         );
 
@@ -766,7 +779,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         writeln!(
                             &mut out,
                             "length distribution ({} scale, {} … {}): {} … {}",
-                            scale_denomination.cyan(),
+                            scale_type.to_string().cyan(),
                             "min".blue(),
                             "max".red(),
                             length_extent.min().to_string().blue(),
