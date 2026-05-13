@@ -4,7 +4,7 @@ use bstr::ByteSlice;
 use simd_csv::ByteRecord;
 
 use crate::cmd::parallel::Args as ParallelArgs;
-use crate::collections::{ClusteredInsertHashmap, Counter};
+use crate::collections::{ClusteredInsertHashmap, Counter, CounterSpec};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
 use crate::util;
@@ -147,10 +147,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         return Ok(());
     }
 
-    let approx_k = if args.flag_approx {
-        Some(args.flag_limit)
+    let counter_spec = if args.flag_approx {
+        CounterSpec::SpaceSaving(args.flag_limit)
     } else {
-        None
+        CounterSpec::Exact
     };
 
     let rconf = Config::new(&args.arg_input)
@@ -240,7 +240,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 let mut list = Vec::with_capacity(sel.len());
 
                 for _ in 0..sel.len() {
-                    list.push(Counter::new(approx_k));
+                    list.push(Counter::new(counter_spec));
                 }
 
                 list
@@ -316,7 +316,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     } else {
         let mut fields: Vec<Counter<ValueKey>> =
-            (0..sel.len()).map(|_| Counter::new(approx_k)).collect();
+            (0..sel.len()).map(|_| Counter::new(counter_spec)).collect();
 
         let output_headers = {
             let mut r = ByteRecord::new();

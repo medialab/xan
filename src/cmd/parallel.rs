@@ -20,7 +20,7 @@ use simd_csv::ByteRecord;
 
 use crate::cmd::progress::get_progress_style;
 use crate::cmd::top::Value as TopValue;
-use crate::collections::{Counter, DynamicOrd, TopKHeapMapWithTies};
+use crate::collections::{Counter, CounterSpec, DynamicOrd, TopKHeapMapWithTies};
 use crate::config::{Compression, Config, Delimiter};
 use crate::moonblade::{AggregationProgram, GroupAggregationProgram, Stats};
 use crate::processing::{parse_pipeline, Children};
@@ -304,7 +304,7 @@ impl FrequencyTables {
         }
     }
 
-    fn with_capacity(selected_headers: ByteRecord, approx_capacity: Option<usize>) -> Self {
+    fn with_capacity(selected_headers: ByteRecord, counter_spec: CounterSpec) -> Self {
         let mut freq_counters = Self {
             counters: Vec::with_capacity(selected_headers.len()),
         };
@@ -312,7 +312,7 @@ impl FrequencyTables {
         for header in selected_headers.into_iter() {
             freq_counters
                 .counters
-                .push((header.to_vec(), Counter::new(approx_capacity)));
+                .push((header.to_vec(), Counter::new(counter_spec)));
         }
 
         freq_counters
@@ -1301,7 +1301,11 @@ impl Args {
             Err("-a, --approx cannot work with --limit=0 or -A, --all!")?;
         }
 
-        let approx_capacity = self.flag_approx.then_some(self.flag_limit);
+        let counter_spec = if self.flag_approx {
+            CounterSpec::SpaceSaving(self.flag_limit)
+        } else {
+            CounterSpec::Exact
+        };
 
         let process_manager = self.process_manager(inputs.len());
 
@@ -1316,7 +1320,7 @@ impl Args {
             let sel = self.flag_select.selection(&headers, true)?;
 
             let mut freq_tables =
-                FrequencyTables::with_capacity(sel.select(&headers).collect(), approx_capacity);
+                FrequencyTables::with_capacity(sel.select(&headers).collect(), counter_spec);
 
             let mut record = ByteRecord::new();
 

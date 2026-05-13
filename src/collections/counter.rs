@@ -111,17 +111,17 @@ impl<K: Eq + Hash + Send + Ord> ExactCounter<K> {
 }
 
 #[derive(Clone)]
-pub struct ApproxCounter<K: Eq + Hash + Send + Ord> {
+pub struct SpaceSavingCounter<K: Eq + Hash + Send + Ord> {
     map: FilteredSpaceSaving<K>,
 }
 
-impl<K: Eq + Hash + Send + Ord> fmt::Debug for ApproxCounter<K> {
+impl<K: Eq + Hash + Send + Ord> fmt::Debug for SpaceSavingCounter<K> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ApproxCounter").finish()
     }
 }
 
-impl<K: Eq + Hash + Send + Ord + Clone> ApproxCounter<K> {
+impl<K: Eq + Hash + Send + Ord + Clone> SpaceSavingCounter<K> {
     pub fn new(k: usize) -> Self {
         Self {
             map: FilteredSpaceSaving::new(k),
@@ -156,24 +156,30 @@ impl<K: Eq + Hash + Send + Ord + Clone> ApproxCounter<K> {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum CounterSpec {
+    Exact,
+    SpaceSaving(usize),
+}
+
 #[derive(Debug, Clone)]
 pub enum Counter<K: Eq + Hash + Send + Ord> {
     Exact(ExactCounter<K>),
-    Approximate(Box<ApproxCounter<K>>),
+    SpaceSaving(Box<SpaceSavingCounter<K>>),
 }
 
 impl<K: Eq + Hash + Send + Ord + Clone> Counter<K> {
-    pub fn new(approx_capacity: Option<usize>) -> Self {
-        match approx_capacity {
-            Some(k) => Self::Approximate(Box::new(ApproxCounter::new(k))),
-            None => Self::Exact(ExactCounter::new()),
+    pub fn new(spec: CounterSpec) -> Self {
+        match spec {
+            CounterSpec::SpaceSaving(k) => Self::SpaceSaving(Box::new(SpaceSavingCounter::new(k))),
+            CounterSpec::Exact => Self::Exact(ExactCounter::new()),
         }
     }
 
     pub fn cardinality(&self) -> u64 {
         match self {
             Self::Exact(inner) => inner.cardinality(),
-            Self::Approximate(inner) => inner.cardinality(),
+            Self::SpaceSaving(inner) => inner.cardinality(),
         }
     }
 
@@ -182,7 +188,7 @@ impl<K: Eq + Hash + Send + Ord + Clone> Counter<K> {
             Self::Exact(inner) => {
                 inner.add(key);
             }
-            Self::Approximate(inner) => {
+            Self::SpaceSaving(inner) => {
                 inner.add(key);
             }
         }
@@ -191,7 +197,7 @@ impl<K: Eq + Hash + Send + Ord + Clone> Counter<K> {
     pub fn iter(&self) -> Box<dyn Iterator<Item = (&K, u64)> + '_> {
         match self {
             Self::Exact(inner) => Box::new(inner.iter()),
-            Self::Approximate(inner) => Box::new(inner.iter()),
+            Self::SpaceSaving(inner) => Box::new(inner.iter()),
         }
     }
 
@@ -202,14 +208,14 @@ impl<K: Eq + Hash + Send + Ord + Clone> Counter<K> {
     ) -> (u64, Vec<(K, u64)>) {
         match self {
             Self::Exact(inner) => inner.into_total_and_items(limit, parallel),
-            Self::Approximate(inner) => inner.into_total_and_top(),
+            Self::SpaceSaving(inner) => inner.into_total_and_top(),
         }
     }
 
     pub fn merge(&mut self, other: Self) {
         match (self, other) {
             (Self::Exact(inner_self), Self::Exact(inner_other)) => inner_self.merge(inner_other),
-            (Self::Approximate(inner_self), Self::Approximate(inner_other)) => {
+            (Self::SpaceSaving(inner_self), Self::SpaceSaving(inner_other)) => {
                 inner_self.merge(*inner_other)
             }
             _ => unreachable!(),

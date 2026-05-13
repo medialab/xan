@@ -10,7 +10,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::cmd::parallel::Args as ParallelArgs;
 use crate::cmd::spark::SparklineRendererOptions;
-use crate::collections::{ClusteredInsertHashmap, Counter};
+use crate::collections::{ClusteredInsertHashmap, Counter, CounterSpec};
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{DynamicNumber, Stats, Welford};
 use crate::scales::{sturges, Extent, ExtentBuilder, Histogram, Scale, ScaleType};
@@ -112,7 +112,7 @@ impl ColumnEstimator {
     fn new(name: &[u8]) -> Self {
         Self {
             name: String::from_utf8_lossy(name).into_owned(),
-            strings: Counter::new(None),
+            strings: Counter::new(CounterSpec::Exact),
             numbers: Vec::new(),
             numerical_welford: Welford::new(),
             numerical_extent_builder: ExtentBuilder::new(),
