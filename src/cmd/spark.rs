@@ -378,7 +378,7 @@ spark options:
     -b, --bins <n>    Number of bins. [default: 35]
     --log
     -D, --dist
-    --striped
+    -z, --striped
     --hide-names
     -g, --groupby <cols>
     --cols <num>      Number of terminal columns, i.e. characters, that we can
