@@ -429,7 +429,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let width = args.flag_width.map(NonZeroUsize::get).unwrap_or(size * 2);
 
     let mut formatter = (args.flag_show_numbers || args.flag_show_normalized).then(|| {
-        Formatter::new().precision(Precision::Significance(width.saturating_sub(3).max(1) as u8))
+        Formatter::new()
+            .separator(',')
+            .unwrap()
+            .precision(Precision::Significance(width.saturating_sub(3).max(1) as u8))
     });
 
     // Printing column info
