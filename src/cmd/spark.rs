@@ -297,6 +297,10 @@ impl ColorMap {
 
         *self.map.entry(name.to_vec()).or_insert(i)
     }
+
+    fn new_mask(&self) -> Vec<bool> {
+        vec![false; self.map.len()]
+    }
 }
 
 #[derive(Debug)]
@@ -396,6 +400,37 @@ impl Series {
 
             self.categories = categories_bins;
         }
+    }
+
+    fn categorical_sort(&mut self, color_map: &ColorMap) {
+        debug_assert!(self.categories.len() == self.numbers.len());
+
+        let mut category_mask = color_map.new_mask();
+
+        for category in self.categories.iter().copied() {
+            category_mask[category] = true;
+        }
+
+        for (category, mask) in category_mask.iter().copied().enumerate() {
+            if !mask {
+                self.push(0.0);
+                self.categories.push(category);
+            }
+        }
+
+        let mut indices = (0..self.numbers.len()).collect::<Vec<_>>();
+        indices.sort_by(|a, b| self.categories[*a].cmp(&self.categories[*b]));
+
+        let mut new_numbers = Vec::with_capacity(self.numbers.len());
+        let mut new_categories = Vec::with_capacity(self.categories.len());
+
+        for i in indices {
+            new_numbers.push(self.numbers[i]);
+            new_categories.push(self.categories[i]);
+        }
+
+        self.numbers = new_numbers;
+        self.categories = new_categories;
     }
 
     fn to_scale(&self, scale_type: ScaleType) -> Option<Scale> {
@@ -606,12 +641,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
         }
 
-        for (group, series) in series_map.into_iter() {
+        for (group, mut series) in series_map.into_iter() {
             let name = group
                 .iter()
                 .map(|cell| String::from_utf8_lossy(cell).into_owned())
                 .collect::<Vec<_>>()
                 .join(", ");
+
+            if let Some((_, color_map)) = categories_opt.as_ref() {
+                series.categorical_sort(color_map);
+            }
 
             pool.push((name, series));
         }
