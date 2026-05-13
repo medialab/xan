@@ -210,9 +210,9 @@ search options:
     -v, --invert-match        Select only rows that did not match
     -s, --select <arg>        Select the columns to search. See 'xan select -h'
                               for the full syntax.
-    -A, --all                 Only return a row when ALL columns from the given selection
-                              match the desired pattern, instead of returning a row
-                              when ANY column matches.
+    --every-column            Only output a row when every selected column matches
+                              a pattern, instead of the default behavior outputting
+                              a row if any selected column matches.
     -f, --flag <column>       Instead of filtering rows, add a new column indicating if any match
                               was found.
     -c, --count <column>      Report the number of non-overlapping pattern matches in a new column with

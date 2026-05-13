@@ -737,9 +737,9 @@ search options:
     -v, --invert-match        Select only rows that did not match
     -s, --select <arg>        Select the columns to search. See 'xan select -h'
                               for the full syntax.
-    -A, --all                 Only return a row when ALL columns from the given selection
-                              match the desired pattern, instead of returning a row
-                              when ANY column matches.
+    --every-column            Only output a row when every selected column matches
+                              a pattern, instead of the default behavior outputting
+                              a row if any selected column matches.
     -f, --flag <column>       Instead of filtering rows, add a new column indicating if any match
                               was found.
     -c, --count <column>      Report the number of non-overlapping pattern matches in a new column with
@@ -826,7 +826,7 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
     flag_invert_match: bool,
     flag_overlapping: bool,
-    flag_all: bool,
+    flag_every_column: bool,
     flag_ignore_case: bool,
     flag_empty: bool,
     flag_non_empty: bool,
@@ -1117,8 +1117,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("-B/--before-context & -A/--after-context only work with the command default mode.\nNo -R/--replace, --replacement-column, -b/--breakdown, -c/--count, -f/--flag nor -U/--unique-matches!")?;
     }
 
-    if args.flag_all && actions_count > 0 {
-        Err("-A/--all does not work with -R/--replace, --replacement-column, -b/--breakdown, -c/--count nor -U/--unique-matches!")?;
+    if args.flag_every_column && actions_count > 0 {
+        Err("--every-column does not work with -R/--replace, --replacement-column, -b/--breakdown, -c/--count nor -U/--unique-matches!")?;
     }
 
     let threads = util::parallelization(args.flag_parallel, args.flag_threads);
@@ -1263,7 +1263,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         while let Some(record) = rdr.read_byte_record()? {
-            let mut is_match = if args.flag_all {
+            let mut is_match = if args.flag_every_column {
                 try_all(sel.select(&record), |cell| matcher.is_match(cell))?
             } else {
                 try_any(sel.select(&record), |cell| matcher.is_match(cell))?
@@ -1426,7 +1426,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
                 // Filter
                 else {
-                    is_match = if args.flag_all {
+                    is_match = if args.flag_every_column {
                         try_all(sel.select(&record), |cell| matcher.is_match(cell))?
                     } else {
                         try_any(sel.select(&record), |cell| matcher.is_match(cell))?
@@ -1576,7 +1576,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
         // Filter
         else {
-            is_match = if args.flag_all {
+            is_match = if args.flag_every_column {
                 try_all(sel.select(&record), |cell| matcher.is_match(cell))?
             } else {
                 try_any(sel.select(&record), |cell| matcher.is_match(cell))?

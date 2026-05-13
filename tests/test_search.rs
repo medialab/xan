@@ -522,8 +522,8 @@ fn search_empty() {
 }
 
 #[test]
-fn search_all() {
-    let wrk = Workdir::new("search_all");
+fn search_every_column() {
+    let wrk = Workdir::new("search_every_column");
 
     wrk.create(
         "data.csv",
@@ -536,7 +536,7 @@ fn search_all() {
     );
 
     let mut cmd = wrk.command("search");
-    cmd.arg("data.csv").arg("--non-empty").arg("--all");
+    cmd.arg("data.csv").arg("--non-empty").arg("--every-column");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["name", "color"], svec!["John", "red"]];

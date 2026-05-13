@@ -22,6 +22,7 @@
 * Dropping `xan plot -B/--bars`. It never worked very well and its use-case will be redirected to `xan spark`.
 * Changing `xan heatmap --width` short flag from `-w` to `-W` so that adding a `-H/--height` flag remain consistent and avoids clashing with `-h/--help`.
 * Dropping `xan heatmap --show-gradients` in favor of `xan help gradients`.
+* Renaming `xan search -A/--all` flag to `--every-column` for clarity and avoid clash with `-A/--after-context`.
 
 *Features*
 
