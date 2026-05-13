@@ -592,6 +592,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             let series = series_map.insert_with(group, || args.new_series(None));
             series.try_push(&record[column_index])?;
+
+            if let Some((category_column_index, color_map)) = categories_opt.as_mut() {
+                let category = color_map.register(&record[*category_column_index]);
+                series.push_category(category);
+            }
         }
 
         for (group, series) in series_map.into_iter() {
