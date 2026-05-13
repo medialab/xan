@@ -433,6 +433,7 @@ spark options:
     -c, --category <col>
     -m, --min <n>
     -M, --max <n>
+    -w, --wrap
     --cols <num>      Number of terminal columns, i.e. characters, that we can
                       use for drawing labels, legends and sparklines.
                       Defaults to using all your terminal's width or 80 if
@@ -472,6 +473,7 @@ struct Args {
     flag_log: bool,
     flag_min: Option<f64>,
     flag_max: Option<f64>,
+    flag_wrap: bool,
     flag_width: NonZeroUsize,
     flag_height: Option<String>,
     flag_cols: Option<String>,
@@ -667,6 +669,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         cols_for_sparkline -= cols_for_series_name;
     }
 
+    let name_padding = " ".repeat(cols_for_series_name);
+
     let max_bins = cols_for_sparkline / sparkline_width;
 
     let mut sparkline_renderer_options = SparklineRendererOptions::new();
@@ -701,7 +705,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             series.distribution(args.flag_bins.get(), args.flag_log);
         }
 
-        if series.len() > max_bins {
+        if !args.flag_wrap && series.len() > max_bins {
             series.discretize(max_bins);
         }
 
@@ -716,31 +720,56 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             )
         });
 
+        if categories_opt.is_some() {
+            colors_buffer.clear();
+
+            for category in series.categories.iter().copied() {
+                colors_buffer.push(Some(util::colorizer_by_rainbow_with_fallback(
+                    category, name_hash, "spark",
+                )));
+            }
+        }
+
         let scale = series.to_scale(ScaleType::Linear).unwrap();
-        sparkline_renderer.render_impl(
-            i,
-            name_opt.as_deref(),
-            &scale,
-            &series.numbers,
-            if categories_opt.is_some() {
-                colors_buffer.clear();
 
-                for category in series.categories.iter().copied() {
-                    colors_buffer.push(Some(util::colorizer_by_rainbow_with_fallback(
-                        category, name_hash, "spark",
-                    )));
-                }
-
-                Some(&colors_buffer)
-            } else {
-                None
-            },
-        );
-
-        if let Some(small_multiples_buffer) = small_multiples_buffer_opt.as_mut() {
-            small_multiples_buffer.push(sparkline_renderer.to_string());
+        let chunk_size = if args.flag_wrap {
+            cols_for_sparkline
         } else {
-            writeln!(&mut out, "{}", sparkline_renderer)?;
+            series.len()
+        };
+
+        let mut offset: usize = 0;
+
+        for (chunk_i, chunk) in series.numbers.chunks(chunk_size).enumerate() {
+            if chunk.len() < chunk_size {}
+
+            sparkline_renderer.render_impl(
+                i,
+                if chunk_i == 0 {
+                    name_opt.as_deref()
+                } else if name_opt.is_some() {
+                    Some(name_padding.as_str())
+                } else {
+                    None
+                },
+                &scale,
+                chunk,
+                if categories_opt.is_some() {
+                    Some(&colors_buffer[offset..offset + chunk.len()])
+                } else {
+                    None
+                },
+            );
+
+            if let Some(small_multiples_buffer) = small_multiples_buffer_opt.as_mut() {
+                let sparkline = sparkline_renderer.to_string();
+
+                small_multiples_buffer.push(sparkline);
+            } else {
+                writeln!(&mut out, "{}", sparkline_renderer)?;
+            }
+
+            offset += chunk.len();
         }
     }
 
