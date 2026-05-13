@@ -391,16 +391,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let (mut has_timezone_opt, flag_x_min, flag_x_max) = args.parse_x_bounds()?;
     let (flag_y_min, flag_y_max) = (args.flag_y_min, args.flag_y_max);
 
-    if args.flag_x_scale.is_logarithmic()
-        && (matches!(flag_x_min, Some(v) if v <= 0.0) || matches!(flag_x_max, Some(v) if v <= 0.0))
+    if matches!(flag_x_min, Some(v) if !args.flag_x_scale.accepts(v))
+        || matches!(flag_x_max, Some(v) if !args.flag_x_scale.accepts(v))
     {
-        Err("--x-min or --x-max cannot be <= 0 with log --x-scale!")?;
+        Err("--x-min or --x-max values are incompatible with --x-scale!")?;
     }
 
-    if args.flag_y_scale.is_logarithmic()
-        && (matches!(flag_y_min, Some(v) if v <= 0.0) || matches!(flag_y_max, Some(v) if v <= 0.0))
+    if matches!(flag_y_min, Some(v) if !args.flag_y_scale.accepts(v))
+        || matches!(flag_y_max, Some(v) if !args.flag_y_scale.accepts(v))
     {
-        Err("--y-min or --y-max cannot be <= 0 with log --y-scale!")?;
+        Err("--y-min or --y-max values are incompatible with --y-scale!")?;
     }
 
     if matches!(args.flag_x_ticks, Some(n) if n.get() < 2) {
@@ -529,11 +529,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     }
                 }
                 Ok(v) => {
-                    if $scale.is_logarithmic() && v <= 0.0 {
+                    if !$scale.accepts(v) {
                         if args.flag_ignore {
                             continue;
                         } else {
-                            Err("log scale encountered a value <= 0!")?
+                            Err("scale encountered an illegal value!")?
                         }
                     } else {
                         v

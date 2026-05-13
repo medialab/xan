@@ -299,7 +299,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let scale = Scale::new(
             args.flag_scale,
             (
-                if args.flag_scale.is_logarithmic() {
+                if args.flag_scale.disallows_zero() {
                     1.0
                 } else {
                     0.0

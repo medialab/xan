@@ -345,8 +345,11 @@ impl Series {
     fn try_push(&mut self, scale_type: ScaleType, cell: &[u8]) -> CliResult<()> {
         let x = fast_float::parse(cell)?;
 
-        if scale_type.is_logarithmic() && x <= 0.0 {
-            Err(format!("log scale encountered a value ({}) <= 0!", x))?;
+        if !scale_type.accepts(x) {
+            Err(format!(
+                "given --scale encountered an illegal value ({}) <= 0!",
+                x
+            ))?;
         }
 
         self.push(x);
@@ -366,7 +369,7 @@ impl Series {
         }
 
         self.extent_builder.clear();
-        self.extent_builder.process(if scale_type.is_logarithmic() {
+        self.extent_builder.process(if scale_type.disallows_zero() {
             1.0
         } else {
             0.0
@@ -585,11 +588,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         args.flag_scale = ScaleType::ln();
     }
 
-    if args.flag_scale.is_logarithmic()
-        && (matches!(args.flag_min, Some(v) if v <= 0.0)
-            || matches!(args.flag_max, Some(v) if v <= 0.0))
+    if matches!(args.flag_min, Some(v) if !args.flag_scale.accepts(v))
+        || matches!(args.flag_max, Some(v) if !args.flag_scale.accepts(v))
     {
-        Err("-m/--min or -M/--max cannot be <= 0 with a log scale!")?;
+        Err("-m/--min or -M/--max values are incompatible with --scale!")?;
     }
 
     args.flag_color.apply();

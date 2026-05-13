@@ -638,6 +638,17 @@ impl ScaleType {
         matches!(self, Self::Linear)
     }
 
+    pub fn disallows_zero(&self) -> bool {
+        matches!(self, Self::Logarithmic(_))
+    }
+
+    pub fn accepts(&self, x: f64) -> bool {
+        match self {
+            Self::Linear => true,
+            Self::Logarithmic(_) => x > 0.0,
+        }
+    }
+
     pub fn is_logarithmic(&self) -> bool {
         matches!(self, Self::Logarithmic(_))
     }
