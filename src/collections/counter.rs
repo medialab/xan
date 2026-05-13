@@ -1,4 +1,5 @@
 use std::cmp::Reverse;
+use std::convert::TryFrom;
 use std::fmt;
 use std::hash::Hash;
 
@@ -110,6 +111,25 @@ impl<K: Eq + Hash + Send + Ord> ExactCounter<K> {
     }
 }
 
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(try_from = "String")]
+pub enum ApproxCounterAlgorithm {
+    SpaceSaving,
+    HeavyKeeper,
+}
+
+impl TryFrom<String> for ApproxCounterAlgorithm {
+    type Error = String;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Ok(match value.as_str() {
+            "spacesaving" | "space_saving" | "space-saving" | "ss" => Self::SpaceSaving,
+            "heavykeeper" | "heavy_keeper" | "heavy-keeper" | "hk" => Self::HeavyKeeper,
+            _ => return Err(format!("unknown --approx-method {}", value)),
+        })
+    }
+}
+
 #[derive(Clone)]
 pub struct SpaceSavingCounter<K: Eq + Hash + Send + Ord> {
     map: FilteredSpaceSaving<K>,
@@ -117,7 +137,7 @@ pub struct SpaceSavingCounter<K: Eq + Hash + Send + Ord> {
 
 impl<K: Eq + Hash + Send + Ord> fmt::Debug for SpaceSavingCounter<K> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ApproxCounter").finish()
+        f.debug_struct("SpaceSavingCounter").finish()
     }
 }
 
