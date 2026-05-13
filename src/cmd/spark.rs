@@ -7,12 +7,22 @@ use colorgrad::Gradient;
 use simd_csv::ByteRecord;
 use unicode_width::UnicodeWidthStr;
 
-use crate::collections::ClusteredInsertHashmap;
+use crate::collections::{new_index_map, ClusteredInsertHashmap, IndexMap};
 use crate::config::{Config, Delimiter};
 use crate::scales::{ExtentBuilder, GradientName, Histogram, Scale, ScaleType};
 use crate::select::{SelectedColumns, Selection};
 use crate::util::{self, ColorMode, ColorOrStyles};
 use crate::CliResult;
+
+fn compute_name_hash(name: &[u8]) -> usize {
+    let mut sum: usize = 0;
+
+    for byte in name {
+        sum += *byte as usize;
+    }
+
+    sum
+}
 
 pub static SPARKLINE_CHARS: [char; 7] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇'];
 pub const FULL_BAR: char = '█';
@@ -271,10 +281,29 @@ impl Display for SparklineRenderer {
     }
 }
 
+struct ColorMap {
+    map: IndexMap<Vec<u8>, usize>,
+}
+
+impl ColorMap {
+    fn new() -> Self {
+        Self {
+            map: new_index_map(),
+        }
+    }
+
+    fn register(&mut self, name: &[u8]) -> usize {
+        let i = self.map.len();
+
+        *self.map.entry(name.to_vec()).or_insert(i)
+    }
+}
+
 #[derive(Debug)]
 struct Series {
     extent_builder: ExtentBuilder<f64>,
     numbers: Vec<f64>,
+    categories: Vec<usize>,
 }
 
 impl Series {
@@ -283,6 +312,7 @@ impl Series {
         Self {
             extent_builder: ExtentBuilder::new(),
             numbers: Vec::new(),
+            categories: Vec::new(),
         }
     }
 
@@ -291,6 +321,7 @@ impl Series {
         Self {
             extent_builder: ExtentBuilder::new(),
             numbers: Vec::with_capacity(capacity),
+            categories: Vec::new(),
         }
     }
 
@@ -312,6 +343,11 @@ impl Series {
         Ok(())
     }
 
+    #[inline]
+    fn push_category(&mut self, category: usize) {
+        self.categories.push(category);
+    }
+
     fn distribution(&mut self, bins: usize, log_scale: bool) {
         let mut histogram = Histogram::new(bins, self.extent_builder.build().unwrap());
 
@@ -331,21 +367,33 @@ impl Series {
     }
 
     fn discretize(&mut self, count: usize) {
-        if count < self.numbers.len() {
-            self.extent_builder.clear();
+        debug_assert!(count < self.numbers.len());
 
-            let mut bins = Vec::with_capacity(count);
-            let chunk_size = (self.numbers.len() as f64 / count as f64).ceil() as usize;
+        self.extent_builder.clear();
 
-            for chunk in self.numbers.chunks(chunk_size) {
-                let sum = chunk.iter().copied().sum();
-                bins.push(sum);
-                self.extent_builder.process(sum);
+        let mut bins = Vec::with_capacity(count);
+        let chunk_size = (self.numbers.len() as f64 / count as f64).ceil() as usize;
+
+        for chunk in self.numbers.chunks(chunk_size) {
+            let sum = chunk.iter().copied().sum();
+            bins.push(sum);
+            self.extent_builder.process(sum);
+        }
+
+        self.numbers = bins;
+
+        let mut categories_bins = Vec::with_capacity(count);
+
+        if !self.categories.is_empty() {
+            for chunk in self.categories.chunks_mut(chunk_size) {
+                chunk.sort();
+                let mode = chunk[0];
+                // NOTE: in case of ties we should probably keep the first seen in original sequence
+                // but maybe it is good enough as-is.
+                categories_bins.push(mode);
             }
 
-            self.numbers = bins;
-        } else {
-            unimplemented!()
+            self.categories = categories_bins;
         }
     }
 
@@ -381,6 +429,7 @@ spark options:
     -z, --striped
     --hide-names
     -g, --groupby <cols>
+    -c, --category <col>
     --cols <num>      Number of terminal columns, i.e. characters, that we can
                       use for drawing labels, legends and sparklines.
                       Defaults to using all your terminal's width or 80 if
@@ -407,6 +456,7 @@ struct Args {
     arg_input: Option<String>,
     arg_columns: SelectedColumns,
     flag_groupby: Option<SelectedColumns>,
+    flag_category: Option<SelectedColumns>,
     flag_along_rows: bool,
     flag_gradient: Option<GradientName>,
     flag_background_gradient: Option<GradientName>,
@@ -443,6 +493,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("-g/--groupby does not work with --along-rows!")?;
     }
 
+    if args.flag_category.is_some() && args.flag_along_rows {
+        Err("-c/--category does not work with --along-rows!")?;
+    }
+
+    if args.flag_dist && args.flag_category.is_some() {
+        Err("-D/--dist does not work with -c/--category!")?;
+    }
+
     args.flag_color.apply();
 
     let mut cols = util::acquire_term_cols_ratio(&args.flag_cols)?;
@@ -472,6 +530,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if groupby_opt.is_some() && sel.len() > 1 {
         Err("only one value column must be selected when using -g/--groupby!")?;
     }
+
+    let mut categories_opt = args
+        .flag_category
+        .as_ref()
+        .map(|s| s.single_selection(&headers, !rconf.no_headers))
+        .transpose()?
+        .map(|i| (i, ColorMap::new()));
+
+    let name_hash = if let Some((category_column_index, _)) = categories_opt.as_ref() {
+        compute_name_hash(&headers[*category_column_index])
+    } else {
+        0
+    };
 
     let mut record = ByteRecord::new();
 
@@ -520,8 +591,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                 pool.push((format!("Row n°{}", index), series));
             } else {
+                let category_opt =
+                    if let Some((category_column_index, color_map)) = categories_opt.as_mut() {
+                        Some(color_map.register(&record[*category_column_index]))
+                    } else {
+                        None
+                    };
+
                 for (i, cell) in sel.select(&record).enumerate() {
                     pool[i].1.try_push(cell)?;
+
+                    if let Some(category) = category_opt {
+                        pool[i].1.push_category(category);
+                    }
                 }
             }
 
@@ -583,6 +665,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut small_multiples_buffer_opt: Option<Vec<String>> =
         args.flag_small_multiples.map(|_| Vec::new());
 
+    let mut colors_buffer: Vec<Option<ColorOrStyles>> = Vec::new();
+
     // Rendering
     for (i, (name, mut series)) in pool.into_iter().enumerate() {
         if args.flag_dist {
@@ -605,7 +689,25 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         });
 
         let scale = series.to_scale(ScaleType::Linear).unwrap();
-        sparkline_renderer.render_impl(i, name_opt.as_deref(), &scale, &series.numbers, None);
+        sparkline_renderer.render_impl(
+            i,
+            name_opt.as_deref(),
+            &scale,
+            &series.numbers,
+            if categories_opt.is_some() {
+                colors_buffer.clear();
+
+                for category in series.categories.iter().copied() {
+                    colors_buffer.push(Some(util::colorizer_by_rainbow_with_fallback(
+                        category, name_hash, "spark",
+                    )));
+                }
+
+                Some(&colors_buffer)
+            } else {
+                None
+            },
+        );
 
         if let Some(small_multiples_buffer) = small_multiples_buffer_opt.as_mut() {
             small_multiples_buffer.push(sparkline_renderer.to_string());
