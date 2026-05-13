@@ -319,6 +319,10 @@ impl<T: Copy + PartialOrd> From<(Option<T>, Option<T>)> for ExtentBuilder<T> {
     }
 }
 
+pub fn sturges(len: usize) -> usize {
+    1 + (len as f64).log2().ceil() as usize
+}
+
 pub struct Histogram {
     bins: Vec<f64>,
     domain_extent: Extent<f64>,
@@ -390,7 +394,7 @@ impl Histogram {
         self.bins[index] = count;
     }
 
-    pub fn from_extent_and_series(bins: usize, extent: Extent<f64>, series: &[f64]) -> Self {
+    pub fn from_series(bins: usize, extent: Extent<f64>, series: &[f64]) -> Self {
         let mut histogram = Self::new(bins, extent);
 
         for x in series.iter().copied() {
