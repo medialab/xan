@@ -162,7 +162,7 @@ fn to_md() {
 
     let got: String = wrk.stdout(&mut cmd);
     let expected = "| name | age |
-| ---- | --- |
+| ---- | --: |
 | John | 12  |
 | Lucy | 15  |";
     assert_eq!(got, expected);

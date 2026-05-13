@@ -45,6 +45,7 @@ fn column_aligments(columns: usize, records: &[Vec<String>]) -> Vec<Alignment> {
     result
 }
 
+#[derive(Debug)]
 enum Alignment {
     Center,
     Right,
@@ -469,6 +470,9 @@ impl Args {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
+        // NOTE: this must be done before pushing ellipsis
+        let alignments = column_aligments(headers.len(), &records);
+
         let everything_was_read = !rdr.read_byte_record(&mut ByteRecord::new())?;
 
         if !everything_was_read {
@@ -505,8 +509,15 @@ impl Args {
 
         write!(&mut writer, "|")?;
 
-        for width in widths.iter().copied() {
-            write!(&mut writer, " {} |", "-".repeat(width))?;
+        for (width, alignment) in widths.iter().copied().zip(alignments.iter()) {
+            match alignment {
+                Alignment::Center => {
+                    write!(&mut writer, " {} |", "-".repeat(width))?;
+                }
+                Alignment::Right => {
+                    write!(&mut writer, " {}: |", "-".repeat(width.saturating_sub(1)))?;
+                }
+            }
         }
 
         writeln!(&mut writer)?;

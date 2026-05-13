@@ -76,6 +76,7 @@
 
 * `xan plot` will now display `<empty>` label in legends.
 * `xan cat rows` will now error when input have inconsistent columns.
+* Automatic column alignement with `xan to md`.
 
 ## 0.57.1
 
