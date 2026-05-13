@@ -528,6 +528,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("-D/--dist does not work with -c/--category!")?;
     }
 
+    if args.flag_wrap && args.flag_small_multiples.is_some() {
+        Err("-w/--wrap does not work with -S/--small-multiples")?;
+    }
+
     args.flag_color.apply();
 
     let mut cols = util::acquire_term_cols_ratio(&args.flag_cols)?;
@@ -733,7 +737,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let scale = series.to_scale(ScaleType::Linear).unwrap();
 
         let chunk_size = if args.flag_wrap {
-            cols_for_sparkline
+            max_bins
         } else {
             series.len()
         };
@@ -741,8 +745,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut offset: usize = 0;
 
         for (chunk_i, chunk) in series.numbers.chunks(chunk_size).enumerate() {
-            if chunk.len() < chunk_size {}
-
             sparkline_renderer.render_impl(
                 i,
                 if chunk_i == 0 {
