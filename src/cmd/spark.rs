@@ -332,8 +332,9 @@ impl Series {
 
     #[inline]
     fn push(&mut self, x: f64) {
-        self.numbers.push(x);
-        self.extent_builder.process(x);
+        if self.extent_builder.process(x) {
+            self.numbers.push(x);
+        }
     }
 
     #[inline]
@@ -430,6 +431,8 @@ spark options:
     --hide-names
     -g, --groupby <cols>
     -c, --category <col>
+    -m, --min <n>
+    -M, --max <n>
     --cols <num>      Number of terminal columns, i.e. characters, that we can
                       use for drawing labels, legends and sparklines.
                       Defaults to using all your terminal's width or 80 if
@@ -467,12 +470,34 @@ struct Args {
     flag_bins: NonZeroUsize,
     flag_dist: bool,
     flag_log: bool,
+    flag_min: Option<f64>,
+    flag_max: Option<f64>,
     flag_width: NonZeroUsize,
     flag_height: Option<String>,
     flag_cols: Option<String>,
     flag_color: ColorMode,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
+}
+
+impl Args {
+    fn new_series(&self, capacity_opt: Option<usize>) -> Series {
+        let mut series = if let Some(capacity) = capacity_opt {
+            Series::with_capacity(capacity)
+        } else {
+            Series::new()
+        };
+
+        if let Some(min) = self.flag_min {
+            series.extent_builder.clamp_min(min);
+        }
+
+        if let Some(max) = self.flag_max {
+            series.extent_builder.clamp_max(max);
+        }
+
+        series
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -559,7 +584,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             let group = groupby_sel.select(&record).collect();
 
-            let series = series_map.insert_with(group, Series::new);
+            let series = series_map.insert_with(group, || args.new_series(None));
             series.try_push(&record[column_index])?;
         }
 
@@ -577,13 +602,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             pool.reserve_exact(sel.len());
 
             for name in sel.select(&headers) {
-                pool.push((String::from_utf8_lossy(name).into_owned(), Series::new()));
+                pool.push((
+                    String::from_utf8_lossy(name).into_owned(),
+                    args.new_series(None),
+                ));
             }
         }
 
         while reader.read_byte_record(&mut record)? {
             if args.flag_along_rows {
-                let mut series = Series::with_capacity(sel.len());
+                let mut series = args.new_series(Some(sel.len()));
 
                 for cell in sel.select(&record) {
                     series.try_push(cell)?;
