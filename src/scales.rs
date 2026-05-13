@@ -576,6 +576,7 @@ pub enum LogBase {
     Natural,
     Base2,
     Base10,
+    Ln1p,
     Custom(f64),
 }
 
@@ -586,6 +587,7 @@ impl LogBase {
             Self::Natural => false,
             Self::Base2 => true,
             Self::Base10 => true,
+            Self::Ln1p => false,
             Self::Custom(base) => base.fract() <= f64::EPSILON,
         }
     }
@@ -596,6 +598,7 @@ impl LogBase {
             Self::Natural => std::f64::consts::E,
             Self::Base2 => 2.0,
             Self::Base10 => 10.0,
+            Self::Ln1p => std::f64::consts::E,
             Self::Custom(base) => *base,
         }
     }
@@ -606,6 +609,7 @@ impl LogBase {
             Self::Natural => x.ln(),
             Self::Base2 => x.log2(),
             Self::Base10 => x.log10(),
+            Self::Ln1p => x.ln_1p(),
             Self::Custom(base) => x.log(*base),
         }
     }
@@ -616,8 +620,14 @@ impl LogBase {
             Self::Natural => x.exp(),
             Self::Base2 => x.exp2(),
             Self::Base10 => 10.0_f64.powf(x),
+            Self::Ln1p => x.exp_m1(),
             Self::Custom(base) => base.powf(x),
         }
+    }
+
+    #[inline(always)]
+    fn accepts_zero(&self) -> bool {
+        matches!(self, Self::Ln1p)
     }
 }
 
@@ -638,17 +648,26 @@ impl ScaleType {
         matches!(self, Self::Linear)
     }
 
+    #[inline]
     pub fn disallows_zero(&self) -> bool {
-        matches!(self, Self::Logarithmic(_))
+        matches!(self, Self::Logarithmic(base) if !base.accepts_zero())
     }
 
+    #[inline]
     pub fn accepts(&self, x: f64) -> bool {
         match self {
             Self::Linear => true,
-            Self::Logarithmic(_) => x > 0.0,
+            Self::Logarithmic(base) => {
+                if base.accepts_zero() {
+                    x >= 0.0
+                } else {
+                    x > 0.0
+                }
+            }
         }
     }
 
+    #[inline]
     pub fn is_logarithmic(&self) -> bool {
         matches!(self, Self::Logarithmic(_))
     }
@@ -663,6 +682,7 @@ impl TryFrom<String> for ScaleType {
             "log" | "ln" => Self::Logarithmic(LogBase::Natural),
             "log2" => Self::Logarithmic(LogBase::Base2),
             "log10" => Self::Logarithmic(LogBase::Base10),
+            "ln_1p" | "ln1p" => Self::Logarithmic(LogBase::Ln1p),
             v if v.starts_with("log(") && v.ends_with(")") => {
                 let base_str = v.split("log(").nth(1).unwrap().trim_end_matches(')');
 
@@ -685,6 +705,7 @@ impl fmt::Display for ScaleType {
                 LogBase::Base2 => write!(f, "log2"),
                 LogBase::Base10 => write!(f, "log10"),
                 LogBase::Natural => write!(f, "log"),
+                LogBase::Ln1p => write!(f, "ln_1p"),
                 LogBase::Custom(base) => write!(f, "log({})", base),
             },
         }
