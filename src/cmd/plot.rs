@@ -394,13 +394,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if args.flag_x_scale.is_logarithmic()
         && (matches!(flag_x_min, Some(v) if v <= 0.0) || matches!(flag_x_max, Some(v) if v <= 0.0))
     {
-        Err("--x-min or --x-max cannot be <= 0 with --x-scale log!")?;
+        Err("--x-min or --x-max cannot be <= 0 with log --x-scale!")?;
     }
 
     if args.flag_y_scale.is_logarithmic()
         && (matches!(flag_y_min, Some(v) if v <= 0.0) || matches!(flag_y_max, Some(v) if v <= 0.0))
     {
-        Err("--y-min or --y-max cannot be <= 0 with --y-scale log!")?;
+        Err("--y-min or --y-max cannot be <= 0 with log --y-scale!")?;
     }
 
     if matches!(args.flag_x_ticks, Some(n) if n.get() < 2) {

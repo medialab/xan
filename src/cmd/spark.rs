@@ -342,8 +342,13 @@ impl Series {
     }
 
     #[inline]
-    fn try_push(&mut self, cell: &[u8]) -> CliResult<()> {
+    fn try_push(&mut self, scale_type: ScaleType, cell: &[u8]) -> CliResult<()> {
         let x = fast_float::parse(cell)?;
+
+        if scale_type.is_logarithmic() && x <= 0.0 {
+            Err(format!("log scale encountered a value ({}) <= 0!", x))?;
+        }
+
         self.push(x);
         Ok(())
     }
@@ -353,19 +358,19 @@ impl Series {
         self.categories.push(category);
     }
 
-    fn distribution(&mut self, bins: usize, log_scale: bool) {
+    fn distribution(&mut self, scale_type: ScaleType, bins: usize) {
         let mut histogram = Histogram::new(bins, self.extent_builder.build().unwrap());
 
         for x in self.numbers.iter().copied() {
             histogram.add(x);
         }
 
-        if log_scale {
-            histogram.ln_1p();
-        }
-
         self.extent_builder.clear();
-        self.extent_builder.process(0.0);
+        self.extent_builder.process(if scale_type.is_logarithmic() {
+            1.0
+        } else {
+            0.0
+        });
         self.extent_builder.process(histogram.max_value());
 
         self.numbers = histogram.into_vec();
@@ -461,6 +466,7 @@ spark options:
     -R, --rainbow
     -b, --bins <n>    Number of bins. [default: 35]
     --log
+    --scale <scale>  [default: lin]
     -D, --dist
     -z, --striped
     --hide-names
@@ -506,6 +512,7 @@ struct Args {
     flag_bins: NonZeroUsize,
     flag_dist: bool,
     flag_log: bool,
+    flag_scale: ScaleType,
     flag_min: Option<f64>,
     flag_max: Option<f64>,
     flag_wrap: bool,
@@ -538,7 +545,7 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = util::get_args(USAGE, argv)?;
 
     if args.cmd_debate {
         eprintln!(
@@ -572,6 +579,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if args.flag_wrap && args.flag_small_multiples.is_some() {
         Err("-w/--wrap does not work with -S/--small-multiples")?;
+    }
+
+    if args.flag_log {
+        args.flag_scale = ScaleType::ln();
+    }
+
+    if args.flag_scale.is_logarithmic()
+        && (matches!(args.flag_min, Some(v) if v <= 0.0)
+            || matches!(args.flag_max, Some(v) if v <= 0.0))
+    {
+        Err("-m/--min or -M/--max cannot be <= 0 with a log scale!")?;
     }
 
     args.flag_color.apply();
@@ -633,7 +651,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let group = groupby_sel.select(&record).collect();
 
             let series = series_map.insert_with(group, || args.new_series(None));
-            series.try_push(&record[column_index])?;
+            series.try_push(args.flag_scale, &record[column_index])?;
 
             if let Some((category_column_index, color_map)) = categories_opt.as_mut() {
                 let category = color_map.register(&record[*category_column_index]);
@@ -671,7 +689,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 let mut series = args.new_series(Some(sel.len()));
 
                 for cell in sel.select(&record) {
-                    series.try_push(cell)?;
+                    series.try_push(args.flag_scale, cell)?;
                 }
 
                 pool.push((format!("Row n°{}", index), series));
@@ -684,10 +702,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     };
 
                 for (i, cell) in sel.select(&record).enumerate() {
-                    pool[i].1.try_push(cell)?;
+                    let series = &mut pool[i].1;
+
+                    series.try_push(args.flag_scale, cell)?;
 
                     if let Some(category) = category_opt {
-                        pool[i].1.push_category(category);
+                        series.push_category(category);
                     }
                 }
             }
@@ -757,7 +777,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     // Rendering
     for (i, (name, mut series)) in pool.into_iter().enumerate() {
         if args.flag_dist {
-            series.distribution(args.flag_bins.get(), args.flag_log);
+            series.distribution(args.flag_scale, args.flag_bins.get());
         }
 
         if !args.flag_wrap && series.len() > max_bins {
@@ -785,7 +805,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
         }
 
-        let scale = series.to_scale(ScaleType::Linear).unwrap();
+        let scale = series.to_scale(args.flag_scale).unwrap();
 
         let chunk_size = if args.flag_wrap {
             max_bins
