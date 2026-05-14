@@ -4,6 +4,7 @@ use std::num::NonZeroUsize;
 
 use colored::Colorize;
 use colorgrad::Gradient;
+use jiff::tz::TimeZone;
 use simd_csv::ByteRecord;
 use unicode_width::UnicodeWidthStr;
 
@@ -11,6 +12,7 @@ use crate::collections::{new_index_map, ClusteredInsertHashmap, IndexMap};
 use crate::config::{Config, Delimiter};
 use crate::scales::{ExtentBuilder, GradientName, Histogram, Scale, ScaleType};
 use crate::select::{SelectedColumns, Selection};
+use crate::temporal::parse_fuzzy_temporal;
 use crate::util::{self, ColorMode, ColorOrStyles};
 use crate::CliResult;
 
@@ -22,6 +24,12 @@ fn compute_name_hash(name: &[u8]) -> usize {
     }
 
     sum
+}
+
+fn parse_as_seconds(cell: &[u8]) -> CliResult<f64> {
+    let fuzzy_temporal = parse_fuzzy_temporal(cell, true)?;
+    let timestamp = fuzzy_temporal.to_lower_bound_timestamp(TimeZone::system())?;
+    Ok(timestamp.as_duration().as_secs_f64())
 }
 
 pub static SPARKLINE_CHARS: [char; 7] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇'];
@@ -308,6 +316,7 @@ struct Series {
     extent_builder: ExtentBuilder<f64>,
     numbers: Vec<f64>,
     categories: Vec<usize>,
+    times: Vec<f64>,
 }
 
 impl Series {
@@ -317,6 +326,7 @@ impl Series {
             extent_builder: ExtentBuilder::new(),
             numbers: Vec::new(),
             categories: Vec::new(),
+            times: Vec::new(),
         }
     }
 
@@ -326,6 +336,7 @@ impl Series {
             extent_builder: ExtentBuilder::new(),
             numbers: Vec::with_capacity(capacity),
             categories: Vec::new(),
+            times: Vec::new(),
         }
     }
 
@@ -359,6 +370,11 @@ impl Series {
     #[inline]
     fn push_category(&mut self, category: usize) {
         self.categories.push(category);
+    }
+
+    #[inline]
+    fn push_time(&mut self, seconds: f64) {
+        self.times.push(seconds);
     }
 
     fn distribution(&mut self, bins: usize) {
@@ -467,6 +483,7 @@ spark options:
     -B, --background-gradient <name>
     -S, --small-multiples <n>
     -R, --rainbow
+    -T, --time <col>
     -b, --bins <n>    Number of bins. [default: 35]
     --log
     --scale <scale>  [default: lin]
@@ -510,6 +527,7 @@ struct Args {
     flag_background_gradient: Option<GradientName>,
     flag_small_multiples: Option<NonZeroUsize>,
     flag_hide_names: bool,
+    flag_time: Option<SelectedColumns>,
     flag_striped: bool,
     flag_rainbow: bool,
     flag_bins: NonZeroUsize,
@@ -637,6 +655,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         0
     };
 
+    let time_column_index_opt = args
+        .flag_time
+        .as_ref()
+        .map(|s| s.single_selection(&headers, !rconf.no_headers))
+        .transpose()?;
+
     let mut record = ByteRecord::new();
 
     let mut pool: Vec<(String, Series)> = Vec::new();
@@ -658,6 +682,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             if let Some((category_column_index, color_map)) = categories_opt.as_mut() {
                 let category = color_map.register(&record[*category_column_index]);
                 series.push_category(category);
+            }
+
+            if let Some(time_column_index) = time_column_index_opt {
+                let seconds = parse_as_seconds(&record[time_column_index])?;
+                series.push_time(seconds);
             }
         }
 
@@ -703,6 +732,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         None
                     };
 
+                let seconds_opt = if let Some(time_column_index) = time_column_index_opt {
+                    Some(parse_as_seconds(&record[time_column_index])?)
+                } else {
+                    None
+                };
+
                 for (i, cell) in sel.select(&record).enumerate() {
                     let series = &mut pool[i].1;
 
@@ -710,6 +745,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                     if let Some(category) = category_opt {
                         series.push_category(category);
+                    }
+
+                    if let Some(seconds) = seconds_opt {
+                        series.push_time(seconds);
                     }
                 }
             }
