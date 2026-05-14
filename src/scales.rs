@@ -172,12 +172,12 @@ impl<T: Copy + PartialOrd> Extent<T> {
     }
 
     #[inline]
-    fn set_min(&mut self, value: T) {
+    pub fn set_min(&mut self, value: T) {
         self.0 .0 = value;
     }
 
     #[inline]
-    fn set_max(&mut self, value: T) {
+    pub fn set_max(&mut self, value: T) {
         self.0 .1 = value;
     }
 

@@ -345,9 +345,9 @@ impl Series {
     fn try_push(&mut self, scale_type: ScaleType, cell: &[u8]) -> CliResult<()> {
         let x = fast_float::parse(cell)?;
 
-        if !scale_type.accepts(x) {
+        if x != 0.0 && !scale_type.accepts(x) {
             Err(format!(
-                "given --scale encountered an illegal value ({}) <= 0!",
+                "given --scale encountered an illegal value ({})!",
                 x
             ))?;
         }
@@ -361,7 +361,7 @@ impl Series {
         self.categories.push(category);
     }
 
-    fn distribution(&mut self, scale_type: ScaleType, bins: usize) {
+    fn distribution(&mut self, bins: usize) {
         let mut histogram = Histogram::new(bins, self.extent_builder.build().unwrap());
 
         for x in self.numbers.iter().copied() {
@@ -369,11 +369,7 @@ impl Series {
         }
 
         self.extent_builder.clear();
-        self.extent_builder.process(if scale_type.disallows_zero() {
-            1.0
-        } else {
-            0.0
-        });
+        self.extent_builder.process(0.0);
         self.extent_builder.process(histogram.max_value());
 
         self.numbers = histogram.into_vec();
@@ -442,9 +438,13 @@ impl Series {
     }
 
     fn to_scale(&self, scale_type: ScaleType) -> Option<Scale> {
-        self.extent_builder
-            .build()
-            .map(|extent| Scale::from_extent(scale_type, extent))
+        self.extent_builder.build().map(|mut extent| {
+            if extent.min() == 0.0 && scale_type.disallows_zero() {
+                extent.set_min(1.0);
+            }
+
+            Scale::from_extent(scale_type, extent)
+        })
     }
 }
 
@@ -779,7 +779,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     // Rendering
     for (i, (name, mut series)) in pool.into_iter().enumerate() {
         if args.flag_dist {
-            series.distribution(args.flag_scale, args.flag_bins.get());
+            series.distribution(args.flag_bins.get());
         }
 
         if !args.flag_wrap && series.len() > max_bins {
