@@ -813,8 +813,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
-    if args.flag_dist && args.flag_category.is_some() {
-        Err("-D/--dist does not work with -c/--category!")?;
+    if args.flag_dist && (args.flag_category.is_some() || args.flag_time.is_some()) {
+        Err("-D/--dist does not work with -c/--category nor -T/--time!")?;
     }
 
     if args.flag_wrap && args.flag_small_multiples.is_some() {
@@ -1047,7 +1047,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let max_bins = cols_for_sparkline / sparkline_width;
 
-    // Adjusting series
+    // Recasting as distribution
+    let central_tendencies_opt = if args.flag_dist {
+        let mut central_tendencies = Vec::with_capacity(pool.len());
+
+        for (_, series) in pool.iter_mut() {
+            central_tendencies.push(series.distribution(args.flag_bins.get()));
+        }
+
+        Some(central_tendencies)
+    } else {
+        None
+    };
+
+    // Temporal discretization
     if let Some((_, extent)) = &time_opt {
         let (adjusted_bins, best_unit) = extent.best_discrete_granularity(max_bins)?.unwrap();
 
@@ -1061,8 +1074,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
-    // TODO: deal with -D
-    // TODO: need to do this after discretization & distribution
+    // Layout discretization
+    if !args.flag_wrap {
+        for (_, series) in pool.iter_mut() {
+            if series.len() > max_bins {
+                series.discretize(max_bins);
+            }
+        }
+    }
+
+    // Scale sharing
     if pool.len() > 1 && args.flag_share_scale {
         let mut total_extent = ExtentBuilder::new();
 
@@ -1107,17 +1128,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut colors_buffer: Vec<Option<ColorOrStyles>> = Vec::new();
 
     // Rendering
-    for (i, (name, mut series)) in pool.into_iter().enumerate() {
-        let central_tendency_indices_opt = if args.flag_dist {
-            Some(series.distribution(args.flag_bins.get()))
-        } else {
-            None
-        };
-
-        if !args.flag_wrap && series.len() > max_bins {
-            series.discretize(max_bins);
-        }
-
+    for (i, (name, series)) in pool.into_iter().enumerate() {
         let name_opt = (!args.flag_hide_names).then(|| {
             format!(
                 "{:<width$} ",
@@ -1169,7 +1180,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             );
 
             if !args.flag_hide_legend {
-                if let Some(indices) = central_tendency_indices_opt {
+                if let Some(central_tendencies) = &central_tendencies_opt {
+                    let indices = central_tendencies.get(i).unwrap();
+
                     sparkline_renderer.render_central_tendency(
                         name_padding.width(),
                         chunk.len(),
