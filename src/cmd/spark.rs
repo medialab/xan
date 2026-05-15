@@ -360,9 +360,7 @@ impl Series {
     }
 
     #[inline]
-    fn try_push(&mut self, scale_type: ScaleType, cell: &[u8]) -> CliResult<()> {
-        let x = fast_float::parse(cell)?;
-
+    fn try_push_float(&mut self, scale_type: ScaleType, x: f64) -> CliResult<()> {
         if x != 0.0 && !scale_type.accepts(x) {
             Err(format!(
                 "given --scale encountered an illegal value ({})!",
@@ -372,6 +370,12 @@ impl Series {
 
         self.push(x);
         Ok(())
+    }
+
+    #[inline]
+    fn try_push_cell(&mut self, scale_type: ScaleType, cell: &[u8]) -> CliResult<()> {
+        let x = fast_float::parse(cell)?;
+        self.try_push_float(scale_type, x)
     }
 
     #[inline]
@@ -492,6 +496,7 @@ TODO...
 
 Usage:
     xan spark debate
+    xan spark --count [options] [<input>]
     xan spark [options] [--] <columns> [<input>]
     xan spark --help
 
@@ -507,6 +512,7 @@ spark options:
     -S, --small-multiples <n>
     -R, --rainbow
     -T, --time <col>
+    --count
     -b, --bins <n>    Number of bins. [default: 35]
     --log
     --scale <scale>  [default: lin]
@@ -543,7 +549,7 @@ Common options:
 struct Args {
     cmd_debate: bool,
     arg_input: Option<String>,
-    arg_columns: SelectedColumns,
+    arg_columns: Option<SelectedColumns>,
     flag_groupby: Option<SelectedColumns>,
     flag_category: Option<SelectedColumns>,
     flag_along_rows: bool,
@@ -553,6 +559,7 @@ struct Args {
     flag_hide_names: bool,
     flag_hide_legend: bool,
     flag_time: Option<SelectedColumns>,
+    flag_count: bool,
     flag_striped: bool,
     flag_rainbow: bool,
     flag_bins: NonZeroUsize,
@@ -617,6 +624,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         if args.flag_category.is_some() {
             Err("-c/--category does not work with --along-rows!")?;
         }
+
+        if args.flag_time.is_some() {
+            Err("-T/--time does not work with --along-rows!")?;
+        }
     }
 
     if args.flag_dist && args.flag_category.is_some() {
@@ -625,6 +636,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if args.flag_wrap && args.flag_small_multiples.is_some() {
         Err("-w/--wrap does not work with -S/--small-multiples")?;
+    }
+
+    if args.flag_count && args.flag_time.is_none() {
+        Err("--count can only be used with -T/--time!")?;
     }
 
     if args.flag_log {
@@ -649,12 +664,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
-        .select(args.arg_columns.clone())
         .no_headers(args.flag_no_headers);
 
     let mut reader = rconf.simd_reader()?;
     let headers = reader.byte_headers()?.clone();
-    let sel = rconf.selection(&headers)?;
+
+    let sel_opt = args
+        .arg_columns
+        .as_ref()
+        .map(|s| s.selection(&headers, !rconf.no_headers))
+        .transpose()?;
 
     let groupby_opt: Option<(Selection, ClusteredInsertHashmap<ByteRecord, Series>)> = args
         .flag_groupby
@@ -663,7 +682,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .transpose()?
         .map(|s| (s, ClusteredInsertHashmap::new()));
 
-    if groupby_opt.is_some() && sel.len() > 1 {
+    if groupby_opt.is_some() && sel_opt.as_ref().map(|s| s.len()).unwrap_or(1) > 1 {
         Err("only one value column must be selected when using -g/--groupby!")?;
     }
 
@@ -694,15 +713,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut index: usize = 0;
 
     if let Some((groupby_sel, mut series_map)) = groupby_opt {
-        let column_index = sel[0];
-
         while reader.read_byte_record(&mut record)? {
             index += 1;
 
             let group = groupby_sel.select(&record).collect();
 
             let series = series_map.insert_with(group, || args.new_series(None));
-            series.try_push(args.flag_scale, &record[column_index])?;
+
+            if let Some(sel) = &sel_opt {
+                series.try_push_cell(args.flag_scale, &record[sel[0]])?;
+            } else {
+                debug_assert!(args.flag_count);
+                series.try_push_float(args.flag_scale, 1.0)?;
+            }
 
             if let Some((category_column_index, color_map)) = categories_opt.as_mut() {
                 let category = color_map.register(&record[*category_column_index]);
@@ -730,22 +753,27 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     } else {
         if !args.flag_along_rows {
-            pool.reserve_exact(sel.len());
+            if let Some(sel) = &sel_opt {
+                pool.reserve_exact(sel.len());
 
-            for name in sel.select(&headers) {
-                pool.push((
-                    String::from_utf8_lossy(name).into_owned(),
-                    args.new_series(None),
-                ));
+                for name in sel.select(&headers) {
+                    pool.push((
+                        String::from_utf8_lossy(name).into_owned(),
+                        args.new_series(None),
+                    ));
+                }
+            } else {
+                pool.push(("--count".to_string(), args.new_series(None)));
             }
         }
 
         while reader.read_byte_record(&mut record)? {
             if args.flag_along_rows {
+                let sel = sel_opt.as_ref().unwrap();
                 let mut series = args.new_series(Some(sel.len()));
 
                 for cell in sel.select(&record) {
-                    series.try_push(args.flag_scale, cell)?;
+                    series.try_push_cell(args.flag_scale, cell)?;
                 }
 
                 pool.push((format!("Row n°{}", index), series));
@@ -763,10 +791,25 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     None
                 };
 
-                for (i, cell) in sel.select(&record).enumerate() {
-                    let series = &mut pool[i].1;
+                if let Some(sel) = &sel_opt {
+                    for (i, cell) in sel.select(&record).enumerate() {
+                        let series = &mut pool[i].1;
 
-                    series.try_push(args.flag_scale, cell)?;
+                        series.try_push_cell(args.flag_scale, cell)?;
+
+                        if let Some(category) = category_opt {
+                            series.push_category(category);
+                        }
+
+                        if let Some(seconds) = seconds_opt {
+                            series.push_time(seconds);
+                        }
+                    }
+                } else {
+                    debug_assert!(args.flag_count);
+                    let series = &mut pool[0].1;
+
+                    series.try_push_float(args.flag_scale, 1.0)?;
 
                     if let Some(category) = category_opt {
                         series.push_category(category);
