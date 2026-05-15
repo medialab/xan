@@ -644,7 +644,7 @@ TODO...
 Usage:
     xan spark debate
     xan spark --count [options] [<input>]
-    xan spark [options] [--] <columns> [<input>]
+    xan spark [options] [--] <y> [<input>]
     xan spark --help
 
 spark options:
@@ -700,7 +700,7 @@ Common options:
 struct Args {
     cmd_debate: bool,
     arg_input: Option<String>,
-    arg_columns: Option<SelectedColumns>,
+    arg_y: Option<SelectedColumns>,
     flag_groupby: Option<SelectedColumns>,
     flag_category: Option<SelectedColumns>,
     flag_along_rows: bool,
@@ -838,7 +838,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let headers = reader.byte_headers()?.clone();
 
     let sel_opt = args
-        .arg_columns
+        .arg_y
         .as_ref()
         .map(|s| s.selection(&headers, !rconf.no_headers))
         .transpose()?;
