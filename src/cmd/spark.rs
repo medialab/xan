@@ -680,6 +680,7 @@ spark options:
     -m, --min <n>
     -M, --max <n>
     -w, --wrap
+    --share-scale
     -A, --aggregate <mode>     How to aggregate values falling into a same bucket when discretizing
                                the x axis, e.g. when using the -T/--time flag.
                                Can be one of \"sum\" or \"mean\". Defaults to \"sum\" when --count
@@ -721,6 +722,7 @@ struct Args {
     flag_time: Option<SelectedColumns>,
     flag_aggregate: Option<Aggregation>,
     flag_count: bool,
+    flag_share_scale: bool,
     flag_striped: bool,
     flag_rainbow: bool,
     flag_bins: NonZeroUsize,
@@ -1011,6 +1013,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
+    // Layout
     if let Some(small_multiples) = args.flag_small_multiples {
         let n = small_multiples.get();
 
@@ -1022,7 +1025,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         cols /= n;
     }
 
-    // Layout
     let mut cols_for_sparkline = cols;
     let sparkline_width = args.flag_width.get();
 
@@ -1043,6 +1045,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut max_bins = cols_for_sparkline / sparkline_width;
 
+    // Adjusting series
     if let Some((_, extent)) = &time_opt {
         let (adjusted_bins, best_unit) = extent.best_discrete_granularity(max_bins)?.unwrap();
 
@@ -1058,6 +1061,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
+    // TODO: deal with -D
+    if args.flag_share_scale {}
+
+    // Building renderer
     let mut sparkline_renderer_options = SparklineRendererOptions::new();
     sparkline_renderer_options.width = sparkline_width;
     sparkline_renderer_options.height = sparkline_height;
