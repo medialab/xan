@@ -492,7 +492,7 @@ impl Series {
 
         // TODO: what about categories?
         let earliest = FuzzyTemporal::from(extent.earliest().unwrap());
-        let latest = FuzzyTemporal::from(extent.lastest().unwrap());
+        let latest = FuzzyTemporal::from(extent.latest().unwrap());
 
         let earliest_seconds = earliest
             .to_lower_bound_timestamp(TimeZone::system())?

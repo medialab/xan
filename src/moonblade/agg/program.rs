@@ -202,7 +202,7 @@ impl Aggregator {
                 DynamicValue::from(inner.earliest())
             }
             (ConcreteAggregationMethod::Latest, Self::TemporalExtent(inner)) => {
-                DynamicValue::from(inner.lastest())
+                DynamicValue::from(inner.latest())
             }
             (ConcreteAggregationMethod::CountTime(unit), Self::TemporalExtent(inner)) => {
                 DynamicValue::from(

@@ -39,7 +39,7 @@ impl TemporalExtent {
         self.extent.as_ref().map(|(z, _)| z.clone())
     }
 
-    pub fn lastest(&self) -> Option<AnyTemporal> {
+    pub fn latest(&self) -> Option<AnyTemporal> {
         self.extent.as_ref().map(|(_, z)| z.clone())
     }
 
