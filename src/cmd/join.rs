@@ -1264,12 +1264,12 @@ mod tests {
         let mut index = Index::new(false, false);
         let sel = Selection::full(1);
 
-        index.add(&sel, ByteRecord::from(rec(&["a", "one"])));
-        index.add(&sel, ByteRecord::from(rec(&["b", "one"])));
-        index.add(&sel, ByteRecord::from(rec(&["a", "two"])));
-        index.add(&sel, ByteRecord::from(rec(&["a", "three"])));
-        index.add(&sel, ByteRecord::from(rec(&["b", "two"])));
-        index.add(&sel, ByteRecord::from(rec(&["c", "one"])));
+        index.add(&sel, rec(&["a", "one"]));
+        index.add(&sel, rec(&["b", "one"]));
+        index.add(&sel, rec(&["a", "two"]));
+        index.add(&sel, rec(&["a", "three"]));
+        index.add(&sel, rec(&["b", "two"]));
+        index.add(&sel, rec(&["c", "one"]));
 
         assert_eq!(
             index.test_vec(&sel, &rec(&["d", "one"])),

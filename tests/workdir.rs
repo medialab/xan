@@ -8,7 +8,6 @@ use std::str::FromStr;
 use std::sync::atomic;
 use std::time::Duration;
 
-use csv;
 
 use crate::Csv;
 
@@ -58,7 +57,7 @@ impl Workdir {
     pub fn create<T: Csv>(&self, name: &str, rows: T) {
         let mut wtr = csv::WriterBuilder::new()
             .flexible(self.flexible)
-            .from_path(&self.path(name))
+            .from_path(self.path(name))
             .unwrap();
         for row in rows.to_vecs().into_iter() {
             wtr.write_record(row).unwrap();

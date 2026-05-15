@@ -482,18 +482,16 @@ mod tests {
         trie.add("http://www.lemonde.fr").unwrap();
         trie.add("http://lefigaro.fr/business").unwrap();
 
-        assert_eq!(trie.is_match("http://lemonde.fr").unwrap(), true);
-        assert_eq!(
-            trie.is_match("http://lemonde.fr/path/to.html").unwrap(),
-            true
+        assert!(trie.is_match("http://lemonde.fr").unwrap());
+        assert!(
+            trie.is_match("http://lemonde.fr/path/to.html").unwrap()
         );
-        assert_eq!(trie.is_match("http://lefigaro.fr").unwrap(), false);
-        assert_eq!(
+        assert!(!trie.is_match("http://lefigaro.fr").unwrap());
+        assert!(
             trie.is_match("http://lefigaro.fr/business/article.html")
-                .unwrap(),
-            true
+                .unwrap()
         );
-        assert_eq!(trie.is_match("http://liberation.fr").unwrap(), false);
+        assert!(!trie.is_match("http://liberation.fr").unwrap());
     }
 
     #[test]

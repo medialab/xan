@@ -54,9 +54,10 @@ fn fill_discretization_gaps<T: Default + Copy, F>(
             if gap_len <= max_gap {
                 let left_value = (0..i).rev().find_map(|j| bins[j]).unwrap_or_default();
                 let right_value = right.and_then(|j| bins[j]).unwrap_or_default();
-                for k in i..i + gap_len {
+
+                for (k, bin) in bins.iter_mut().enumerate().skip(i).take(gap_len) {
                     let t = (k - i + 1) as f64 / (gap_len + 1) as f64;
-                    bins[k] = Some(coalesce(left_value, right_value, t));
+                    *bin = Some(coalesce(left_value, right_value, t));
                 }
             }
 
@@ -77,7 +78,7 @@ enum SparklineColorMode {
     Striped,
     Rainbow,
     StripedRainbow,
-    Gradient(Box<dyn Gradient>),
+    Gradient(Box<dyn Gradient>, bool),
     BackgroundGradient(Box<dyn Gradient>),
 }
 
@@ -260,8 +261,14 @@ impl SparklineRenderer {
                                     .unwrap();
                                 }
                             }
-                            SparklineColorMode::Gradient(gradient) => {
-                                let c = gradient.at(ratio as f32).to_rgba8();
+                            SparklineColorMode::Gradient(gradient, vertical) => {
+                                let c = gradient
+                                    .at(if *vertical {
+                                        (h + 1) as f32 / height as f32
+                                    } else {
+                                        ratio as f32
+                                    })
+                                    .to_rgba8();
 
                                 write!(
                                     &mut self.draw_buffer,
@@ -656,6 +663,7 @@ spark options:
                       its height. TODO: can take percentage
     -G, --gradient <name>
     -B, --background-gradient <name>
+    -V, --vertical-gradient <name>
     -S, --small-multiples <n>
     -R, --rainbow
     -T, --time <col>
@@ -706,6 +714,7 @@ struct Args {
     flag_along_rows: bool,
     flag_gradient: Option<GradientName>,
     flag_background_gradient: Option<GradientName>,
+    flag_vertical_gradient: Option<GradientName>,
     flag_small_multiples: Option<NonZeroUsize>,
     flag_hide_names: bool,
     flag_hide_legend: bool,
@@ -770,18 +779,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let color_mode = args.flag_category.is_some() as u8
         + args.flag_gradient.is_some() as u8
         + args.flag_background_gradient.is_some() as u8
+        + args.flag_vertical_gradient.is_some() as u8
         + args.flag_rainbow as u8;
 
     if color_mode > 1 {
-        Err("only one of -c/--category, -R/--rainbow, -G/--gradient or -B/--background-gradient can be used at once!")?;
+        Err("only one of -c/--category, -R/--rainbow, -G/--gradient, -V/--vertical-gradient or -B/--background-gradient can be used at once!")?;
     }
 
     if args.flag_striped
         && (args.flag_category.is_some()
             || args.flag_gradient.is_some()
-            || args.flag_background_gradient.is_some())
+            || args.flag_background_gradient.is_some()
+            || args.flag_vertical_gradient.is_some())
     {
-        Err("-z/--striped does not work with -c/--category, -G/--gradient nor -B/--background-gradient!")?;
+        Err("-z/--striped does not work with -c/--category, -G/--gradient, -V/--vertical-gradient nor -B/--background-gradient!")?;
     }
 
     if args.flag_along_rows {
@@ -1052,7 +1063,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     sparkline_renderer_options.height = sparkline_height;
 
     if let Some(gradient) = args.flag_gradient {
-        sparkline_renderer_options.color_mode = SparklineColorMode::Gradient(gradient.build());
+        sparkline_renderer_options.color_mode =
+            SparklineColorMode::Gradient(gradient.build(), false);
+    } else if let Some(gradient) = args.flag_vertical_gradient {
+        sparkline_renderer_options.color_mode =
+            SparklineColorMode::Gradient(gradient.build(), true);
     } else if let Some(gradient) = args.flag_background_gradient {
         sparkline_renderer_options.color_mode =
             SparklineColorMode::BackgroundGradient(gradient.build());

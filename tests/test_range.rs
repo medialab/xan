@@ -17,7 +17,7 @@ fn range_column_name() {
     let wrk = Workdir::new("range_column_name");
 
     let mut cmd = wrk.command("range");
-    cmd.arg("3").args(&["-c", "id"]);
+    cmd.arg("3").args(["-c", "id"]);
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["id"], svec!["0"], svec!["1"], svec!["2"]];
@@ -29,7 +29,7 @@ fn range_start() {
     let wrk = Workdir::new("range_start");
 
     let mut cmd = wrk.command("range");
-    cmd.arg("3").args(&["-s", "1"]);
+    cmd.arg("3").args(["-s", "1"]);
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["n"], svec!["1"], svec!["2"]];
@@ -41,7 +41,7 @@ fn range_step() {
     let wrk = Workdir::new("range_step");
 
     let mut cmd = wrk.command("range");
-    cmd.arg("11").args(&["--step", "5"]);
+    cmd.arg("11").args(["--step", "5"]);
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["n"], svec!["0"], svec!["5"], svec!["10"]];

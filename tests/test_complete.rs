@@ -473,8 +473,8 @@ fn complete_with_min_max_type_mismatch() {
     let mut cmd = wrk.command("complete");
     cmd.arg("id")
         .arg("indexes_sorted.csv")
-        .args(&["-m", "2025-01"])
-        .args(&["-M", "8"]);
+        .args(["-m", "2025-01"])
+        .args(["-M", "8"]);
     let _got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
 }
 

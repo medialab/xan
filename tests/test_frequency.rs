@@ -132,7 +132,7 @@ fn frequency_stability() {
     assert_eq!(got, expected);
 
     let mut cmd = wrk.command("frequency");
-    cmd.arg("data.csv").args(&["-l", "0"]);
+    cmd.arg("data.csv").args(["-l", "0"]);
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
@@ -144,7 +144,7 @@ fn frequency_stability() {
     assert_eq!(got, expected);
 
     let mut cmd = wrk.command("frequency");
-    cmd.arg("data.csv").args(&["-l", "1"]).arg("-N");
+    cmd.arg("data.csv").args(["-l", "1"]).arg("-N");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["field", "value", "count"], svec!["a", "x", "2"]];

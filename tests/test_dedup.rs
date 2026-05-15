@@ -152,7 +152,7 @@ fn dedup_select() {
         ],
     );
     let mut cmd = wrk.command("dedup");
-    cmd.args(&["-s", "a"]).arg("data.csv");
+    cmd.args(["-s", "a"]).arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["a", "b"], svec!["1", "1"], svec!["2", "2"]];

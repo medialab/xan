@@ -88,7 +88,7 @@ impl CsvRecord {
 
 impl ops::Deref for CsvRecord {
     type Target = [String];
-    fn deref<'a>(&'a self) -> &'a [String] {
+    fn deref(&self) -> &[String] {
         &self.0
     }
 }
@@ -130,7 +130,7 @@ impl CsvData {
 
 impl ops::Deref for CsvData {
     type Target = [CsvRecord];
-    fn deref<'a>(&'a self) -> &'a [CsvRecord] {
+    fn deref(&self) -> &[CsvRecord] {
         &self.data
     }
 }

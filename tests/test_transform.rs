@@ -40,7 +40,7 @@ fn transform_rename() {
     let mut cmd = wrk.command("transform");
     cmd.arg("b")
         .arg("add(a, b)")
-        .args(&["-r", "c"])
+        .args(["-r", "c"])
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);

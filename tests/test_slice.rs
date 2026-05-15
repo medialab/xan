@@ -60,14 +60,14 @@ fn test_slice(
 ) {
     let (wrk, mut cmd) = setup(name, headers);
     if let Some(start) = start {
-        cmd.arg("--start").arg(&start.to_string());
+        cmd.arg("--start").arg(start.to_string());
     }
     if let Some(end) = end {
         if as_len {
             let start = start.unwrap_or(0);
-            cmd.arg("--len").arg(&(end - start).to_string());
+            cmd.arg("--len").arg((end - start).to_string());
         } else {
-            cmd.arg("--end").arg(&end.to_string());
+            cmd.arg("--end").arg(end.to_string());
         }
     }
     if !headers {
@@ -87,7 +87,7 @@ fn test_slice(
 
 fn test_index(name: &str, idx: usize, expected: &str, headers: bool) {
     let (wrk, mut cmd) = setup(name, headers);
-    cmd.arg("--index").arg(&idx.to_string());
+    cmd.arg("--index").arg(idx.to_string());
     if !headers {
         cmd.arg("--no-headers");
     }

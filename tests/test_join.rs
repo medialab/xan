@@ -67,7 +67,7 @@ fn make_rows(headers: bool, rows: Vec<Vec<String>>) -> Vec<Vec<String>> {
     if headers {
         all_rows.push(svec!["city", "state", "city", "place"]);
     }
-    all_rows.extend(rows.into_iter());
+    all_rows.extend(rows);
     all_rows
 }
 
