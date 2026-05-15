@@ -11,10 +11,10 @@ use unicode_width::UnicodeWidthStr;
 use crate::cmd::stats::linear_time_median;
 use crate::collections::{new_index_map, ClusteredInsertHashmap, IndexMap};
 use crate::config::{Config, Delimiter};
-use crate::moonblade::Welford;
+use crate::moonblade::{TemporalExtent, Welford};
 use crate::scales::{ExtentBuilder, GradientName, Histogram, Scale, ScaleType};
 use crate::select::{SelectedColumns, Selection};
-use crate::temporal::parse_fuzzy_temporal;
+use crate::temporal::{parse_fuzzy_temporal, FuzzyTemporal};
 use crate::util::{self, ColorMode, ColorOrStyles};
 use crate::CliResult;
 
@@ -28,10 +28,10 @@ fn compute_name_hash(name: &[u8]) -> usize {
     sum
 }
 
-fn parse_as_seconds(cell: &[u8]) -> CliResult<f64> {
+fn parse_temporal(cell: &[u8]) -> CliResult<(FuzzyTemporal, f64)> {
     let fuzzy_temporal = parse_fuzzy_temporal(cell, true)?;
     let timestamp = fuzzy_temporal.to_lower_bound_timestamp(TimeZone::system())?;
-    Ok(timestamp.as_duration().as_secs_f64())
+    Ok((fuzzy_temporal, timestamp.as_duration().as_secs_f64()))
 }
 
 pub static SPARKLINE_CHARS: [char; 7] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇'];
@@ -507,7 +507,7 @@ spark options:
                       [default: 1]
     -H, --height <n>  Number of characters a sparkline bar is allowed to take as
                       its height. TODO: can take percentage
-    -G, --gradient <name>
+    -NoneG, --gradient <name>
     -B, --background-gradient <name>
     -S, --small-multiples <n>
     -R, --rainbow
@@ -699,11 +699,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         0
     };
 
-    let time_column_index_opt = args
+    // TODO: deal with temporal --min/--max
+    let mut time_opt: Option<(usize, TemporalExtent)> = args
         .flag_time
         .as_ref()
         .map(|s| s.single_selection(&headers, !rconf.no_headers))
-        .transpose()?;
+        .transpose()?
+        .map(|i| (i, TemporalExtent::new()));
 
     let mut record = ByteRecord::new();
 
@@ -732,8 +734,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 series.push_category(category);
             }
 
-            if let Some(time_column_index) = time_column_index_opt {
-                let seconds = parse_as_seconds(&record[time_column_index])?;
+            if let Some((time_column_index, extent)) = time_opt.as_mut() {
+                let (t, seconds) = parse_temporal(&record[*time_column_index])?;
+                extent.add(t.into())?;
                 series.push_time(seconds);
             }
         }
@@ -785,8 +788,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         None
                     };
 
-                let seconds_opt = if let Some(time_column_index) = time_column_index_opt {
-                    Some(parse_as_seconds(&record[time_column_index])?)
+                let seconds_opt = if let Some((time_column_index, extent)) = time_opt.as_mut() {
+                    let (t, seconds) = parse_temporal(&record[*time_column_index])?;
+                    extent.add(t.into())?;
+                    Some(seconds)
                 } else {
                     None
                 };

@@ -155,6 +155,15 @@ const DAYS_BOUND: i64 = HOURS_BOUND * 24;
 const MONTHS_BOUND: i64 = DAYS_BOUND * 30;
 const YEARS_BOUND: i64 = MONTHS_BOUND * 12;
 
+pub static SUPPORTED_GRANULARITIES: [Unit; 6] = [
+    Unit::Year,
+    Unit::Month,
+    Unit::Day,
+    Unit::Hour,
+    Unit::Minute,
+    Unit::Second,
+];
+
 fn smallest_granularity(zoned: &Zoned) -> Unit {
     if zoned.month() == 1 {
         Unit::Year
@@ -255,25 +264,19 @@ impl AnyTemporal {
     pub fn relative_total(&self, other: &Self, unit: Unit) -> Result<f64, Error> {
         match (self, other) {
             (AnyTemporal::Zoned(a), AnyTemporal::Zoned(b)) => {
-                let total = b
-                    .since(a)?
-                    .total((unit, SpanRelativeTo::days_are_24_hours()))?;
+                let total = b.since(a)?.total((unit, a))?;
 
                 Ok(total)
             }
 
             (AnyTemporal::DateTime(a), AnyTemporal::DateTime(b)) => {
-                let total = b
-                    .since(*a)?
-                    .total((unit, SpanRelativeTo::days_are_24_hours()))?;
+                let total = b.since(*a)?.total((unit, a.date()))?;
 
                 Ok(total)
             }
 
             (AnyTemporal::Date(a), AnyTemporal::Date(b)) => {
-                let total = b
-                    .since(*a)?
-                    .total((unit, SpanRelativeTo::days_are_24_hours()))?;
+                let total = b.since(*a)?.total((unit, *a))?;
 
                 Ok(total)
             }
@@ -291,6 +294,16 @@ impl AnyTemporal {
                 self.kind_as_str(),
                 other.kind_as_str()
             ))),
+        }
+    }
+}
+
+impl From<FuzzyTemporal> for AnyTemporal {
+    fn from(value: FuzzyTemporal) -> Self {
+        match value {
+            FuzzyTemporal::Any(temporal) => temporal,
+            FuzzyTemporal::PartialDate(partial_date) => Self::Date(partial_date.into_inner()),
+            FuzzyTemporal::Timestamp(timestamp) => Self::Zoned(timestamp.to_zoned(TimeZone::UTC)),
         }
     }
 }
