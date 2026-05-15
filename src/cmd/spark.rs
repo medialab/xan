@@ -353,6 +353,12 @@ impl ColorMap {
         *self.map.entry(name.to_vec()).or_insert(i)
     }
 
+    fn iter(&self) -> impl Iterator<Item = (usize, &[u8])> {
+        self.map
+            .iter()
+            .map(|(name, category)| (*category, name.as_ref()))
+    }
+
     fn new_mask(&self) -> Vec<bool> {
         vec![false; self.map.len()]
     }
@@ -1145,6 +1151,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         args.flag_small_multiples.map(|_| Vec::new());
 
     let mut colors_buffer: Vec<Option<ColorOrStyles>> = Vec::new();
+
+    // Categorical legend
+    if !args.flag_hide_legend {
+        if let Some((_, color_map)) = &categories_opt {
+            writeln!(&mut out, "Categories:")?;
+
+            for (category, _) in color_map.iter() {
+                let color = util::colorizer_by_rainbow_with_fallback(category, name_hash, "spark");
+
+                writeln!(&mut out, "{}", color.colorize("■"))?;
+            }
+
+            writeln!(&mut out)?;
+        }
+    }
 
     // Rendering
     for (i, (name, series)) in pool.into_iter().enumerate() {
