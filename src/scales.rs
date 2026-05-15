@@ -733,14 +733,14 @@ impl LinearScale {
     }
 
     #[inline]
-    pub fn percent(&self, value: f64) -> f64 {
+    pub fn ratio(&self, value: f64) -> f64 {
         (value - self.input_domain.min()) / self.input_domain.width()
     }
 
     pub fn map(&self, value: f64) -> f64 {
-        let percent = self.percent(value);
+        let ratio = self.ratio(value);
 
-        percent * self.output_range.width() + self.output_range.min()
+        ratio * self.output_range.width() + self.output_range.min()
     }
 
     pub fn ticks(&self, count: usize) -> Vec<f64> {
@@ -817,14 +817,14 @@ impl TimeScale {
     }
 
     #[inline]
-    fn percent(&self, value: f64) -> f64 {
+    fn ratio(&self, value: f64) -> f64 {
         (value - self.input_domain.min()) / self.input_domain.width()
     }
 
     fn map(&self, value: f64) -> f64 {
-        let percent = self.percent(value);
+        let ratio = self.ratio(value);
 
-        percent * self.output_range.width() + self.output_range.min()
+        ratio * self.output_range.width() + self.output_range.min()
     }
 
     fn ticks(&self, count: usize) -> Vec<f64> {
@@ -894,16 +894,16 @@ impl LogScale {
     }
 
     #[inline]
-    fn percent(&self, value: f64) -> f64 {
+    fn ratio(&self, value: f64) -> f64 {
         (self.base.apply(value) - self.converted_input_domain.min())
             / self.converted_input_domain.width()
     }
 
     #[inline]
     fn map(&self, value: f64) -> f64 {
-        let percent = self.percent(value);
+        let ratio = self.ratio(value);
 
-        percent * self.output_range.width() + self.output_range.min()
+        ratio * self.output_range.width() + self.output_range.min()
     }
 
     // NOTE: I do not support reverse scales (i.e. pow scales?)
@@ -1051,11 +1051,11 @@ impl Scale {
         }
     }
 
-    pub fn percent(&self, value: f64) -> f64 {
+    pub fn ratio(&self, value: f64) -> f64 {
         match self {
-            Self::Linear(inner) => inner.percent(value),
-            Self::Log(inner) => inner.percent(value),
-            Self::Time(inner) => inner.percent(value),
+            Self::Linear(inner) => inner.ratio(value),
+            Self::Log(inner) => inner.ratio(value),
+            Self::Time(inner) => inner.ratio(value),
         }
     }
 

@@ -1262,7 +1262,7 @@ impl Series {
     fn to_scaled_floats(&self, scales: (&Scale, &Scale)) -> Vec<(f64, f64)> {
         self.points
             .iter()
-            .map(|(x, y)| (scales.0.percent(*x), scales.1.percent(*y)))
+            .map(|(x, y)| (scales.0.ratio(*x), scales.1.ratio(*y)))
             .collect()
     }
 
@@ -1464,8 +1464,8 @@ impl Series {
         self.regression_line().map(|(intercept, slope)| {
             let (min_x, max_x) = self.extent.unwrap().0;
 
-            let mut first_point = (0.0, scales.1.percent(intercept + slope * min_x));
-            let mut second_point = (1.0, scales.1.percent(intercept + slope * max_x));
+            let mut first_point = (0.0, scales.1.ratio(intercept + slope * min_x));
+            let mut second_point = (1.0, scales.1.ratio(intercept + slope * max_x));
 
             clip(&mut first_point, &mut second_point, [0.0, 0.0, 1.0, 1.0]);
 

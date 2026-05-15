@@ -139,7 +139,7 @@ impl SparklineRenderer {
             let len = SPARKLINE_CHARS.len();
 
             for (i, y) in bins.iter().copied().enumerate() {
-                let ratio = if y == 0.0 { 0.0 } else { scale.percent(y) };
+                let ratio = if y == 0.0 { 0.0 } else { scale.ratio(y) };
 
                 let sparkline_char = if self.options.color_mode.is_background_gradient() || y == 0.0
                 {

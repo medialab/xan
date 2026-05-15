@@ -558,7 +558,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         };
 
                         let percent_opt = scale_opt.map(|scale| {
-                            let p = scale.percent(*f);
+                            let p = scale.ratio(*f);
 
                             // NOTE: f  or now, if scale's domain is constant,
                             // we fallback to the midpoint. We might revise this
