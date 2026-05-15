@@ -303,6 +303,13 @@ impl<T: Copy + PartialOrd> ExtentBuilder<T> {
             extent
         })
     }
+
+    pub fn merge(&mut self, other: &Self) {
+        if let Some(extent) = other.extent.as_ref() {
+            self.process(extent.min());
+            self.process(extent.max());
+        }
+    }
 }
 
 impl<T: Copy + PartialOrd> From<(Option<T>, Option<T>)> for ExtentBuilder<T> {

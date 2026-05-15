@@ -1,6 +1,6 @@
 use jiff::{Error, Unit};
 
-use crate::temporal::{AnyTemporal, SUPPORTED_GRANULARITIES};
+use crate::temporal::AnyTemporal;
 
 #[derive(Debug, Clone)]
 pub struct TemporalExtent {
@@ -47,25 +47,22 @@ impl TemporalExtent {
         match &self.extent {
             None => Ok(None),
             Some((earliest, latest)) => {
-                let mut best_unit: Option<(f64, f64, Unit)> = None;
+                for unit in [
+                    Unit::Year,
+                    Unit::Month,
+                    Unit::Day,
+                    Unit::Hour,
+                    Unit::Minute,
+                    Unit::Second,
+                ] {
+                    let total = earliest.relative_total(latest, unit)?.ceil() as usize;
 
-                for unit in SUPPORTED_GRANULARITIES {
-                    let total = earliest.relative_total(latest, unit)?;
-                    let score = (total - bins as f64).abs();
-
-                    match best_unit {
-                        None => {
-                            best_unit = Some((score, total, unit));
-                        }
-                        Some((current_score, _, _)) => {
-                            if score < current_score {
-                                best_unit = Some((score, total, unit));
-                            }
-                        }
+                    if total >= bins {
+                        return Ok(Some((total, unit)));
                     }
                 }
 
-                Ok(best_unit.map(|(_, t, u)| (t.ceil() as usize, u)))
+                Ok(None)
             }
         }
     }

@@ -529,6 +529,8 @@ impl Series {
     ) -> CliResult<()> {
         debug_assert!(self.times.len() == self.numbers.len());
 
+        let max_gap = count / 20;
+
         let has_categories = !self.categories.is_empty();
 
         debug_assert!(if has_categories {
@@ -597,7 +599,7 @@ impl Series {
             .map(|aggregator| aggregator.get())
             .collect();
 
-        fill_discretization_gaps(&mut new_numbers, 1, |left, right, t| {
+        fill_discretization_gaps(&mut new_numbers, max_gap, |left, right, t| {
             left + t * (right - left)
         });
 
@@ -623,7 +625,7 @@ impl Series {
                 })
                 .collect();
 
-            fill_discretization_gaps(&mut new_categories, 2, |left, _, _| left);
+            fill_discretization_gaps(&mut new_categories, max_gap, |left, _, _| left);
 
             self.categories = new_categories
                 .into_iter()
@@ -1043,13 +1045,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let name_padding = " ".repeat(cols_for_series_name);
 
-    let mut max_bins = cols_for_sparkline / sparkline_width;
+    let max_bins = cols_for_sparkline / sparkline_width;
 
     // Adjusting series
     if let Some((_, extent)) = &time_opt {
         let (adjusted_bins, best_unit) = extent.best_discrete_granularity(max_bins)?.unwrap();
-
-        max_bins = adjusted_bins;
 
         for (_, series) in pool.iter_mut() {
             series.temporal_discretize_and_sort(
@@ -1062,7 +1062,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     // TODO: deal with -D
-    if args.flag_share_scale {}
+    // TODO: need to do this after discretization & distribution
+    if pool.len() > 1 && args.flag_share_scale {
+        let mut total_extent = ExtentBuilder::new();
+
+        for (_, series) in pool.iter() {
+            total_extent.merge(&series.extent_builder);
+        }
+
+        for (_, series) in pool.iter_mut() {
+            series.extent_builder = total_extent.clone();
+        }
+    }
 
     // Building renderer
     let mut sparkline_renderer_options = SparklineRendererOptions::new();

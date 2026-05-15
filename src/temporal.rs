@@ -155,15 +155,6 @@ const DAYS_BOUND: i64 = HOURS_BOUND * 24;
 const MONTHS_BOUND: i64 = DAYS_BOUND * 30;
 const YEARS_BOUND: i64 = MONTHS_BOUND * 12;
 
-pub static SUPPORTED_GRANULARITIES: [Unit; 6] = [
-    Unit::Year,
-    Unit::Month,
-    Unit::Day,
-    Unit::Hour,
-    Unit::Minute,
-    Unit::Second,
-];
-
 fn smallest_granularity(zoned: &Zoned) -> Unit {
     if zoned.month() == 1 {
         Unit::Year
