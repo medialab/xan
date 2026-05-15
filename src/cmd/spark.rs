@@ -1036,14 +1036,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut cols_for_series_name: usize = 0;
 
-    if !args.flag_hide_names {
-        let max_name_width = pool.iter().map(|(name, _)| name.width()).max().unwrap() + 1;
+    let max_name_width = pool.iter().map(|(name, _)| name.width()).max().unwrap() + 1;
 
+    if !args.flag_hide_names {
         cols_for_series_name = max_name_width.min((cols as f64 * 0.3).floor() as usize);
         cols_for_sparkline -= cols_for_series_name;
     }
-
-    let name_padding = " ".repeat(cols_for_series_name);
 
     let max_bins = cols_for_sparkline / sparkline_width;
 
@@ -1095,6 +1093,27 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             series.extent_builder = total_extent.clone();
         }
     }
+
+    // Re-adjusting `cols_for_series_name`
+    let max_sparkline_width = pool
+        .iter()
+        .map(|(_, series)| series.len() * sparkline_width)
+        .max()
+        .unwrap();
+
+    if !args.flag_hide_names
+        && max_sparkline_width < cols_for_sparkline
+        && max_name_width > cols_for_series_name
+    {
+        let diff = cols_for_sparkline - max_sparkline_width;
+        cols_for_series_name += diff;
+
+        if cols_for_series_name > max_name_width {
+            cols_for_series_name = max_name_width;
+        }
+    }
+
+    let name_padding = " ".repeat(cols_for_series_name);
 
     // Building renderer
     let mut sparkline_renderer_options = SparklineRendererOptions::new();
