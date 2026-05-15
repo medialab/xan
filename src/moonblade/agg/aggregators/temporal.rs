@@ -47,7 +47,7 @@ impl TemporalExtent {
         match &self.extent {
             None => Ok(None),
             Some((earliest, latest)) => {
-                let mut best_unit: Option<(f64, Unit)> = None;
+                let mut best_unit: Option<(f64, f64, Unit)> = None;
 
                 for unit in SUPPORTED_GRANULARITIES {
                     let total = earliest.relative_total(latest, unit)?;
@@ -55,17 +55,17 @@ impl TemporalExtent {
 
                     match best_unit {
                         None => {
-                            best_unit = Some((score, unit));
+                            best_unit = Some((score, total, unit));
                         }
-                        Some((current_score, _)) => {
+                        Some((current_score, _, _)) => {
                             if score < current_score {
-                                best_unit = Some((score, unit));
+                                best_unit = Some((score, total, unit));
                             }
                         }
                     }
                 }
 
-                Ok(best_unit.map(|(s, u)| (s.ceil() as usize, u)))
+                Ok(best_unit.map(|(_, t, u)| (t.ceil() as usize, u)))
             }
         }
     }
