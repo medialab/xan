@@ -214,12 +214,12 @@ impl<T: Copy + PartialOrd + Sub<Output = T>> Extent<T> {
 }
 
 impl Extent<f64> {
-    // pub fn discrete_index(&self, bins: usize, target: f64) -> usize {
-    //     let bin_width = self.width() / bins as f64;
-    //     let index = ((target - self.min()) / bin_width).floor() as usize;
+    pub fn discrete_index(&self, bins: usize, target: f64) -> usize {
+        let bin_width = self.width() / bins as f64;
+        let index = ((target - self.min()) / bin_width).floor() as usize;
 
-    //     index.min(bins.saturating_sub(1))
-    // }
+        index.min(bins.saturating_sub(1))
+    }
 
     #[inline]
     fn lerp(&self, t: f64) -> f64 {
@@ -252,6 +252,8 @@ impl<T: Copy + PartialOrd> ExtentBuilder<T> {
 
     pub fn clear(&mut self) {
         self.extent = None;
+        self.min_clamp = None;
+        self.max_clamp = None;
     }
 
     pub fn clamp_min(&mut self, min: T) {
@@ -323,7 +325,7 @@ pub fn sturges(len: usize) -> usize {
     1 + (len as f64).log2().ceil() as usize
 }
 
-pub struct Histogram {
+pub struct HistogramBuilder {
     bins: Vec<f64>,
     domain_extent: Extent<f64>,
     bin_width: f64,
@@ -331,7 +333,7 @@ pub struct Histogram {
     max_value: Option<f64>,
 }
 
-impl Histogram {
+impl HistogramBuilder {
     pub fn new(bins: usize, extent: Extent<f64>) -> Self {
         Self {
             bins: vec![0.0; bins],
@@ -401,7 +403,7 @@ impl Histogram {
     }
 }
 
-impl Deref for Histogram {
+impl Deref for HistogramBuilder {
     type Target = [f64];
 
     fn deref(&self) -> &Self::Target {

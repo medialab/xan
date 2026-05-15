@@ -4,17 +4,18 @@ use std::num::NonZeroUsize;
 
 use colored::Colorize;
 use colorgrad::Gradient;
-use jiff::tz::TimeZone;
+use jiff::{tz::TimeZone, Timestamp, Unit};
 use simd_csv::ByteRecord;
 use unicode_width::UnicodeWidthStr;
 
+use crate::cmd::plot::Aggregation;
 use crate::cmd::stats::linear_time_median;
 use crate::collections::{new_index_map, ClusteredInsertHashmap, IndexMap};
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{TemporalExtent, Welford};
-use crate::scales::{ExtentBuilder, GradientName, Histogram, Scale, ScaleType};
+use crate::scales::{Extent, ExtentBuilder, GradientName, HistogramBuilder, Scale, ScaleType};
 use crate::select::{SelectedColumns, Selection};
-use crate::temporal::{parse_fuzzy_temporal, FuzzyTemporal};
+use crate::temporal::{parse_fuzzy_temporal, FuzzyTemporal, TimestampExt, ZonedExt};
 use crate::util::{self, ColorMode, ColorOrStyles};
 use crate::CliResult;
 
@@ -390,7 +391,7 @@ impl Series {
 
     fn distribution(&mut self, bins: usize) -> (usize, usize, usize, usize) {
         let mut welford = Welford::new();
-        let mut histogram = Histogram::new(bins, self.extent_builder.build().unwrap());
+        let mut histogram = HistogramBuilder::new(bins, self.extent_builder.build().unwrap());
 
         for x in self.numbers.iter().copied() {
             histogram.add(x);
@@ -480,6 +481,66 @@ impl Series {
         self.categories = new_categories;
     }
 
+    fn temporal_discretize_and_sort(
+        &mut self,
+        count: usize,
+        unit: Unit,
+        extent: &TemporalExtent,
+        aggregation: Aggregation,
+    ) -> CliResult<()> {
+        debug_assert!(self.times.len() == self.numbers.len());
+
+        // TODO: what about categories?
+        let earliest = FuzzyTemporal::from(extent.earliest().unwrap());
+        let latest = FuzzyTemporal::from(extent.lastest().unwrap());
+
+        let earliest_seconds = earliest
+            .to_lower_bound_timestamp(TimeZone::system())?
+            .to_zoned(TimeZone::system())
+            .floor(unit)?
+            .timestamp()
+            .as_duration()
+            .as_secs_f64();
+
+        let latest_seconds = latest
+            .to_lower_bound_timestamp(TimeZone::system())?
+            .to_zoned(TimeZone::system())
+            .floor(unit)?
+            .timestamp()
+            .as_duration()
+            .as_secs_f64();
+
+        let seconds_extent = Extent::from((earliest_seconds, latest_seconds));
+
+        let mut new_numbers: Vec<_> = (0..count).map(|_| aggregation.new_aggregator()).collect();
+
+        for (original_index, original_seconds) in self.times.iter().copied().enumerate() {
+            let new_seconds = Timestamp::from_secs_f64(original_seconds)?
+                .to_zoned(TimeZone::system())
+                .floor(unit)?
+                .timestamp()
+                .as_duration()
+                .as_secs_f64();
+
+            let new_index = seconds_extent.discrete_index(count, new_seconds);
+
+            new_numbers[new_index].add(self.numbers[original_index]);
+        }
+
+        self.extent_builder.clear();
+
+        self.numbers = new_numbers
+            .into_iter()
+            .map(|aggregator| {
+                let x = aggregator.get().unwrap_or(0.0);
+                self.extent_builder.process(x);
+                x
+            })
+            .collect();
+
+        Ok(())
+    }
+
     fn to_scale(&self, scale_type: ScaleType) -> Option<Scale> {
         self.extent_builder.build().map(|mut extent| {
             if extent.min() == 0.0 && scale_type.disallows_zero() {
@@ -507,7 +568,7 @@ spark options:
                       [default: 1]
     -H, --height <n>  Number of characters a sparkline bar is allowed to take as
                       its height. TODO: can take percentage
-    -NoneG, --gradient <name>
+    -G, --gradient <name>
     -B, --background-gradient <name>
     -S, --small-multiples <n>
     -R, --rainbow
@@ -525,6 +586,10 @@ spark options:
     -m, --min <n>
     -M, --max <n>
     -w, --wrap
+    -A, --aggregate <mode>     How to aggregate values falling into a same bucket when discretizing
+                               the x axis, e.g. when using the -T/--time flag.
+                               Can be one of \"sum\" or \"mean\". Defaults to \"sum\" when --count
+                               is given, else \"mean\".
     --cols <num>      Number of terminal columns, i.e. characters, that we can
                       use for drawing labels, legends and sparklines.
                       Defaults to using all your terminal's width or 80 if
@@ -559,6 +624,7 @@ struct Args {
     flag_hide_names: bool,
     flag_hide_legend: bool,
     flag_time: Option<SelectedColumns>,
+    flag_aggregate: Option<Aggregation>,
     flag_count: bool,
     flag_striped: bool,
     flag_rainbow: bool,
@@ -594,6 +660,14 @@ impl Args {
         }
 
         series
+    }
+
+    fn aggregation(&self) -> Aggregation {
+        self.flag_aggregate.unwrap_or(if self.flag_count {
+            Aggregation::Sum
+        } else {
+            Aggregation::Mean
+        })
     }
 }
 
@@ -860,7 +934,22 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let name_padding = " ".repeat(cols_for_series_name);
 
-    let max_bins = cols_for_sparkline / sparkline_width;
+    let mut max_bins = cols_for_sparkline / sparkline_width;
+
+    if let Some((_, extent)) = &time_opt {
+        let (adjusted_bins, best_unit) = extent.best_discrete_granularity(max_bins)?.unwrap();
+
+        max_bins = adjusted_bins;
+
+        for (_, series) in pool.iter_mut() {
+            series.temporal_discretize_and_sort(
+                adjusted_bins,
+                best_unit,
+                extent,
+                args.aggregation(),
+            )?;
+        }
+    }
 
     let mut sparkline_renderer_options = SparklineRendererOptions::new();
     sparkline_renderer_options.width = sparkline_width;

@@ -13,7 +13,7 @@ use crate::cmd::spark::SparklineRendererOptions;
 use crate::collections::{ClusteredInsertHashmap, Counter, CounterSpec};
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{DynamicNumber, Stats, Welford};
-use crate::scales::{sturges, Extent, ExtentBuilder, Histogram, Scale, ScaleType};
+use crate::scales::{sturges, Extent, ExtentBuilder, HistogramBuilder, Scale, ScaleType};
 use crate::select::SelectedColumns;
 use crate::util::{self, format_number, ColorMode, ColorOrStyles, FALSE_VALUES, TRUE_VALUES};
 use crate::CliResult;
@@ -48,7 +48,7 @@ enum ColumnType {
         mean: f64,
         median: f64,
         stddev: f64,
-        histogram: Histogram,
+        histogram: HistogramBuilder,
     },
     Categorical {
         is_bool: bool,
@@ -59,7 +59,7 @@ enum ColumnType {
     Labels {
         sample: Vec<String>,
         length_extent: Extent<f64>,
-        length_histogram: Histogram,
+        length_histogram: HistogramBuilder,
     },
     Void,
 }
@@ -196,7 +196,7 @@ impl ColumnEstimator {
             let extent = self.numerical_extent_builder.build().unwrap();
             let bins = sturges(self.numbers.len()).min(HISTOGRAM_BINS);
 
-            let histogram = Histogram::from_series(bins, extent, &self.numbers);
+            let histogram = HistogramBuilder::from_series(bins, extent, &self.numbers);
 
             ColumnType::Numerical {
                 is_int: self.is_int(),
@@ -237,7 +237,7 @@ impl ColumnEstimator {
         } else {
             let length_extent = self.length_extent_builder.build().unwrap();
             let bins = sturges(self.strings.cardinality() as usize).min(HISTOGRAM_BINS);
-            let mut length_histogram = Histogram::new(bins, length_extent);
+            let mut length_histogram = HistogramBuilder::new(bins, length_extent);
             let mut length_welford = Welford::new();
 
             for (name, count) in self.strings.iter() {

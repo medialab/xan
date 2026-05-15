@@ -54,14 +54,14 @@ impl TryFrom<String> for Marker {
     }
 }
 
-#[derive(Clone, Copy, Deserialize)]
-enum Aggregation {
+#[derive(Clone, Copy, Deserialize, Debug)]
+pub enum Aggregation {
     Sum,
     Mean,
 }
 
 impl Aggregation {
-    fn new_aggregator(&self) -> Aggregator {
+    pub fn new_aggregator(&self) -> Aggregator {
         match self {
             Self::Sum => Aggregator::Sum(0.0),
             Self::Mean => Aggregator::Mean(Welford::new()),
@@ -69,13 +69,13 @@ impl Aggregation {
     }
 }
 
-enum Aggregator {
+pub enum Aggregator {
     Sum(f64),
     Mean(Welford),
 }
 
 impl Aggregator {
-    fn add(&mut self, x: f64) {
+    pub fn add(&mut self, x: f64) {
         match self {
             Self::Sum(s) => {
                 *s += x;
@@ -86,10 +86,10 @@ impl Aggregator {
         }
     }
 
-    fn get(&self) -> f64 {
+    pub fn get(&self) -> Option<f64> {
         match self {
-            Self::Sum(s) => *s,
-            Self::Mean(w) => w.mean().unwrap(),
+            Self::Sum(s) => Some(*s),
+            Self::Mean(w) => w.mean(),
         }
     }
 }
@@ -1376,7 +1376,7 @@ impl Series {
             let mut new_y_domain: Option<(f64, f64)> = None;
 
             for (x, w) in buckets.into_iter() {
-                let y = w.get();
+                let y = w.get().unwrap_or(0.0);
 
                 match new_y_domain.as_mut() {
                     None => new_y_domain = Some((y, y)),

@@ -43,7 +43,7 @@ impl TemporalExtent {
         self.extent.as_ref().map(|(_, z)| z.clone())
     }
 
-    pub fn best_discrete_granularity(&self, bins: usize) -> Result<Option<Unit>, Error> {
+    pub fn best_discrete_granularity(&self, bins: usize) -> Result<Option<(usize, Unit)>, Error> {
         match &self.extent {
             None => Ok(None),
             Some((earliest, latest)) => {
@@ -65,7 +65,7 @@ impl TemporalExtent {
                     }
                 }
 
-                Ok(best_unit.map(|(_, u)| u))
+                Ok(best_unit.map(|(s, u)| (s.ceil() as usize, u)))
             }
         }
     }
