@@ -35,6 +35,30 @@ fn parse_temporal(cell: &[u8]) -> CliResult<(FuzzyTemporal, f64)> {
     Ok((fuzzy_temporal, timestamp.as_duration().as_secs_f64()))
 }
 
+fn fill_discretization_gaps(bins: &mut [Option<f64>], max_gap: usize) {
+    let len = bins.len();
+
+    let mut i = 0;
+
+    while i < len {
+        if bins[i].is_none() {
+            let right = (i..len).find(|&j| bins[j].is_some());
+            let gap_len = right.unwrap_or(len) - i;
+            if gap_len <= max_gap {
+                let left_val = (0..i).rev().find_map(|j| bins[j]).unwrap_or(0.0);
+                let right_val = right.and_then(|j| bins[j]).unwrap_or(0.0);
+                for k in i..i + gap_len {
+                    let t = (k - i + 1) as f64 / (gap_len + 1) as f64;
+                    bins[k] = Some(left_val + t * (right_val - left_val));
+                }
+            }
+            i += gap_len.max(1);
+        } else {
+            i += 1;
+        }
+    }
+}
+
 pub static SPARKLINE_CHARS: [char; 7] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇'];
 pub const FULL_BAR: char = '█';
 
@@ -529,11 +553,20 @@ impl Series {
 
         self.extent_builder.clear();
 
+        let mut new_numbers: Vec<_> = new_numbers
+            .into_iter()
+            .map(|aggregator| aggregator.get())
+            .collect();
+
+        fill_discretization_gaps(&mut new_numbers, 2);
+
         self.numbers = new_numbers
             .into_iter()
-            .map(|aggregator| {
-                let x = aggregator.get().unwrap_or(0.0);
+            .map(|x_opt| {
+                let x = x_opt.unwrap_or(0.0);
+
                 self.extent_builder.process(x);
+
                 x
             })
             .collect();
@@ -687,7 +720,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         + args.flag_rainbow as u8;
 
     if color_mode > 1 {
-        Err("only one of -c/--category, -R/--rainbow, -G/--gradient or -B/--background-gradient can be use at once!")?;
+        Err("only one of -c/--category, -R/--rainbow, -G/--gradient or -B/--background-gradient can be used at once!")?;
     }
 
     if args.flag_along_rows {
