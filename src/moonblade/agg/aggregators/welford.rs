@@ -89,11 +89,11 @@ impl Welford {
         Some(self.m2 / (self.count - 1) as f64)
     }
 
-    pub fn stdev(&self) -> Option<f64> {
+    pub fn stddev(&self) -> Option<f64> {
         self.variance().map(|v| v.sqrt())
     }
 
-    pub fn sample_stdev(&self) -> Option<f64> {
+    pub fn sample_stddev(&self) -> Option<f64> {
         self.sample_variance().map(|v| v.sqrt())
     }
 
@@ -227,12 +227,12 @@ impl CovarianceWelford {
 
         let count = self.count as f64;
 
-        let stdev_x = (self.m2_x / count).sqrt();
-        let stdev_y = (self.m2_y / count).sqrt();
+        let stddev_x = (self.m2_x / count).sqrt();
+        let stddev_y = (self.m2_y / count).sqrt();
 
         let covariance = self.c / count;
 
-        Some(covariance / (stdev_x * stdev_y))
+        Some(covariance / (stddev_x * stddev_y))
     }
 
     pub fn merge(&mut self, other: Self) {

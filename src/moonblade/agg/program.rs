@@ -306,10 +306,10 @@ impl Aggregator {
                 DynamicValue::from(inner.sample_variance())
             }
             (ConcreteAggregationMethod::StddevPop, Self::Welford(inner)) => {
-                DynamicValue::from(inner.stdev())
+                DynamicValue::from(inner.stddev())
             }
             (ConcreteAggregationMethod::StddevSample, Self::Welford(inner)) => {
-                DynamicValue::from(inner.sample_stdev())
+                DynamicValue::from(inner.sample_stddev())
             }
             (ConcreteAggregationMethod::Top(_, separator), Self::ArgTop(inner)) => {
                 DynamicValue::from(

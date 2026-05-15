@@ -27,7 +27,7 @@ fn float_cmp(a: &f64, b: &f64) -> Ordering {
     a.partial_cmp(b).unwrap()
 }
 
-fn linear_time_median(values: &mut [f64]) -> f64 {
+pub fn linear_time_median(values: &mut [f64]) -> f64 {
     let n = values.len();
     let mid = n / 2;
 
@@ -203,7 +203,7 @@ impl ColumnEstimator {
                 extent,
                 mean: self.numerical_welford.mean().unwrap(),
                 median: linear_time_median(&mut self.numbers),
-                stddev: self.numerical_welford.stdev().unwrap(),
+                stddev: self.numerical_welford.stddev().unwrap(),
                 histogram,
             }
         } else if self.string_cardinality_ratio() < CARDINALITY_RATIO_THRESHOLD {
@@ -696,6 +696,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     let mut sparkline_renderer = sparkline_renderer_options.build();
                     sparkline_renderer.render(&sparkline_scale, &histogram);
                     sparkline_renderer.render_central_tendency(
+                        0,
                         histogram.bins(),
                         histogram.discrete_index(mean),
                         histogram.discrete_index(median),

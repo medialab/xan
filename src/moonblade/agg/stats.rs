@@ -174,7 +174,7 @@ impl Stats {
         }
 
         record.push_field(&map_to_field(self.welford.variance()));
-        record.push_field(&map_to_field(self.welford.stdev()));
+        record.push_field(&map_to_field(self.welford.stddev()));
         record.push_field(&map_to_field(self.extent.min()));
         record.push_field(&map_to_field(self.extent.max()));
 

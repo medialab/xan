@@ -81,7 +81,7 @@ impl RollingWelford {
         match stat {
             WelfordStat::Mean => self.welford.mean(),
             WelfordStat::Var => self.welford.variance(),
-            WelfordStat::Stddev => self.welford.stdev(),
+            WelfordStat::Stddev => self.welford.stddev(),
         }
     }
 

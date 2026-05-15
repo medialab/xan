@@ -8,8 +8,10 @@ use jiff::tz::TimeZone;
 use simd_csv::ByteRecord;
 use unicode_width::UnicodeWidthStr;
 
+use crate::cmd::stats::linear_time_median;
 use crate::collections::{new_index_map, ClusteredInsertHashmap, IndexMap};
 use crate::config::{Config, Delimiter};
+use crate::moonblade::Welford;
 use crate::scales::{ExtentBuilder, GradientName, Histogram, Scale, ScaleType};
 use crate::select::{SelectedColumns, Selection};
 use crate::temporal::parse_fuzzy_temporal;
@@ -259,6 +261,7 @@ impl SparklineRenderer {
 
     pub fn render_central_tendency(
         &mut self,
+        left_padding: usize,
         bins: usize,
         mean_index: usize,
         median_index: usize,
@@ -266,6 +269,10 @@ impl SparklineRenderer {
         sigma_right_index: usize,
     ) {
         self.draw_buffer.push('\n');
+
+        for _ in 0..left_padding {
+            self.draw_buffer.push(' ');
+        }
 
         for i in 0..bins {
             if i == mean_index {
@@ -377,18 +384,34 @@ impl Series {
         self.times.push(seconds);
     }
 
-    fn distribution(&mut self, bins: usize) {
+    fn distribution(&mut self, bins: usize) -> (usize, usize, usize, usize) {
+        let mut welford = Welford::new();
         let mut histogram = Histogram::new(bins, self.extent_builder.build().unwrap());
 
         for x in self.numbers.iter().copied() {
             histogram.add(x);
+            welford.add(x);
         }
+
+        let median = linear_time_median(&mut self.numbers);
 
         self.extent_builder.clear();
         self.extent_builder.process(0.0);
         self.extent_builder.process(histogram.max_value());
 
+        let mean = welford.mean().unwrap();
+        let sigma = welford.stddev().unwrap();
+
+        let indices = (
+            histogram.discrete_index(mean),
+            histogram.discrete_index(median),
+            histogram.discrete_index(mean - sigma),
+            histogram.discrete_index(mean + sigma),
+        );
+
         self.numbers = histogram.into_vec();
+
+        indices
     }
 
     fn discretize(&mut self, count: usize) {
@@ -490,6 +513,7 @@ spark options:
     -D, --dist
     -z, --striped
     --hide-names
+    --hide-legend
     -g, --groupby <cols>
     -c, --category <col>
     -m, --min <n>
@@ -527,6 +551,7 @@ struct Args {
     flag_background_gradient: Option<GradientName>,
     flag_small_multiples: Option<NonZeroUsize>,
     flag_hide_names: bool,
+    flag_hide_legend: bool,
     flag_time: Option<SelectedColumns>,
     flag_striped: bool,
     flag_rainbow: bool,
@@ -817,9 +842,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     // Rendering
     for (i, (name, mut series)) in pool.into_iter().enumerate() {
-        if args.flag_dist {
-            series.distribution(args.flag_bins.get());
-        }
+        let central_tendency_indices_opt = if args.flag_dist {
+            Some(series.distribution(args.flag_bins.get()))
+        } else {
+            None
+        };
 
         if !args.flag_wrap && series.len() > max_bins {
             series.discretize(max_bins);
@@ -874,6 +901,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     None
                 },
             );
+
+            if !args.flag_hide_legend {
+                if let Some(indices) = central_tendency_indices_opt {
+                    sparkline_renderer.render_central_tendency(
+                        name_padding.width(),
+                        chunk.len(),
+                        indices.0,
+                        indices.1,
+                        indices.2,
+                        indices.3,
+                    );
+                }
+            }
 
             if let Some(small_multiples_buffer) = small_multiples_buffer_opt.as_mut() {
                 let sparkline = sparkline_renderer.to_string();
