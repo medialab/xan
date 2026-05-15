@@ -63,21 +63,22 @@ pub enum Aggregation {
 impl Aggregation {
     pub fn new_aggregator(&self) -> Aggregator {
         match self {
-            Self::Sum => Aggregator::Sum(0.0),
+            Self::Sum => Aggregator::Sum((0, 0.0)),
             Self::Mean => Aggregator::Mean(Welford::new()),
         }
     }
 }
 
 pub enum Aggregator {
-    Sum(f64),
+    Sum((u64, f64)),
     Mean(Welford),
 }
 
 impl Aggregator {
     pub fn add(&mut self, x: f64) {
         match self {
-            Self::Sum(s) => {
+            Self::Sum((c, s)) => {
+                *c += 1;
                 *s += x;
             }
             Self::Mean(w) => {
@@ -88,7 +89,13 @@ impl Aggregator {
 
     pub fn get(&self) -> Option<f64> {
         match self {
-            Self::Sum(s) => Some(*s),
+            Self::Sum((c, s)) => {
+                if *c == 0 {
+                    None
+                } else {
+                    Some(*s)
+                }
+            }
             Self::Mean(w) => w.mean(),
         }
     }

@@ -35,7 +35,13 @@ fn parse_temporal(cell: &[u8]) -> CliResult<(FuzzyTemporal, f64)> {
     Ok((fuzzy_temporal, timestamp.as_duration().as_secs_f64()))
 }
 
-fn fill_discretization_gaps(bins: &mut [Option<f64>], max_gap: usize) {
+fn fill_discretization_gaps<T: Default + Copy, F>(
+    bins: &mut [Option<T>],
+    max_gap: usize,
+    coalesce: F,
+) where
+    F: Fn(T, T, f64) -> T,
+{
     let len = bins.len();
 
     let mut i = 0;
@@ -44,14 +50,16 @@ fn fill_discretization_gaps(bins: &mut [Option<f64>], max_gap: usize) {
         if bins[i].is_none() {
             let right = (i..len).find(|&j| bins[j].is_some());
             let gap_len = right.unwrap_or(len) - i;
+
             if gap_len <= max_gap {
-                let left_val = (0..i).rev().find_map(|j| bins[j]).unwrap_or(0.0);
-                let right_val = right.and_then(|j| bins[j]).unwrap_or(0.0);
+                let left_value = (0..i).rev().find_map(|j| bins[j]).unwrap_or_default();
+                let right_value = right.and_then(|j| bins[j]).unwrap_or_default();
                 for k in i..i + gap_len {
                     let t = (k - i + 1) as f64 / (gap_len + 1) as f64;
-                    bins[k] = Some(left_val + t * (right_val - left_val));
+                    bins[k] = Some(coalesce(left_value, right_value, t));
                 }
             }
+
             i += gap_len.max(1);
         } else {
             i += 1;
@@ -514,7 +522,14 @@ impl Series {
     ) -> CliResult<()> {
         debug_assert!(self.times.len() == self.numbers.len());
 
-        // TODO: what about categories?
+        let has_categories = !self.categories.is_empty();
+
+        debug_assert!(if has_categories {
+            self.numbers.len() == self.categories.len()
+        } else {
+            true
+        });
+
         let earliest = FuzzyTemporal::from(extent.earliest().unwrap());
         let latest = FuzzyTemporal::from(extent.latest().unwrap());
 
@@ -537,6 +552,7 @@ impl Series {
         let seconds_extent = Extent::from((earliest_seconds, latest_seconds));
 
         let mut new_numbers: Vec<_> = (0..count).map(|_| aggregation.new_aggregator()).collect();
+        let mut new_categories: Vec<Vec<(usize, usize)>> = (0..count).map(|_| Vec::new()).collect();
 
         for (original_index, original_seconds) in self.times.iter().copied().enumerate() {
             let new_seconds = Timestamp::from_secs_f64(original_seconds)?
@@ -549,6 +565,22 @@ impl Series {
             let new_index = seconds_extent.discrete_index(count, new_seconds);
 
             new_numbers[new_index].add(self.numbers[original_index]);
+
+            if has_categories {
+                let original_category = self.categories[original_index];
+
+                if let Some(count) = new_categories[new_index].iter_mut().find_map(|(c, count)| {
+                    if *c == original_category {
+                        Some(count)
+                    } else {
+                        None
+                    }
+                }) {
+                    *count += 1;
+                } else {
+                    new_categories[new_index].push((original_category, 1));
+                }
+            }
         }
 
         self.extent_builder.clear();
@@ -558,7 +590,9 @@ impl Series {
             .map(|aggregator| aggregator.get())
             .collect();
 
-        fill_discretization_gaps(&mut new_numbers, 2);
+        fill_discretization_gaps(&mut new_numbers, 1, |left, right, t| {
+            left + t * (right - left)
+        });
 
         self.numbers = new_numbers
             .into_iter()
@@ -570,6 +604,25 @@ impl Series {
                 x
             })
             .collect();
+
+        if has_categories {
+            let mut new_categories: Vec<_> = new_categories
+                .into_iter()
+                .map(|candidates| {
+                    candidates
+                        .iter()
+                        .max_by(|a, b| a.1.cmp(&b.1))
+                        .map(|(c, _)| *c)
+                })
+                .collect();
+
+            fill_discretization_gaps(&mut new_categories, 2, |left, _, _| left);
+
+            self.categories = new_categories
+                .into_iter()
+                .map(|c_opt| c_opt.unwrap_or(usize::MAX))
+                .collect()
+        }
 
         Ok(())
     }
@@ -723,6 +776,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("only one of -c/--category, -R/--rainbow, -G/--gradient or -B/--background-gradient can be used at once!")?;
     }
 
+    if args.flag_striped
+        && (args.flag_category.is_some()
+            || args.flag_gradient.is_some()
+            || args.flag_background_gradient.is_some())
+    {
+        Err("-z/--striped does not work with -c/--category, -G/--gradient nor -B/--background-gradient!")?;
+    }
+
     if args.flag_along_rows {
         if args.flag_groupby.is_some() {
             Err("-g/--groupby does not work with --along-rows!")?;
@@ -856,7 +917,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 .join(", ");
 
             if let Some((_, color_map)) = categories_opt.as_ref() {
-                series.categorical_sort(color_map);
+                if time_opt.is_none() {
+                    series.categorical_sort(color_map);
+                }
             }
 
             pool.push((name, series));
