@@ -60,6 +60,7 @@
 * Fixing `xan explode -D/--drop-empty` when selecting multiple columns.
 * Fixing `xan merge -u` row precedence.
 * Fixing `xan join -D/--drop-key` automatic selection when using `--full`.
+* Fixing granularity inference of `xan plot -T`.
 
 *Performance*
 

@@ -156,18 +156,26 @@ const MONTHS_BOUND: i64 = DAYS_BOUND * 30;
 const YEARS_BOUND: i64 = MONTHS_BOUND * 12;
 
 fn smallest_granularity(zoned: &Zoned) -> Unit {
-    if zoned.month() == 1 {
-        Unit::Year
-    } else if zoned.day() == 1 {
-        Unit::Month
-    } else if zoned.hour() == 0 {
-        Unit::Day
-    } else if zoned.minute() == 0 {
-        Unit::Hour
-    } else if zoned.second() == 0 {
-        Unit::Minute
+    if zoned.time() > Time::MIN {
+        if zoned.second() > 0 {
+            if zoned.minute() > 0 {
+                Unit::Hour
+            } else {
+                Unit::Minute
+            }
+        } else {
+            Unit::Second
+        }
     } else {
-        Unit::Second
+        if zoned.month() > 1 {
+            if zoned.day() > 1 {
+                Unit::Year
+            } else {
+                Unit::Month
+            }
+        } else {
+            Unit::Year
+        }
     }
 }
 
