@@ -1157,10 +1157,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         if let Some((_, color_map)) = &categories_opt {
             writeln!(&mut out, "Categories:")?;
 
-            for (category, _) in color_map.iter() {
+            for (category, name) in color_map.iter() {
                 let color = util::colorizer_by_rainbow_with_fallback(category, name_hash, "spark");
 
-                writeln!(&mut out, "{}", color.colorize("■"))?;
+                writeln!(
+                    &mut out,
+                    "{} {}",
+                    color.colorize("■"),
+                    util::unicode_aware_ellipsis(
+                        &util::sanitize_text_for_single_line_printing(&String::from_utf8_lossy(
+                            name
+                        )),
+                        cols.saturating_sub(2)
+                    )
+                )?;
             }
 
             writeln!(&mut out)?;
