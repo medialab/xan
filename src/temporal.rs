@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::fmt;
 
 use btoi::btoi;
 use jiff::{
@@ -293,6 +294,17 @@ impl AnyTemporal {
                 self.kind_as_str(),
                 other.kind_as_str()
             ))),
+        }
+    }
+}
+
+impl fmt::Display for AnyTemporal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AnyTemporal::Zoned(zoned) => write!(f, "{}", zoned),
+            AnyTemporal::DateTime(datetime) => write!(f, "{}", datetime),
+            AnyTemporal::Date(date) => write!(f, "{}", date),
+            AnyTemporal::Time(time) => write!(f, "{}", time),
         }
     }
 }

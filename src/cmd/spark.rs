@@ -9,7 +9,7 @@ use ordered_float::NotNan;
 use simd_csv::ByteRecord;
 use unicode_width::UnicodeWidthStr;
 
-use crate::cmd::plot::Aggregation;
+use crate::cmd::plot::{Aggregation, Granularity};
 use crate::cmd::stats::linear_time_median;
 use crate::collections::{new_index_map, ClusteredInsertHashmap, IndexMap};
 use crate::config::{Config, Delimiter};
@@ -909,7 +909,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         0
     };
 
-    // TODO: deal with temporal --min/--max
     let mut time_opt: Option<(usize, TemporalExtent)> = args
         .flag_time
         .as_ref()
@@ -1088,8 +1087,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     };
 
     // Temporal discretization
+    let mut granularity_opt = None;
+
     if let Some((_, extent)) = &time_opt {
         let (adjusted_bins, best_unit) = extent.best_discrete_granularity(max_bins)?.unwrap();
+
+        granularity_opt = Some(best_unit);
 
         for (_, series) in pool.iter_mut() {
             series.temporal_discretize_and_sort(
@@ -1186,8 +1189,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut colors_buffer: Vec<Option<ColorOrStyles>> = Vec::new();
 
-    // Categorical legend
     if !args.flag_hide_legend {
+        // Categorical legend
         if let Some((_, color_map)) = &categories_opt {
             writeln!(&mut out, "Categories:")?;
 
@@ -1196,7 +1199,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                 writeln!(
                     &mut out,
-                    "{} {}",
+                    "{} {}\n",
                     color.colorize("■"),
                     util::unicode_aware_ellipsis(
                         &util::sanitize_text_for_single_line_printing(&String::from_utf8_lossy(
@@ -1206,8 +1209,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     )
                 )?;
             }
+        }
 
-            writeln!(&mut out)?;
+        // Temporal legend
+        if let Some((_, extent)) = &time_opt {
+            let granularity = granularity_opt.unwrap();
+
+            writeln!(
+                &mut out,
+                "Time series from {} to {} (granularity: {})\n",
+                extent.earliest().unwrap().to_string().cyan(),
+                extent.latest().unwrap().to_string().cyan(),
+                Granularity::new(granularity).to_string().green()
+            )?;
         }
     }
 

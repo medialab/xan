@@ -2,6 +2,7 @@
 //  - https://github.com/ratatui/ratatui/issues/334
 //  - https://github.com/ratatui/ratatui/issues/1391
 use std::convert::TryFrom;
+use std::fmt;
 use std::io::{stderr, stdout, Write};
 use std::num::NonZeroUsize;
 
@@ -103,11 +104,29 @@ impl Aggregator {
 
 #[derive(Clone, Copy, Deserialize)]
 #[serde(try_from = "String")]
-struct Granularity(Unit);
+pub struct Granularity(Unit);
 
 impl Granularity {
+    pub fn new(unit: Unit) -> Self {
+        Self(unit)
+    }
+
     fn into_inner(self) -> Unit {
         self.0
+    }
+}
+
+impl fmt::Display for Granularity {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0 {
+            Unit::Year => write!(f, "years"),
+            Unit::Month => write!(f, "months"),
+            Unit::Day => write!(f, "days"),
+            Unit::Hour => write!(f, "hours"),
+            Unit::Minute => write!(f, "minutes"),
+            Unit::Second => write!(f, "seconds"),
+            _ => unreachable!(),
+        }
     }
 }
 
