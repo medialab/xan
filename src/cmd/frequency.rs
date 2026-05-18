@@ -4,7 +4,7 @@ use bstr::ByteSlice;
 use simd_csv::ByteRecord;
 
 use crate::cmd::parallel::Args as ParallelArgs;
-use crate::collections::{ClusteredInsertHashmap, Counter, CounterSpec};
+use crate::collections::{ApproxCounterAlgorithm, ClusteredInsertHashmap, Counter, CounterSpec};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
 use crate::util;
@@ -47,28 +47,34 @@ Usage:
     xan freq [options] [<input>]
 
 frequency options:
-    -s, --select <arg>       Select a subset of columns to compute frequencies
-                             for. See 'xan select --help' for the selection language
-                             details.
-    --sep <char>             Split the cell into multiple values to count using the
-                             provided separator.
-    -g, --groupby <cols>     If given, will compute frequency tables per group
-                             as defined by the given columns.
-    -A, --all                Remove the limit.
-    -l, --limit <arg>        Limit the frequency table to the N most common
-                             items. Use -A, -all or set to 0 to disable the limit.
-                             [default: 10]
-    -a, --approx             If set, return the items most likely having the top counts,
-                             as per given --limit. Won't work if --limit is 0 or
-                             with -A, --all. Accuracy of results increases with the
-                             given limit.
-    -N, --no-extra           Don't include empty cells & remaining counts.
-    -p, --parallel           Whether to use parallelization to speed up computation.
-                             Will automatically select a suitable number of threads to use
-                             based on your number of cores. Use -t, --threads if you want to
-                             indicate the number of threads yourself.
-    -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
-                             if you want the number of threads to be automatically chosen instead.
+    -s, --select <arg>        Select a subset of columns to compute frequencies
+                              for. See 'xan select --help' for the selection language
+                              details.
+    --sep <char>              Split the cell into multiple values to count using the
+                              provided separator.
+    -g, --groupby <cols>      If given, will compute frequency tables per group
+                              as defined by the given columns.
+    -A, --all                 Remove the limit.
+    -l, --limit <arg>         Limit the frequency table to the N most common
+                              items. Use -A, -all or set to 0 to disable the limit.
+                              [default: 10]
+    -a, --approx              If set, return the items most likely having the top counts,
+                              as per given --limit. Won't work if --limit is 0 or
+                              with -A, --all. Accuracy of results increases with the
+                              given limit.
+    -X, --approx-algo <name>  Name of the algorithm to use to find top-k approximation when
+                              using the -a/--approx flag. Can be either the default
+                              `space-saving` (`ss`) algorithm, or `heavy-keeper` (`hk`) algorithm,
+                              which is more suited to zipfian streams (items distribution following
+                              a power law).
+                              [default: space-saving]
+    -N, --no-extra            Don't include empty cells & remaining counts.
+    -p, --parallel            Whether to use parallelization to speed up computation.
+                              Will automatically select a suitable number of threads to use
+                              based on your number of cores. Use -t, --threads if you want to
+                              indicate the number of threads yourself.
+    -t, --threads <threads>   Parellize computations using this many threads. Use -p, --parallel
+                              if you want the number of threads to be automatically chosen instead.
 
 Hidden options:
     --no-limit-we-reach-for-the-sky  Nothing to see here...
@@ -92,6 +98,7 @@ struct Args {
     flag_all: bool,
     flag_limit: usize,
     flag_approx: bool,
+    flag_approx_algo: ApproxCounterAlgorithm,
     flag_no_extra: bool,
     flag_output: Option<String>,
     flag_no_headers: bool,
@@ -148,7 +155,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     let counter_spec = if args.flag_approx {
-        CounterSpec::SpaceSaving(args.flag_limit)
+        match args.flag_approx_algo {
+            ApproxCounterAlgorithm::SpaceSaving => CounterSpec::SpaceSaving(args.flag_limit),
+            ApproxCounterAlgorithm::HeavyKeeper => CounterSpec::HeavyKeeper(args.flag_limit),
+        }
     } else {
         CounterSpec::Exact
     };

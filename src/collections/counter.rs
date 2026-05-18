@@ -3,6 +3,7 @@ use std::convert::TryFrom;
 use std::fmt;
 use std::hash::Hash;
 
+use heavykeeper::CuckooTopK;
 use rayon::prelude::*;
 use topk::FilteredSpaceSaving;
 
@@ -144,7 +145,7 @@ impl<K: Eq + Hash + Send + Ord> fmt::Debug for SpaceSavingCounter<K> {
 impl<K: Eq + Hash + Send + Ord + Clone> SpaceSavingCounter<K> {
     pub fn new(k: usize) -> Self {
         Self {
-            map: FilteredSpaceSaving::new(k),
+            map: FilteredSpaceSaving::new(k * 10), // NOTE: we oversample by 10
         }
     }
 
@@ -159,18 +160,17 @@ impl<K: Eq + Hash + Send + Ord + Clone> SpaceSavingCounter<K> {
     }
 
     pub fn into_total_and_top(self) -> (u64, Vec<(K, u64)>) {
+        let k = self.map.k() / 10;
+
         let total = self.map.count();
         let items = self
             .map
             .into_sorted_iter()
+            .take(k)
             .map(|(k, c)| (k, c.estimated_count()))
             .collect();
 
         (total, items)
-    }
-
-    fn cardinality(&self) -> u64 {
-        self.map.count()
     }
 
     fn iter(&self) -> impl Iterator<Item = (&K, u64)> {
@@ -182,30 +182,80 @@ impl<K: Eq + Hash + Send + Ord + Clone> SpaceSavingCounter<K> {
     }
 }
 
+pub struct HeavyKeeperCounter<K: Eq + Hash + Send + Ord + Clone> {
+    map: CuckooTopK<K>,
+    total: u64,
+}
+
+impl<K: Eq + Hash + Send + Ord + Clone> fmt::Debug for HeavyKeeperCounter<K> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("HeavyKeeperCounter").finish()
+    }
+}
+
+impl<K: Eq + Hash + Send + Ord + Clone> HeavyKeeperCounter<K> {
+    pub fn new(k: usize) -> Self {
+        Self {
+            map: CuckooTopK::new(k, 1000, 4, 0.9),
+            total: 0,
+        }
+    }
+
+    #[inline]
+    pub fn add_n(&mut self, key: K, count: u64) {
+        self.map.add(&key, count);
+        self.total += count;
+    }
+
+    #[inline]
+    pub fn add(&mut self, key: K) {
+        self.map.add(&key, 1);
+        self.total += 1;
+    }
+
+    pub fn to_total_and_top(&self) -> (u64, Vec<(K, u64)>) {
+        let items = self
+            .map
+            .list()
+            .into_iter()
+            .map(|node| (node.item, node.count))
+            .collect();
+
+        (self.total, items)
+    }
+
+    pub fn merge(&mut self, other: Self) {
+        self.map.merge(&other.map).unwrap()
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum CounterSpec {
     Exact,
     SpaceSaving(usize),
+    HeavyKeeper(usize),
 }
 
-#[derive(Debug, Clone)]
-pub enum Counter<K: Eq + Hash + Send + Ord> {
+#[derive(Debug)]
+pub enum Counter<K: Eq + Hash + Send + Ord + Clone> {
     Exact(ExactCounter<K>),
     SpaceSaving(Box<SpaceSavingCounter<K>>),
+    HeavyKeeper(Box<HeavyKeeperCounter<K>>),
 }
 
 impl<K: Eq + Hash + Send + Ord + Clone> Counter<K> {
     pub fn new(spec: CounterSpec) -> Self {
         match spec {
             CounterSpec::SpaceSaving(k) => Self::SpaceSaving(Box::new(SpaceSavingCounter::new(k))),
+            CounterSpec::HeavyKeeper(k) => Self::HeavyKeeper(Box::new(HeavyKeeperCounter::new(k))),
             CounterSpec::Exact => Self::Exact(ExactCounter::new()),
         }
     }
 
-    pub fn cardinality(&self) -> u64 {
+    pub fn cardinality(&self) -> Option<u64> {
         match self {
-            Self::Exact(inner) => inner.cardinality(),
-            Self::SpaceSaving(inner) => inner.cardinality(),
+            Self::Exact(inner) => Some(inner.cardinality()),
+            _ => None,
         }
     }
 
@@ -215,6 +265,9 @@ impl<K: Eq + Hash + Send + Ord + Clone> Counter<K> {
                 inner.add(key);
             }
             Self::SpaceSaving(inner) => {
+                inner.add(key);
+            }
+            Self::HeavyKeeper(inner) => {
                 inner.add(key);
             }
         }
@@ -228,6 +281,9 @@ impl<K: Eq + Hash + Send + Ord + Clone> Counter<K> {
             Self::SpaceSaving(inner) => {
                 inner.add_n(key, count);
             }
+            Self::HeavyKeeper(inner) => {
+                inner.add_n(key, count);
+            }
         }
     }
 
@@ -235,6 +291,7 @@ impl<K: Eq + Hash + Send + Ord + Clone> Counter<K> {
         match self {
             Self::Exact(inner) => Box::new(inner.iter()),
             Self::SpaceSaving(inner) => Box::new(inner.iter()),
+            Self::HeavyKeeper(_) => unreachable!(),
         }
     }
 
@@ -246,6 +303,15 @@ impl<K: Eq + Hash + Send + Ord + Clone> Counter<K> {
         match self {
             Self::Exact(inner) => inner.into_total_and_items(limit, parallel),
             Self::SpaceSaving(inner) => inner.into_total_and_top(),
+            Self::HeavyKeeper(inner) => inner.to_total_and_top(),
+        }
+    }
+
+    pub fn to_total_and_items(&self, limit: Option<usize>, parallel: bool) -> (u64, Vec<(K, u64)>) {
+        match self {
+            Self::Exact(inner) => inner.clone().into_total_and_items(limit, parallel),
+            Self::SpaceSaving(inner) => inner.clone().into_total_and_top(),
+            Self::HeavyKeeper(inner) => inner.to_total_and_top(),
         }
     }
 
@@ -254,6 +320,9 @@ impl<K: Eq + Hash + Send + Ord + Clone> Counter<K> {
             (Self::Exact(inner_self), Self::Exact(inner_other)) => inner_self.merge(inner_other),
             (Self::SpaceSaving(inner_self), Self::SpaceSaving(inner_other)) => {
                 inner_self.merge(*inner_other)
+            }
+            (Self::HeavyKeeper(inner_self), Self::HeavyKeeper(inner_other)) => {
+                inner_self.merge(*inner_other);
             }
             _ => unreachable!(),
         };

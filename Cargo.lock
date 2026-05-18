@@ -1062,6 +1062,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5419bdc4f6a9207fbeba6d11b604d481addf78ecd10c11ad51e76c2f6482748d"
 
 [[package]]
+name = "heavykeeper"
+version = "0.6.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3d33e2d370d2fb6af6c78cbab7de6a06cdc76b82b0fd35eafc572b3e6d734382"
+dependencies = [
+ "ahash",
+ "rand 0.9.2",
+ "thiserror 2.0.17",
+]
+
+[[package]]
 name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3190,6 +3201,7 @@ dependencies = [
  "fast-float2",
  "flate2",
  "glob",
+ "heavykeeper",
  "html-escape",
  "hyperloglogplus",
  "indexmap 2.12.0",

@@ -185,7 +185,8 @@ impl ColumnEstimator {
     fn settle(&mut self) {
         let strings = self.categories.as_ref().unwrap();
 
-        let cardinality_ratio = strings.cardinality() as f64 / self.non_empty_count() as f64;
+        let cardinality_ratio =
+            strings.cardinality().unwrap() as f64 / self.non_empty_count() as f64;
 
         if cardinality_ratio < CARDINALITY_RATIO_THRESHOLD {
             let categories = self.categories.take().unwrap();
@@ -341,9 +342,7 @@ impl ColumnEstimator {
             }
             // Categorical
             else if let Some(categories) = &self.categories {
-                let (total, top) = categories
-                    .clone()
-                    .into_total_and_items(Some(CATEGORIES_TO_SHOW), false);
+                let (total, top) = categories.to_total_and_items(Some(CATEGORIES_TO_SHOW), false);
 
                 let mut is_bool = false;
 
@@ -358,7 +357,7 @@ impl ColumnEstimator {
 
                 ColumnType::Categorical {
                     is_bool,
-                    cardinality: categories.cardinality(),
+                    cardinality: categories.cardinality().unwrap(),
                     top: top
                         .iter()
                         .map(|(cell, count)| (String::from_utf8_lossy(cell).into_owned(), *count))
