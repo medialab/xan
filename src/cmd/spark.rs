@@ -1137,6 +1137,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
+    // Padding
+    if args.flag_groupby.is_some()
+        && args.flag_small_multiples.is_some()
+        && categories_opt.is_none()
+        && time_opt.is_none()
+    {
+        let longest = pool.iter().map(|(_, series)| series.len()).max().unwrap();
+
+        for (_, series) in pool.iter_mut() {
+            while series.len() < longest {
+                series.push(0.0);
+            }
+        }
+    }
+
     // Re-adjusting `cols_for_series_name`
     let max_sparkline_width = pool
         .iter()
@@ -1199,7 +1214,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                 writeln!(
                     &mut out,
-                    "{} {}\n",
+                    "{} {}",
                     color.colorize("■"),
                     util::unicode_aware_ellipsis(
                         &util::sanitize_text_for_single_line_printing(&String::from_utf8_lossy(
@@ -1209,6 +1224,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     )
                 )?;
             }
+
+            writeln!(&mut out)?;
         }
 
         // Temporal legend
