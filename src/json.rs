@@ -310,7 +310,7 @@ impl<W: Write> JSONTabularizer<W> {
                 Some(limit) => Vec::with_capacity(limit.get()),
                 None => Vec::new(),
             },
-            flushed: false,
+            flushed: true,
             output_record: ByteRecord::new(),
             stack: JSONTraversalStack::new(),
             reorder_keys: false,
@@ -350,6 +350,7 @@ impl<W: Write> JSONTabularizer<W> {
     pub fn process(&mut self, value: Value) -> simd_csv::Result<()> {
         // Sampling
         if self.sample_size.is_none() || self.sample.len() < self.sample_size.unwrap() {
+            self.flushed = false;
             merge(&mut self.harmonized_value, &value);
             self.sample.push(value);
             return Ok(());

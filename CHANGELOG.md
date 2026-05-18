@@ -61,6 +61,7 @@
 * Fixing `xan merge -u` row precedence.
 * Fixing `xan join -D/--drop-key` automatic selection when using `--full`.
 * Fixing granularity inference of `xan plot -T`.
+* Fixing `xan from -f (json|ndjson)` to emit empty outputs from empty inputs.
 
 *Performance*
 
