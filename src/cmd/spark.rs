@@ -1033,6 +1033,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
+    let full_cols = cols;
+
     // Layout
     if let Some(small_multiples) = args.flag_small_multiples {
         let n = small_multiples.get();
@@ -1180,7 +1182,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         &util::sanitize_text_for_single_line_printing(&String::from_utf8_lossy(
                             name
                         )),
-                        cols.saturating_sub(2)
+                        full_cols.saturating_sub(2)
                     )
                 )?;
             }
