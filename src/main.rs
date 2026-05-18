@@ -46,6 +46,7 @@ macro_rules! command_list {
     hist        Print a histogram with rows of CSV file as bars
     plot        Draw a scatter plot or line chart
     heatmap     Draw a heatmap of a CSV matrix
+    spark       Draw ascii sparklines (e.g. ▇▅▄▃▂▃) from CSV data
     progress    Display a progress bar while reading CSV data
 
 ## Search & filter

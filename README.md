@@ -589,6 +589,7 @@ For a sense of what can be achieved with `xan`, see this page summarizing a vari
 - [**hist**](./docs/cmd/hist.md): Print a histogram with rows of CSV file as bars
 - [**plot**](./docs/cmd/plot.md): Draw a scatter plot or line chart
 - [**heatmap**](./docs/cmd/heatmap.md): Draw a heatmap of a CSV matrix
+- [**spark**](./docs/cmd/spark.md): Draw ascii sparklines (e.g. `▇▅▄▃▂▃`) from CSV data
 - [**progress**](./docs/cmd/progress.md): Display a progress bar while reading CSV data
 
 *Search & filter*

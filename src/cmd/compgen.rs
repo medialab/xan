@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use glob::glob;
 
-static COMMANDS: [&str; 58] = [
+static COMMANDS: [&str; 60] = [
     "agg",
     "behead",
     "bins",
@@ -53,8 +53,10 @@ static COMMANDS: [&str; 58] = [
     "shuffle",
     "slice",
     "sort",
+    "spark",
     "split",
     "stats",
+    "run",
     "tokenize",
     "top",
     "transform",
