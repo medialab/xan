@@ -324,6 +324,30 @@ impl SparklineRenderer {
         }
     }
 
+    fn show_numbers(&mut self, left_padding: usize, numbers: &[f64], scale_opt: Option<&Scale>) {
+        self.draw_buffer.push('\n');
+
+        for _ in 0..left_padding {
+            self.draw_buffer.push(' ');
+        }
+
+        let width = self.options.width;
+
+        for x in numbers.iter().copied() {
+            self.draw_buffer.push_str(
+                &util::unicode_aware_ellipsis(
+                    &(if let Some(scale) = scale_opt {
+                        format!("{:3.0}%", scale.ratio(x) * 100.0)
+                    } else {
+                        util::format_number(x)
+                    }),
+                    width,
+                )
+                .pad_to_width_with_alignment(width, Alignment::Middle),
+            );
+        }
+    }
+
     pub fn render_central_tendency(
         &mut self,
         left_padding: usize,
@@ -719,6 +743,8 @@ spark options:
     -F, --flatter
     --sort
     -C, --cram <choice>  [default: auto]
+    -N, --show-numbers
+    -P, --show-percentages
     -A, --aggregate <mode>     How to aggregate values falling into a same bucket when discretizing
                                the x axis, e.g. when using the -T/--time flag.
                                Can be one of \"sum\" or \"mean\". Defaults to \"sum\" when --count
@@ -772,6 +798,8 @@ struct Args {
     flag_min: Option<f64>,
     flag_max: Option<f64>,
     flag_wrap: bool,
+    flag_show_numbers: bool,
+    flag_show_percentages: bool,
     flag_flatter: bool,
     flag_width: NonZeroUsize,
     flag_height: Option<String>,
@@ -1352,6 +1380,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         indices.2,
                         indices.3,
                     );
+                }
+
+                if args.flag_show_percentages {
+                    sparkline_renderer.show_numbers(name_padding.len(), chunk, Some(&scale));
+                }
+
+                if args.flag_show_numbers {
+                    sparkline_renderer.show_numbers(name_padding.len(), chunk, None);
                 }
 
                 if actually_cram {
