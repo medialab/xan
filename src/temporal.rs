@@ -259,6 +259,24 @@ impl AnyTemporal {
         }
     }
 
+    // NOTE: beware, this only converts timezone of Zoned elements as everything
+    // else will be consider to be UTC!
+    pub fn to_lower_bound_timestamp(&self, timezone: TimeZone) -> Result<Timestamp, Error> {
+        Ok(match self {
+            AnyTemporal::Zoned(zoned) => zoned.with_time_zone(timezone).timestamp(),
+            AnyTemporal::DateTime(datetime) => datetime.to_zoned(TimeZone::UTC)?.timestamp(),
+            AnyTemporal::Date(date) => date
+                .to_datetime(Time::default())
+                .to_zoned(TimeZone::UTC)?
+                .timestamp(),
+            AnyTemporal::Time(_) => {
+                return Err(Error::from_args(format_args!(
+                    "cannot convert a bare time to a lower bound timestamp"
+                )))
+            }
+        })
+    }
+
     pub fn relative_total(&self, other: &Self, unit: Unit) -> Result<f64, Error> {
         match (self, other) {
             (AnyTemporal::Zoned(a), AnyTemporal::Zoned(b)) => {
@@ -333,30 +351,22 @@ impl FuzzyTemporal {
         }
     }
 
+    pub fn is_time(&self) -> bool {
+        matches!(self, Self::Any(AnyTemporal::Time(_)))
+    }
+
     // NOTE: beware, this only converts timezone of Zoned elements as everything
     // else will be consider to be UTC!
     pub fn to_lower_bound_timestamp(&self, timezone: TimeZone) -> Result<Timestamp, Error> {
-        Ok(match self {
-            Self::Any(temporal) => match temporal {
-                AnyTemporal::Zoned(zoned) => zoned.with_time_zone(timezone).timestamp(),
-                AnyTemporal::DateTime(datetime) => datetime.to_zoned(TimeZone::UTC)?.timestamp(),
-                AnyTemporal::Date(date) => date
-                    .to_datetime(Time::default())
-                    .to_zoned(TimeZone::UTC)?
-                    .timestamp(),
-                AnyTemporal::Time(_) => {
-                    return Err(Error::from_args(format_args!(
-                        "cannot convert a bare time to a lower bound timestamp"
-                    )))
-                }
-            },
-            Self::PartialDate(partial_date) => partial_date
+        match self {
+            Self::Any(temporal) => temporal.to_lower_bound_timestamp(timezone),
+            Self::PartialDate(partial_date) => Ok(partial_date
                 .as_date()
                 .to_datetime(Time::default())
                 .to_zoned(TimeZone::UTC)?
-                .timestamp(),
-            Self::Timestamp(timestamp) => *timestamp,
-        })
+                .timestamp()),
+            Self::Timestamp(timestamp) => Ok(*timestamp),
+        }
     }
 }
 

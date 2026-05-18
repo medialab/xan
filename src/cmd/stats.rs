@@ -4,17 +4,21 @@ use std::num::NonZeroUsize;
 
 use bstr::ByteSlice;
 use colored::Colorize;
+use jiff::tz::TimeZone;
 use pad::{Alignment, PadStr};
 use simd_csv::ByteRecord;
 use unicode_width::UnicodeWidthStr;
 
 use crate::cmd::parallel::Args as ParallelArgs;
-use crate::cmd::spark::SparklineRendererOptions;
+use crate::cmd::plot::Aggregation;
+use crate::cmd::plot::Granularity;
+use crate::cmd::spark::{Series, SparklineRendererOptions};
 use crate::collections::{ClusteredInsertHashmap, Counter, CounterSpec};
 use crate::config::{Config, Delimiter};
-use crate::moonblade::{DynamicNumber, Stats, Welford};
+use crate::moonblade::{DynamicNumber, Stats, TemporalExtent, Welford};
 use crate::scales::{sturges, Extent, ExtentBuilder, HistogramBuilder, Scale, ScaleType};
 use crate::select::SelectedColumns;
+use crate::temporal::{parse_fuzzy_temporal, AnyTemporal};
 use crate::util::{self, format_number, ColorMode, ColorOrStyles, FALSE_VALUES, TRUE_VALUES};
 use crate::CliResult;
 
@@ -57,6 +61,11 @@ enum ColumnType {
         top: Vec<(String, u64)>,
         total: u64,
     },
+    Temporal {
+        extent: TemporalExtent,
+        granularity: Granularity,
+        series: Series,
+    },
     Labels {
         sample: Vec<String>,
         length_extent: Extent<f64>,
@@ -82,6 +91,7 @@ impl ColumnType {
                     "categorical"
                 }
             }
+            Self::Temporal { .. } => "temporal",
             Self::Labels { length_extent, .. } => {
                 if length_extent.max() > 250.0 {
                     "text"
@@ -100,11 +110,11 @@ struct ColumnEstimator {
     categories: Option<Counter<Vec<u8>>>,
     numbers: Vec<f64>,
     lengths: Vec<usize>,
+    times: Vec<AnyTemporal>,
     int_count: u64,
     empty_count: u64,
     count: u64,
     first_seen: Vec<Vec<u8>>,
-    // first_seen_int: (i64, u64), conflate with int_count later and spillover for bool detection
 }
 
 impl ColumnEstimator {
@@ -114,6 +124,7 @@ impl ColumnEstimator {
             categories: Some(Counter::new(CounterSpec::Exact)),
             numbers: Vec::new(),
             lengths: Vec::new(),
+            times: Vec::new(),
             int_count: 0,
             empty_count: 0,
             count: 0,
@@ -131,7 +142,11 @@ impl ColumnEstimator {
             self.first_seen.push(cell.to_vec());
         }
 
+        let mut as_string = true;
+
         if let Ok(n) = DynamicNumber::try_from(cell) {
+            as_string = false;
+
             if !n.is_float() {
                 self.int_count += 1;
             }
@@ -139,7 +154,14 @@ impl ColumnEstimator {
             let f = n.as_float();
 
             self.numbers.push(f);
-        } else {
+        } else if let Ok(t) = parse_fuzzy_temporal(cell, false) {
+            if !t.is_time() {
+                self.times.push(t.into());
+                as_string = false;
+            }
+        }
+
+        if as_string {
             if let Some(categories) = self.categories.as_mut() {
                 categories.add(cell.to_vec());
             } else {
@@ -201,86 +223,119 @@ impl ColumnEstimator {
             .collect()
     }
 
-    fn infer_type(&mut self) -> ColumnType {
-        // Void
-        if self.is_void() {
-            ColumnType::Void
-        }
-        // Numerical
-        else if self.is_numerical() {
-            let mut extent_builder = ExtentBuilder::new();
-            let mut welford = Welford::new();
-
-            for x in self.numbers.iter().copied() {
-                extent_builder.process(x);
-                welford.add(x);
+    fn infer_type(&mut self, cols: usize) -> CliResult<ColumnType> {
+        Ok(
+            // Void
+            if self.is_void() {
+                ColumnType::Void
             }
+            // Numerical
+            else if self.is_numerical() {
+                let mut extent_builder = ExtentBuilder::new();
+                let mut welford = Welford::new();
 
-            let extent = extent_builder.build().unwrap();
-            let bins = sturges(self.numbers.len()).min(HISTOGRAM_BINS);
+                for x in self.numbers.iter().copied() {
+                    extent_builder.process(x);
+                    welford.add(x);
+                }
 
-            let histogram = HistogramBuilder::from_series(bins, extent, &self.numbers);
+                let extent = extent_builder.build().unwrap();
+                let bins = sturges(self.numbers.len()).min(HISTOGRAM_BINS);
 
-            ColumnType::Numerical {
-                is_int: self.is_int(),
-                extent,
-                mean: welford.mean().unwrap(),
-                median: linear_time_median(&mut self.numbers),
-                stddev: welford.stddev().unwrap(),
-                histogram,
+                let histogram = HistogramBuilder::from_series(bins, extent, &self.numbers);
+
+                ColumnType::Numerical {
+                    is_int: self.is_int(),
+                    extent,
+                    mean: welford.mean().unwrap(),
+                    median: linear_time_median(&mut self.numbers),
+                    stddev: welford.stddev().unwrap(),
+                    histogram,
+                }
             }
-        }
-        // Categorical
-        else if let Some(categories) = &self.categories {
-            let (total, top) = categories
-                .clone()
-                .into_total_and_items(Some(CATEGORIES_TO_SHOW), false);
+            // Temporal
+            else if !self.times.is_empty() {
+                let mut extent = TemporalExtent::new();
+                let mut series = Series::temporal(self.times.len());
 
-            let mut is_bool = false;
+                for t in self.times.iter() {
+                    extent.add(t.clone())?;
+                    series.push_time(
+                        t.to_lower_bound_timestamp(TimeZone::system())?
+                            .as_duration()
+                            .as_secs_f64(),
+                    );
+                }
 
-            if top.len() == 2
-                && ((TRUE_VALUES.contains(&top[0].0.as_ref())
-                    && FALSE_VALUES.contains(&top[1].0.as_ref()))
-                    || (TRUE_VALUES.contains(&top[1].0.as_ref())
-                        && FALSE_VALUES.contains(&top[0].0.as_ref())))
-            {
-                is_bool = true;
+                let (adjusted_bins, best_unit) = extent.best_discrete_granularity(cols)?.unwrap();
+
+                series.temporal_discretize_and_sort(
+                    adjusted_bins,
+                    best_unit,
+                    &extent,
+                    Aggregation::Sum,
+                )?;
+
+                series.discretize(cols);
+
+                ColumnType::Temporal {
+                    extent,
+                    granularity: Granularity::new(best_unit),
+                    series,
+                }
             }
+            // Categorical
+            else if let Some(categories) = &self.categories {
+                let (total, top) = categories
+                    .clone()
+                    .into_total_and_items(Some(CATEGORIES_TO_SHOW), false);
 
-            ColumnType::Categorical {
-                is_bool,
-                cardinality: categories.cardinality(),
-                top: top
-                    .iter()
-                    .map(|(cell, count)| (String::from_utf8_lossy(cell).into_owned(), *count))
-                    .collect(),
-                total,
+                let mut is_bool = false;
+
+                if top.len() == 2
+                    && ((TRUE_VALUES.contains(&top[0].0.as_ref())
+                        && FALSE_VALUES.contains(&top[1].0.as_ref()))
+                        || (TRUE_VALUES.contains(&top[1].0.as_ref())
+                            && FALSE_VALUES.contains(&top[0].0.as_ref())))
+                {
+                    is_bool = true;
+                }
+
+                ColumnType::Categorical {
+                    is_bool,
+                    cardinality: categories.cardinality(),
+                    top: top
+                        .iter()
+                        .map(|(cell, count)| (String::from_utf8_lossy(cell).into_owned(), *count))
+                        .collect(),
+                    total,
+                }
             }
-        }
-        // Labels
-        else {
-            let mut length_extent_builder = ExtentBuilder::new();
+            // Labels
+            else {
+                let mut length_extent_builder = ExtentBuilder::new();
 
-            for l in self.lengths.iter().copied() {
-                length_extent_builder.process(l);
-            }
+                for l in self.lengths.iter().copied() {
+                    length_extent_builder.process(l);
+                }
 
-            let length_extent = length_extent_builder.build().unwrap();
-            let length_extent =
-                Extent::from((length_extent.min() as f64, length_extent.max() as f64));
-            let bins = sturges(self.count as usize).min(HISTOGRAM_BINS);
-            let mut length_histogram = HistogramBuilder::new(bins, length_extent);
+                let length_extent = length_extent_builder.build().unwrap();
+                let length_extent =
+                    Extent::from((length_extent.min() as f64, length_extent.max() as f64));
+                let bins = sturges(self.count as usize).min(HISTOGRAM_BINS);
+                let mut length_histogram = HistogramBuilder::new(bins, length_extent);
 
-            for l in self.lengths.iter().copied() {
-                length_histogram.add(l as f64);
-            }
+                for l in self.lengths.iter().copied() {
+                    length_histogram.add(l as f64);
+                }
 
-            ColumnType::Labels {
-                sample: self.to_sample(),
-                length_extent,
-                length_histogram,
-            }
-        }
+                ColumnType::Labels {
+                    sample: self.to_sample(),
+                    length_extent,
+                    length_histogram,
+                }
+            },
+        )
     }
 }
 
@@ -539,7 +594,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let sep = "─".repeat(cols).dimmed();
 
         for mut estimator in estimators {
-            let column_type = estimator.infer_type();
+            let column_type = estimator.infer_type(cols)?;
 
             writeln!(
                 &mut out,
@@ -670,6 +725,30 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     }
 
                     writeln!(&mut out)?;
+                }
+                ColumnType::Temporal {
+                    extent,
+                    granularity,
+                    series,
+                } => {
+                    writeln!(
+                        &mut out,
+                        "from {} to {} (granularity: {})",
+                        extent.earliest().unwrap().to_string().cyan(),
+                        extent.latest().unwrap().to_string().cyan(),
+                        granularity.to_string().green()
+                    )?;
+
+                    let sparkline_scale = series.to_scale(ScaleType::Linear).unwrap();
+
+                    let mut sparkline_renderer_options = SparklineRendererOptions::new();
+                    sparkline_renderer_options.height = 3;
+                    sparkline_renderer_options.set_striped();
+
+                    let mut sparkline_renderer = sparkline_renderer_options.build();
+                    sparkline_renderer.render(&sparkline_scale, &series.numbers);
+
+                    writeln!(&mut out, "\n{}", sparkline_renderer)?;
                 }
                 ColumnType::Numerical {
                     extent,

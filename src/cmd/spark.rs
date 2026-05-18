@@ -414,9 +414,9 @@ impl ColorMap {
 }
 
 #[derive(Debug)]
-struct Series {
+pub struct Series {
     extent_builder: ExtentBuilder<f64>,
-    numbers: Vec<f64>,
+    pub numbers: Vec<f64>,
     categories: Vec<usize>,
     times: Vec<f64>,
 }
@@ -429,6 +429,15 @@ impl Series {
             numbers: Vec::new(),
             categories: Vec::new(),
             times: Vec::new(),
+        }
+    }
+
+    pub fn temporal(capacity: usize) -> Self {
+        Self {
+            extent_builder: ExtentBuilder::new(),
+            numbers: vec![1.0; capacity],
+            categories: Vec::new(),
+            times: Vec::with_capacity(capacity),
         }
     }
 
@@ -479,7 +488,7 @@ impl Series {
     }
 
     #[inline]
-    fn push_time(&mut self, seconds: f64) {
+    pub fn push_time(&mut self, seconds: f64) {
         self.times.push(seconds);
     }
 
@@ -513,7 +522,7 @@ impl Series {
         indices
     }
 
-    fn discretize(&mut self, count: usize) {
+    pub fn discretize(&mut self, count: usize) {
         debug_assert!(count < self.numbers.len());
 
         self.extent_builder.clear();
@@ -575,7 +584,7 @@ impl Series {
         self.categories = new_categories;
     }
 
-    fn temporal_discretize_and_sort(
+    pub fn temporal_discretize_and_sort(
         &mut self,
         count: usize,
         unit: Unit,
@@ -691,7 +700,7 @@ impl Series {
         Ok(())
     }
 
-    fn to_scale(&self, scale_type: ScaleType) -> Option<Scale> {
+    pub fn to_scale(&self, scale_type: ScaleType) -> Option<Scale> {
         self.extent_builder.build().map(|mut extent| {
             if extent.min() == 0.0 && scale_type.disallows_zero() {
                 extent.set_min(1.0);
