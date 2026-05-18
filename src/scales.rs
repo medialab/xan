@@ -4,7 +4,7 @@ use std::mem;
 use std::ops::{Deref, Sub};
 
 use colored::Colorize;
-use colorgrad::Gradient;
+use colorgrad::{Gradient, GradientBuilder};
 use jiff::{tz::TimeZone, Timestamp, Unit};
 
 use crate::temporal::ZonedExt;
@@ -424,6 +424,7 @@ macro_rules! build_gradient_name {
         #[derive(Clone, Copy, Deserialize, Debug)]
         #[serde(try_from = "String")]
         pub enum GradientName {
+            Siren,
             $(
                 $enum_name,
             )*
@@ -432,6 +433,7 @@ macro_rules! build_gradient_name {
         impl GradientName {
             pub fn as_str(&self) -> &str {
                 match self {
+                    Self::Siren => "siren",
                     $(
                         Self::$enum_name => $string,
                     )*
@@ -440,6 +442,11 @@ macro_rules! build_gradient_name {
 
             pub fn build(&self) -> Box<dyn Gradient> {
                 match self {
+                    Self::Siren => {
+                        Box::new(GradientBuilder::new()
+                            .html_colors(&["#FF1493", "#ffd700", "#2e8b57"])
+                            .build::<colorgrad::CatmullRomGradient>().unwrap())
+                    },
                     $(
                         Self::$enum_name => Box::new(colorgrad::preset::$name()),
                     )*
@@ -452,6 +459,7 @@ macro_rules! build_gradient_name {
 
             fn try_from(value: String) -> Result<Self, Self::Error> {
                 Ok(match value.as_str() {
+                    "siren" => Self::Siren,
                     $(
                         $string => Self::$enum_name,
                     )*
@@ -539,6 +547,7 @@ impl GradientName {
             Magma,
             Plasma,
             Cividis,
+            Siren,
             Warm,
             Cool,
             CubehelixDefault,
