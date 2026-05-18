@@ -32,6 +32,7 @@ impl Welford {
         self.m2 = m2;
     }
 
+    #[cfg(test)]
     pub fn add_n(&mut self, value: f64, n: usize) {
         if n == 0 {
             return;
@@ -61,9 +62,9 @@ impl Welford {
         self.m2 = m2;
     }
 
-    pub fn count(&self) -> usize {
-        self.count
-    }
+    // pub fn count(&self) -> usize {
+    //     self.count
+    // }
 
     pub fn mean(&self) -> Option<f64> {
         if self.count == 0 {

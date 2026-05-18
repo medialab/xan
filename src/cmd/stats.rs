@@ -22,6 +22,7 @@ const LABELS_TO_SHOW: usize = 5;
 const CATEGORIES_TO_SHOW: usize = 10;
 const HISTOGRAM_BINS: usize = 35;
 const CARDINALITY_RATIO_THRESHOLD: f64 = 0.7;
+const SETTLE_THRESHOLD: u64 = 1024;
 
 fn float_cmp(a: &f64, b: &f64) -> Ordering {
     a.partial_cmp(b).unwrap()
@@ -96,11 +97,9 @@ impl ColumnType {
 #[derive(Debug)]
 struct ColumnEstimator {
     name: String,
-    strings: Counter<Vec<u8>>,
+    categories: Option<Counter<Vec<u8>>>,
     numbers: Vec<f64>,
-    numerical_welford: Welford,
-    numerical_extent_builder: ExtentBuilder<f64>,
-    length_extent_builder: ExtentBuilder<f64>,
+    lengths: Vec<usize>,
     int_count: u64,
     empty_count: u64,
     count: u64,
@@ -112,11 +111,9 @@ impl ColumnEstimator {
     fn new(name: &[u8]) -> Self {
         Self {
             name: String::from_utf8_lossy(name).into_owned(),
-            strings: Counter::new(CounterSpec::Exact),
+            categories: Some(Counter::new(CounterSpec::Exact)),
             numbers: Vec::new(),
-            numerical_welford: Welford::new(),
-            numerical_extent_builder: ExtentBuilder::new(),
-            length_extent_builder: ExtentBuilder::new(),
+            lengths: Vec::new(),
             int_count: 0,
             empty_count: 0,
             count: 0,
@@ -141,12 +138,33 @@ impl ColumnEstimator {
 
             let f = n.as_float();
 
-            self.numerical_welford.add(f);
-            self.numerical_extent_builder.process(f);
             self.numbers.push(f);
         } else {
-            self.length_extent_builder.process(cell.len() as f64);
-            self.strings.add(cell.to_vec());
+            if let Some(categories) = self.categories.as_mut() {
+                categories.add(cell.to_vec());
+            } else {
+                self.lengths.push(cell.len());
+            }
+        }
+
+        if self.count == SETTLE_THRESHOLD {
+            self.settle();
+        }
+    }
+
+    fn settle(&mut self) {
+        let strings = self.categories.as_ref().unwrap();
+
+        let cardinality_ratio = strings.cardinality() as f64 / self.non_empty_count() as f64;
+
+        if cardinality_ratio < CARDINALITY_RATIO_THRESHOLD {
+            let categories = self.categories.take().unwrap();
+
+            for (category, count) in categories.iter() {
+                for _ in 0..count {
+                    self.lengths.push(category.len());
+                }
+            }
         }
     }
 
@@ -164,20 +182,12 @@ impl ColumnEstimator {
         self.count - self.empty_count
     }
 
-    fn string_cardinality(&self) -> u64 {
-        self.strings.cardinality()
-    }
-
-    fn string_cardinality_ratio(&self) -> f64 {
-        self.string_cardinality() as f64 / self.non_empty_count() as f64
-    }
-
     fn is_void(&self) -> bool {
         self.empty_count == self.count
     }
 
     fn is_numerical(&self) -> bool {
-        !self.is_void() && self.non_empty_count() == self.numerical_welford.count() as u64
+        !self.is_void() && self.non_empty_count() == self.numbers.len() as u64
     }
 
     fn is_int(&self) -> bool {
@@ -192,8 +202,21 @@ impl ColumnEstimator {
     }
 
     fn infer_type(&mut self) -> ColumnType {
-        if self.is_numerical() {
-            let extent = self.numerical_extent_builder.build().unwrap();
+        // Void
+        if self.is_void() {
+            ColumnType::Void
+        }
+        // Numerical
+        else if self.is_numerical() {
+            let mut extent_builder = ExtentBuilder::new();
+            let mut welford = Welford::new();
+
+            for x in self.numbers.iter().copied() {
+                extent_builder.process(x);
+                welford.add(x);
+            }
+
+            let extent = extent_builder.build().unwrap();
             let bins = sturges(self.numbers.len()).min(HISTOGRAM_BINS);
 
             let histogram = HistogramBuilder::from_series(bins, extent, &self.numbers);
@@ -201,50 +224,55 @@ impl ColumnEstimator {
             ColumnType::Numerical {
                 is_int: self.is_int(),
                 extent,
-                mean: self.numerical_welford.mean().unwrap(),
+                mean: welford.mean().unwrap(),
                 median: linear_time_median(&mut self.numbers),
-                stddev: self.numerical_welford.stddev().unwrap(),
+                stddev: welford.stddev().unwrap(),
                 histogram,
             }
-        } else if self.string_cardinality_ratio() < CARDINALITY_RATIO_THRESHOLD {
-            let (total, top) = self
-                .strings
+        }
+        // Categorical
+        else if let Some(categories) = &self.categories {
+            let (total, top) = categories
                 .clone()
                 .into_total_and_items(Some(CATEGORIES_TO_SHOW), false);
 
             let mut is_bool = false;
 
             if top.len() == 2
-                && (TRUE_VALUES.contains(&top[0].0.as_ref())
+                && ((TRUE_VALUES.contains(&top[0].0.as_ref())
                     && FALSE_VALUES.contains(&top[1].0.as_ref()))
-                || (TRUE_VALUES.contains(&top[1].0.as_ref())
-                    && FALSE_VALUES.contains(&top[0].0.as_ref()))
+                    || (TRUE_VALUES.contains(&top[1].0.as_ref())
+                        && FALSE_VALUES.contains(&top[0].0.as_ref())))
             {
                 is_bool = true;
             }
 
             ColumnType::Categorical {
                 is_bool,
-                cardinality: self.string_cardinality(),
+                cardinality: categories.cardinality(),
                 top: top
                     .iter()
                     .map(|(cell, count)| (String::from_utf8_lossy(cell).into_owned(), *count))
                     .collect(),
                 total,
             }
-        } else if self.is_void() {
-            ColumnType::Void
-        } else {
-            let length_extent = self.length_extent_builder.build().unwrap();
-            let bins = sturges(self.strings.cardinality() as usize).min(HISTOGRAM_BINS);
+        }
+        // Labels
+        else {
+            let mut length_extent_builder = ExtentBuilder::new();
+
+            for l in self.lengths.iter().copied() {
+                length_extent_builder.process(l);
+            }
+
+            let length_extent = length_extent_builder.build().unwrap();
+            let length_extent =
+                Extent::from((length_extent.min() as f64, length_extent.max() as f64));
+            let bins = sturges(self.count as usize).min(HISTOGRAM_BINS);
             let mut length_histogram = HistogramBuilder::new(bins, length_extent);
-            let mut length_welford = Welford::new();
 
-            for (name, count) in self.strings.iter() {
-                let length = name.len() as f64;
-
-                length_welford.add_n(length, count as usize);
-                length_histogram.add_n(length, count as usize);
+            for l in self.lengths.iter().copied() {
+                length_histogram.add(l as f64);
             }
 
             ColumnType::Labels {
