@@ -145,15 +145,19 @@ impl ColumnEstimator {
         let mut as_string = true;
 
         if let Ok(n) = DynamicNumber::try_from(cell) {
-            as_string = false;
-
-            if !n.is_float() {
-                self.int_count += 1;
+            match n {
+                DynamicNumber::Float(f) => {
+                    as_string = false;
+                    self.numbers.push(f);
+                }
+                DynamicNumber::Integer(i) => {
+                    if i < 9007199254740991 {
+                        self.int_count += 1;
+                        self.numbers.push(i as f64);
+                        as_string = false;
+                    }
+                }
             }
-
-            let f = n.as_float();
-
-            self.numbers.push(f);
         } else if let Ok(t) = parse_fuzzy_temporal(cell, false) {
             if !t.is_time() {
                 self.times.push(t.into());
@@ -188,6 +192,13 @@ impl ColumnEstimator {
                 }
             }
         }
+    }
+
+    fn finalize(&mut self) {
+        if self.is_int() {}
+
+        // TODO: years, timestamps, 1/0 ints, 1/empty ints, > 16 bits integers
+        // TODO: fix some cases of mixed data
     }
 
     fn name_hash(&self) -> usize {
@@ -594,6 +605,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let sep = "─".repeat(cols).dimmed();
 
         for mut estimator in estimators {
+            estimator.finalize();
+
             let column_type = estimator.infer_type(cols)?;
 
             writeln!(
