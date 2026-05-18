@@ -689,6 +689,7 @@ spark options:
     -M, --max <n>
     -w, --wrap
     --share-scale
+    -F, --flatter
     -A, --aggregate <mode>     How to aggregate values falling into a same bucket when discretizing
                                the x axis, e.g. when using the -T/--time flag.
                                Can be one of \"sum\" or \"mean\". Defaults to \"sum\" when --count
@@ -740,6 +741,7 @@ struct Args {
     flag_min: Option<f64>,
     flag_max: Option<f64>,
     flag_wrap: bool,
+    flag_flatter: bool,
     flag_width: NonZeroUsize,
     flag_height: Option<String>,
     flag_cols: Option<String>,
@@ -829,6 +831,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if args.flag_count && args.flag_time.is_none() {
         Err("--count can only be used with -T/--time!")?;
+    }
+
+    if args.flag_flatter {
+        if args.flag_hide_names {
+            Err("-F/--flatter does not make sense with --hide-names!")?;
+        }
+
+        if args.flag_small_multiples.is_some() {
+            Err("-F/--flatter does not work with -S/--small-multiples!")?;
+        }
     }
 
     if args.flag_log {
@@ -1179,7 +1191,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     // Rendering
     for (i, (name, series)) in pool.into_iter().enumerate() {
-        let name_opt = (!args.flag_hide_names).then(|| {
+        let mut name_opt = (!args.flag_hide_names).then(|| {
             format!(
                 "{:<width$} ",
                 util::unicode_aware_ellipsis(
@@ -1189,6 +1201,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 width = cols_for_series_name.saturating_sub(1)
             )
         });
+
+        if args.flag_flatter {
+            writeln!(&mut out, "{}", name_opt.take().unwrap())?;
+        }
 
         if categories_opt.is_some() {
             colors_buffer.clear();
@@ -1253,6 +1269,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
 
             offset += chunk.len();
+        }
+
+        if args.flag_flatter {
+            writeln!(&mut out)?;
         }
     }
 
