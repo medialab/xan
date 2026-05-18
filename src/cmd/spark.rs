@@ -5,6 +5,7 @@ use std::num::NonZeroUsize;
 use colored::Colorize;
 use colorgrad::Gradient;
 use jiff::{tz::TimeZone, Timestamp, Unit};
+use ordered_float::NotNan;
 use simd_csv::ByteRecord;
 use unicode_width::UnicodeWidthStr;
 
@@ -662,6 +663,8 @@ Usage:
     xan spark [options] [--] <y> [<input>]
     xan spark --help
 
+TODO: distinguish flags by section
+
 spark options:
     --along-rows
     -W, --width <n>   Number of characters a sparkline bar is allowed to take as
@@ -690,6 +693,7 @@ spark options:
     -w, --wrap
     --share-scale
     -F, --flatter
+    --sort
     -A, --aggregate <mode>     How to aggregate values falling into a same bucket when discretizing
                                the x axis, e.g. when using the -T/--time flag.
                                Can be one of \"sum\" or \"mean\". Defaults to \"sum\" when --count
@@ -737,6 +741,7 @@ struct Args {
     flag_bins: NonZeroUsize,
     flag_dist: bool,
     flag_log: bool,
+    flag_sort: bool,
     flag_scale: ScaleType,
     flag_min: Option<f64>,
     flag_max: Option<f64>,
@@ -841,6 +846,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         if args.flag_small_multiples.is_some() {
             Err("-F/--flatter does not work with -S/--small-multiples!")?;
         }
+    }
+
+    if args.flag_sort && args.flag_time.is_none() {
+        Err("--sort only works with -T/--time!")?;
     }
 
     if args.flag_log {
@@ -1089,6 +1098,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 extent,
                 args.aggregation(),
             )?;
+        }
+
+        if args.flag_sort {
+            pool.sort_by_key(|(_, series)| {
+                series
+                    .times
+                    .iter()
+                    .map(|f| NotNan::new(*f).unwrap())
+                    .min()
+                    .unwrap()
+            });
         }
     }
 
