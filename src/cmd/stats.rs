@@ -19,7 +19,7 @@ use crate::moonblade::{DynamicNumber, Stats, TemporalExtent, Welford};
 use crate::scales::{sturges, Extent, ExtentBuilder, HistogramBuilder, Scale, ScaleType};
 use crate::select::SelectedColumns;
 use crate::temporal::{parse_fuzzy_temporal, AnyTemporal};
-use crate::util::{self, format_number, ColorMode, ColorOrStyles, FALSE_VALUES, TRUE_VALUES};
+use crate::util::{self, format_number, ColorMode, ColorOrStyles};
 use crate::CliResult;
 
 const LABELS_TO_SHOW: usize = 5;
@@ -27,6 +27,10 @@ const CATEGORIES_TO_SHOW: usize = 10;
 const HISTOGRAM_BINS: usize = 35;
 const CARDINALITY_RATIO_THRESHOLD: f64 = 0.7;
 const SETTLE_THRESHOLD: u64 = 1024;
+
+static TRUE_VALUES: [&[u8]; 5] = [b"true", b"TRUE", b"True", b"yes", b"1"];
+static FALSE_VALUES: [&[u8]; 6] = [b"false", b"FALSE", b"False", b"no", b"0", b"<empty>"];
+// static NULL_VALUES: [&str; 7] = ["NULL", "null", "na", "NA", "None", "n/a", "N/A"];
 
 fn float_cmp(a: &f64, b: &f64) -> Ordering {
     a.partial_cmp(b).unwrap()
@@ -196,16 +200,48 @@ impl ColumnEstimator {
 
     fn finalize(&mut self) {
         if self.is_int() {
+            // Years hiding as ints
             if self.numbers.iter().all(|n| *n >= 1900.0 && *n < 2100.0) {
                 for n in self.numbers.iter() {
                     self.times.push(AnyTemporal::Date(date(*n as i16, 1, 1)));
                 }
 
                 self.numbers.clear();
+                self.int_count = 0;
+            }
+
+            // Boolean hiding as ints
+            let mut one_count: u64 = 0;
+            let mut zero_count: u64 = 0;
+
+            if self.numbers.iter().copied().all(|n| {
+                if n == 0.0 {
+                    zero_count += 1;
+                    true
+                } else if n == 1.0 {
+                    one_count += 1;
+                    true
+                } else {
+                    false
+                }
+            }) {
+                let mut counter = Counter::new(CounterSpec::Exact);
+
+                if zero_count == 0 {
+                    counter.add_n(b"<empty>".to_vec(), self.empty_count);
+                } else {
+                    counter.add_n(b"0".to_vec(), zero_count);
+                }
+
+                counter.add_n(b"1".to_vec(), one_count);
+
+                self.categories = Some(counter);
+                self.numbers.clear();
+                self.int_count = 0;
             }
         }
 
-        // TODO: years, timestamps, 1/0 ints, 1/empty ints, > 16 bits integers
+        // TODO: timestamps
         // TODO: fix some cases of mixed data
     }
 

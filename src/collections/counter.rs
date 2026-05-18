@@ -22,7 +22,7 @@ impl<K: Eq + Hash + Send + Ord> ExactCounter<K> {
         }
     }
 
-    pub fn inc(&mut self, key: K, count: u64) {
+    pub fn add_n(&mut self, key: K, count: u64) {
         self.map
             .entry(key)
             .and_modify(|c| *c += count)
@@ -30,7 +30,7 @@ impl<K: Eq + Hash + Send + Ord> ExactCounter<K> {
     }
 
     pub fn add(&mut self, key: K) {
-        self.inc(key, 1);
+        self.add_n(key, 1);
     }
 
     pub fn into_total_and_sorted_vec(self, parallel: bool) -> (u64, Vec<(K, u64)>) {
@@ -98,7 +98,7 @@ impl<K: Eq + Hash + Send + Ord> ExactCounter<K> {
         }
 
         for (v, c) in other.map.into_iter() {
-            self.inc(v, c);
+            self.add_n(v, c);
         }
     }
 
@@ -148,6 +148,12 @@ impl<K: Eq + Hash + Send + Ord + Clone> SpaceSavingCounter<K> {
         }
     }
 
+    #[inline]
+    pub fn add_n(&mut self, key: K, count: u64) {
+        self.map.insert(key, count);
+    }
+
+    #[inline]
     pub fn add(&mut self, key: K) {
         self.map.insert(key, 1);
     }
@@ -210,6 +216,17 @@ impl<K: Eq + Hash + Send + Ord + Clone> Counter<K> {
             }
             Self::SpaceSaving(inner) => {
                 inner.add(key);
+            }
+        }
+    }
+
+    pub fn add_n(&mut self, key: K, count: u64) {
+        match self {
+            Self::Exact(inner) => {
+                inner.add_n(key, count);
+            }
+            Self::SpaceSaving(inner) => {
+                inner.add_n(key, count);
             }
         }
     }
