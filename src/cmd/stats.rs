@@ -4,7 +4,7 @@ use std::num::NonZeroUsize;
 
 use bstr::ByteSlice;
 use colored::Colorize;
-use jiff::tz::TimeZone;
+use jiff::{civil::date, tz::TimeZone};
 use pad::{Alignment, PadStr};
 use simd_csv::ByteRecord;
 use unicode_width::UnicodeWidthStr;
@@ -195,7 +195,15 @@ impl ColumnEstimator {
     }
 
     fn finalize(&mut self) {
-        if self.is_int() {}
+        if self.is_int() {
+            if self.numbers.iter().all(|n| *n >= 1900.0 && *n < 2100.0) {
+                for n in self.numbers.iter() {
+                    self.times.push(AnyTemporal::Date(date(*n as i16, 1, 1)));
+                }
+
+                self.numbers.clear();
+            }
+        }
 
         // TODO: years, timestamps, 1/0 ints, 1/empty ints, > 16 bits integers
         // TODO: fix some cases of mixed data
