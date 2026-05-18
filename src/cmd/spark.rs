@@ -6,9 +6,11 @@ use colored::Colorize;
 use colorgrad::Gradient;
 use jiff::{tz::TimeZone, Timestamp, Unit};
 use ordered_float::NotNan;
+use pad::{Alignment, PadStr};
 use simd_csv::ByteRecord;
 use unicode_width::UnicodeWidthStr;
 
+use crate::cmd::heatmap::CramMode;
 use crate::cmd::plot::{Aggregation, Granularity};
 use crate::cmd::stats::linear_time_median;
 use crate::collections::{new_index_map, ClusteredInsertHashmap, IndexMap};
@@ -298,6 +300,28 @@ impl SparklineRenderer {
 
         // NOTE: removing last newline
         self.draw_buffer.pop();
+    }
+
+    fn cram_names<'a>(&mut self, left_padding: usize, names: impl Iterator<Item = &'a [u8]>) {
+        self.draw_buffer.push('\n');
+
+        for _ in 0..left_padding {
+            self.draw_buffer.push(' ');
+        }
+
+        let width = self.options.width;
+
+        for name in names {
+            self.draw_buffer.push_str(
+                &util::unicode_aware_ellipsis(
+                    &util::sanitize_text_for_single_line_printing(&String::from_utf8_lossy(name)),
+                    width,
+                )
+                .pad_to_width_with_alignment(width, Alignment::Middle)
+                .dimmed()
+                .to_string(),
+            );
+        }
     }
 
     pub fn render_central_tendency(
@@ -694,6 +718,7 @@ spark options:
     --share-scale
     -F, --flatter
     --sort
+    -C, --cram <choice>  [default: auto]
     -A, --aggregate <mode>     How to aggregate values falling into a same bucket when discretizing
                                the x axis, e.g. when using the -T/--time flag.
                                Can be one of \"sum\" or \"mean\". Defaults to \"sum\" when --count
@@ -742,6 +767,7 @@ struct Args {
     flag_dist: bool,
     flag_log: bool,
     flag_sort: bool,
+    flag_cram: CramMode,
     flag_scale: ScaleType,
     flag_min: Option<f64>,
     flag_max: Option<f64>,
@@ -1204,28 +1230,44 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut colors_buffer: Vec<Option<ColorOrStyles>> = Vec::new();
 
+    let actually_cram = match args.flag_cram {
+        CramMode::Always => categories_opt.is_some(),
+        CramMode::Never => false,
+        CramMode::Auto => categories_opt
+            .as_ref()
+            .map(|(_, color_map)| {
+                color_map
+                    .iter()
+                    .all(|(_, name)| name.len() <= args.flag_width.get())
+            })
+            .unwrap_or(false),
+    };
+
     if !args.flag_hide_legend {
         // Categorical legend
-        if let Some((_, color_map)) = &categories_opt {
-            writeln!(&mut out, "Categories:")?;
+        if !actually_cram {
+            if let Some((_, color_map)) = &categories_opt {
+                writeln!(&mut out, "Categories:")?;
 
-            for (category, name) in color_map.iter() {
-                let color = util::colorizer_by_rainbow_with_fallback(category, name_hash, "spark");
+                for (category, name) in color_map.iter() {
+                    let color =
+                        util::colorizer_by_rainbow_with_fallback(category, name_hash, "spark");
 
-                writeln!(
-                    &mut out,
-                    "{} {}",
-                    color.colorize("■"),
-                    util::unicode_aware_ellipsis(
-                        &util::sanitize_text_for_single_line_printing(&String::from_utf8_lossy(
-                            name
-                        )),
-                        full_cols.saturating_sub(2)
-                    )
-                )?;
+                    writeln!(
+                        &mut out,
+                        "{} {}",
+                        color.colorize("■"),
+                        util::unicode_aware_ellipsis(
+                            &util::sanitize_text_for_single_line_printing(
+                                &String::from_utf8_lossy(name)
+                            ),
+                            full_cols.saturating_sub(2)
+                        )
+                    )?;
+                }
+
+                writeln!(&mut out)?;
             }
-
-            writeln!(&mut out)?;
         }
 
         // Temporal legend
@@ -1303,13 +1345,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     let indices = central_tendencies.get(i).unwrap();
 
                     sparkline_renderer.render_central_tendency(
-                        name_padding.width(),
+                        name_padding.len(),
                         chunk.len(),
                         indices.0,
                         indices.1,
                         indices.2,
                         indices.3,
                     );
+                }
+
+                if actually_cram {
+                    let color_map = &categories_opt.as_ref().unwrap().1;
+
+                    sparkline_renderer
+                        .cram_names(name_padding.len(), color_map.iter().map(|(_, name)| name));
                 }
             }
 

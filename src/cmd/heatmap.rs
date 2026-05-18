@@ -20,8 +20,8 @@ fn text_should_be_black(color: &[u8; 4]) -> bool {
     (color[0] as f32 * 0.299 + color[1] as f32 * 0.587 + color[2] as f32 * 0.114) > 150.0
 }
 
-#[derive(Deserialize)]
-enum CramMode {
+#[derive(Deserialize, Debug)]
+pub enum CramMode {
     Auto,
     Always,
     Never,

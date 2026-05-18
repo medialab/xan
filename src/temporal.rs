@@ -167,16 +167,14 @@ fn smallest_granularity(zoned: &Zoned) -> Unit {
         } else {
             Unit::Second
         }
-    } else {
-        if zoned.month() > 1 {
-            if zoned.day() > 1 {
-                Unit::Year
-            } else {
-                Unit::Month
-            }
-        } else {
+    } else if zoned.month() > 1 {
+        if zoned.day() > 1 {
             Unit::Year
+        } else {
+            Unit::Month
         }
+    } else {
+        Unit::Year
     }
 }
 
