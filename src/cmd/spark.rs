@@ -735,7 +735,7 @@ Print the distribution of two numerical columns:
 
 Print time series grouped by the value of a column:
 
-    $ xan spark count -T date -g group data.csv
+    $ xan spark value -T date -g group data.csv
 
     group1    ▁▂▃▄▆▇▇▅▃▂▁▁▁
     group2           ▂▇▇▇▄▁
@@ -756,7 +756,7 @@ Print a vertical bar chart from the output of `xan freq`:
 
 Print categorical bar chart by group:
 
-    $ xan spark count -c value -g author_name
+    $ xan spark value -c category -g author_name
 
     group1 ▇▁▁
     group1  ▇
