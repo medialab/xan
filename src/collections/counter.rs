@@ -112,9 +112,10 @@ impl<K: Eq + Hash + Send + Ord> ExactCounter<K> {
     }
 }
 
-#[derive(Debug, Clone, Copy, Deserialize)]
+#[derive(Debug, Clone, Copy, Deserialize, Default)]
 #[serde(try_from = "String")]
 pub enum ApproxCounterAlgorithm {
+    #[default]
     SpaceSaving,
     HeavyKeeper,
 }
@@ -196,7 +197,7 @@ impl<K: Eq + Hash + Send + Ord + Clone> fmt::Debug for HeavyKeeperCounter<K> {
 impl<K: Eq + Hash + Send + Ord + Clone> HeavyKeeperCounter<K> {
     pub fn new(k: usize) -> Self {
         Self {
-            map: CuckooTopK::new(k, 1000, 4, 0.9),
+            map: CuckooTopK::new(k, 1024, 4, 0.9),
             total: 0,
         }
     }

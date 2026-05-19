@@ -133,6 +133,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         parallel_args.flag_all = args.flag_all;
         parallel_args.flag_limit = args.flag_limit;
         parallel_args.flag_approx = args.flag_approx;
+        parallel_args.flag_approx_algo = args.flag_approx_algo;
         parallel_args.flag_no_extra = args.flag_no_extra;
 
         parallel_args.flag_no_headers = args.flag_no_headers;

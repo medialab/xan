@@ -49,6 +49,7 @@
 * Adding `xan to md -l/--limit`.
 * Adding the `xan spark` command.
 * Adding `xan stats -D/--describe, --color, --cols, --sep`.
+* Adding `xan (freq|p freq) -X/--approx-algo`.
 
 *Fixes*
 

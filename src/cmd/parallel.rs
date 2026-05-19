@@ -20,7 +20,9 @@ use simd_csv::ByteRecord;
 
 use crate::cmd::progress::get_progress_style;
 use crate::cmd::top::Value as TopValue;
-use crate::collections::{Counter, CounterSpec, DynamicOrd, TopKHeapMapWithTies};
+use crate::collections::{
+    ApproxCounterAlgorithm, Counter, CounterSpec, DynamicOrd, TopKHeapMapWithTies,
+};
 use crate::config::{Compression, Config, Delimiter};
 use crate::moonblade::{AggregationProgram, GroupAggregationProgram, Stats};
 use crate::processing::{parse_pipeline, Children};
@@ -607,18 +609,24 @@ parallel cat options:
                                 path to source file.
 
 parallel freq options:
-    -s, --select <cols>  Columns for which to build frequency tables.
-    --sep <char>         Split the cell into multiple values to count using the
-                         provided separator.
-    -A, --all            Remove the limit.
-    -l, --limit <n>      Limit the frequency table to the N most common
-                         items. Use -A, -all or set to 0 to disable the limit.
-                         [default: 10]
-    -a, --approx         If set, return the items most likely having the top counts,
-                         as per given --limit. Won't work if --limit is 0 or
-                         with -A, --all. Accuracy of results increases with the given
-                         limit.
-    -N, --no-extra       Don't include empty cells & remaining counts.
+    -s, --select <cols>       Columns for which to build frequency tables.
+    --sep <char>              Split the cell into multiple values to count using the
+                              provided separator.
+    -A, --all                 Remove the limit.
+    -l, --limit <n>           Limit the frequency table to the N most common
+                              items. Use -A, -all or set to 0 to disable the limit.
+                              [default: 10]
+    -a, --approx              If set, return the items most likely having the top counts,
+                              as per given --limit. Won't work if --limit is 0 or
+                              with -A, --all. Accuracy of results increases with the given
+                              limit.
+    -X, --approx-algo <name>  Name of the algorithm to use to find top-k approximation when
+                              using the -a/--approx flag. Can be either the default
+                              `space-saving` (`ss`) algorithm, or `heavy-keeper` (`hk`) algorithm,
+                              which is more suited to zipfian streams (items distribution following
+                              a power law).
+                              [default: space-saving]
+    -N, --no-extra            Don't include empty cells & remaining counts.
 
 parallel stats options:
     -s, --select <cols>    Columns for which to build statistics.
@@ -687,6 +695,7 @@ pub struct Args {
     pub flag_cardinality: bool,
     pub flag_quartiles: bool,
     pub flag_approx: bool,
+    pub flag_approx_algo: ApproxCounterAlgorithm,
     pub flag_nulls: bool,
     flag_compress: Option<Compression>,
     pub flag_output: Option<String>,
@@ -1302,7 +1311,10 @@ impl Args {
         }
 
         let counter_spec = if self.flag_approx {
-            CounterSpec::SpaceSaving(self.flag_limit)
+            match self.flag_approx_algo {
+                ApproxCounterAlgorithm::SpaceSaving => CounterSpec::SpaceSaving(self.flag_limit),
+                ApproxCounterAlgorithm::HeavyKeeper => CounterSpec::HeavyKeeper(self.flag_limit),
+            }
         } else {
             CounterSpec::Exact
         };
