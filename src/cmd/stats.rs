@@ -826,7 +826,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         &mut out,
                         "({} ± {}, {}): {} ± {}, {}",
                         "mean".green(),
-                        "σ".magenta(),
+                        "stddev".magenta(),
                         "median".yellow(),
                         format_number(mean).green(),
                         format_number(stddev).magenta(),
