@@ -489,6 +489,32 @@ fn agg_argtop() {
 }
 
 #[test]
+fn agg_top_arity_error_does_not_panic() {
+    let wrk = Workdir::new("agg_top_arity_error_does_not_panic");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["score", "color"],
+            svec!["1", "blue"],
+            svec!["3", "red"],
+        ],
+    );
+
+    // Missing the mandatory <expr> argument used to panic with
+    // "index out of bounds" instead of reporting a clean arity error.
+    for spec in [
+        "top(score) as t",
+        "argtop(score) as t",
+        "most_common(color) as t",
+        "most_common_counts(color) as t",
+    ] {
+        let mut cmd = wrk.command("agg");
+        cmd.arg(spec).arg("data.csv");
+        wrk.assert_err(&mut cmd);
+    }
+}
+
+#[test]
 fn agg_dates() {
     let wrk = Workdir::new("agg_dates");
     wrk.create(
