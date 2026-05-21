@@ -64,6 +64,7 @@
 * Fixing `xan join -D/--drop-key` automatic selection when using `--full`.
 * Fixing granularity inference of `xan plot -T`.
 * Fixing `xan from -f (json|ndjson)` to emit empty outputs from empty inputs.
+* Fixing `xan headers` layout when input files have a very large number of columns (>= 1000).
 
 *Performance*
 

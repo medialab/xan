@@ -22,8 +22,8 @@ fn headers_basic() {
 
     let got: String = wrk.stdout(&mut cmd);
     let expected = "\
-0   h1
-1   h2";
+0 h1
+1 h2";
     assert_eq!(got, expected.to_string());
 }
 

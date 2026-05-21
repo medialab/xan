@@ -126,7 +126,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let left_column_size = headers_per_input
         .iter()
-        .map(|h| h.len().saturating_sub(1).to_string().len().max(4))
+        .map(|h| {
+            h.len()
+                .saturating_sub(1)
+                .saturating_add(args.flag_start)
+                .to_string()
+                .len()
+                + 1
+        })
         .max()
         .unwrap();
 
