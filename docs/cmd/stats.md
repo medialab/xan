@@ -4,7 +4,7 @@
 ```txt
 Computes descriptive statistics of CSV data.
 
-If you want to print human-readable output, use the -D/--describe flag.
+If you want to print human-readable output, use the -R/--report flag.
 
 Else this command can be used to generate a CSV output that can be easily piped
 into other `xan` commands.
@@ -55,10 +55,10 @@ But this cannot work on streams or gzipped files, unless a `.gzi` index (as crea
 by `bgzip -i`) can be found beside it. Parallelization is not compatible
 with the -g/--groupby option.
 
-Note that the output of the -D/--describe can easily be piped into a pager
+Note that the output of the -R/--report can easily be piped into a pager
 thusly (don't forget to force colors):
 
-    $ xan stats -D data.csv --color always | less -SR
+    $ xan stats -R data.csv --color always | less -SR
 
 Usage:
     xan stats [options] [<input>]
@@ -68,9 +68,9 @@ stats options:
                              See 'xan select --help' for the format details.
                              This is provided here because piping 'xan select'
                              into 'xan stats' will disable the use of indexing.
-    -D, --describe           Produce a human-readable output suitable to understand
+    -R, --report             Print a human-readable output suitable to understand
                              what your columns contain, along with the relevant
-                             dataviz (bar charts, top lists etc.)
+                             data visualizations (bar charts, top lists etc.)
                              Does not work with -g/--groupby.
     --sep <str>              Indicate that cells must be split using given separator.
     -g, --groupby <cols>     If given, will compute stats per group as defined by
@@ -90,7 +90,7 @@ stats options:
     -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
                              if you want the number of threads to be automatically chosen instead.
 
-stats -D/--describe options:
+stats -R/--report options:
     --cols <num>    Width of the graph in terminal columns, i.e. characters.
                     Defaults to using all your terminal's width or 80 if
                     terminal's size cannot be found (i.e. when piping to file).
