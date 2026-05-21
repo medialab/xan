@@ -244,22 +244,6 @@ fn sort_count_one_group() {
 }
 
 #[test]
-fn sort_unstable() {
-    let wrk = Workdir::new("sort_unstable");
-    wrk.create(
-        "in.csv",
-        vec![svec!["n"], svec!["2"], svec!["1"], svec!["3"]],
-    );
-
-    let mut cmd = wrk.command("sort");
-    cmd.arg("--unstable").arg("-N").arg("in.csv");
-
-    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![svec!["n"], svec!["1"], svec!["2"], svec!["3"]];
-    assert_eq!(got, expected);
-}
-
-#[test]
 fn sort_parallel() {
     let wrk = Workdir::new("sort_parallel");
     wrk.create(
@@ -269,25 +253,6 @@ fn sort_parallel() {
 
     let mut cmd = wrk.command("sort");
     cmd.arg("--parallel").arg("-N").arg("in.csv");
-
-    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![svec!["n"], svec!["1"], svec!["2"], svec!["3"]];
-    assert_eq!(got, expected);
-}
-
-#[test]
-fn sort_parallel_unstable() {
-    let wrk = Workdir::new("sort_parallel_unstable");
-    wrk.create(
-        "in.csv",
-        vec![svec!["n"], svec!["2"], svec!["1"], svec!["3"]],
-    );
-
-    let mut cmd = wrk.command("sort");
-    cmd.arg("--parallel")
-        .arg("--unstable")
-        .arg("-N")
-        .arg("in.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["n"], svec!["1"], svec!["2"], svec!["3"]];

@@ -70,8 +70,6 @@ sort options:
                               Needs a column name. Can only be used with --uniq.
     -u, --uniq                When set, identical consecutive lines will be dropped
                               to keep only one line per sorted value.
-    -U, --unstable            Unstable sort. Can improve performance. Does not work
-                              with -e/--external.
     -p, --parallel            Whether to use parallelism to improve performance.
     -e, --external            Whether to use external sorting if you cannot fit the
                               whole file in memory.
@@ -110,7 +108,6 @@ struct Args {
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_uniq: bool,
-    flag_unstable: bool,
     flag_parallel: bool,
     flag_external: bool,
     flag_tmp_dir: Option<String>,
@@ -138,10 +135,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if !count.is_none() && !args.flag_uniq {
         Err("-c/--count can only be used with -u/--uniq!")?;
-    };
-
-    if args.flag_unstable && args.flag_external {
-        Err("-U/--unstable cannot be used with -e/--external!")?;
     }
 
     let mut rdr = rconfig.simd_reader()?;
@@ -367,13 +360,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let flush_buffer =
             |buffer: &mut Vec<ByteRecord>, chunks: &mut Vec<File>| -> CliResult<()> {
                 // Sorting
-                if args.flag_unstable {
-                    if args.flag_parallel {
-                        sort_by!(buffer, par_sort_unstable_by, sel, numeric, reverse);
-                    } else {
-                        sort_by!(buffer, sort_unstable_by, sel, numeric, reverse);
-                    }
-                } else if args.flag_parallel {
+                if args.flag_parallel {
                     sort_by!(buffer, par_sort_by, sel, numeric, reverse);
                 } else {
                     sort_by!(buffer, sort_by, sel, numeric, reverse);
@@ -434,13 +421,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     } else {
         let mut all = rdr.byte_records().collect::<Result<Vec<_>, _>>()?;
 
-        if args.flag_unstable {
-            if args.flag_parallel {
-                sort_by!(all, par_sort_unstable_by, sel, numeric, reverse);
-            } else {
-                sort_by!(all, sort_unstable_by, sel, numeric, reverse);
-            }
-        } else if args.flag_parallel {
+        if args.flag_parallel {
             sort_by!(all, par_sort_by, sel, numeric, reverse);
         } else {
             sort_by!(all, sort_by, sel, numeric, reverse);
