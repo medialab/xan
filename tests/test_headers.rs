@@ -42,8 +42,8 @@ h2";
 #[test]
 fn headers_wide_column_index_has_trailing_space() {
     let wrk = Workdir::new("headers_wide_column_index_has_trailing_space");
-    let header: Vec<String> = (0..1001).map(|i| format!("c{}", i)).collect();
-    let row: Vec<String> = (0..1001).map(|i| format!("v{}", i)).collect();
+    let header: Vec<String> = (0..=1000).map(|i| format!("c{}", i)).collect();
+    let row: Vec<String> = (0..=1000).map(|i| format!("v{}", i)).collect();
     wrk.create("in.csv", vec![header, row]);
 
     let mut cmd = wrk.command("headers");
