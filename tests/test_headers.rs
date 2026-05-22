@@ -40,6 +40,22 @@ h2";
 }
 
 #[test]
+fn headers_wide_column_index_has_trailing_space() {
+    let wrk = Workdir::new("headers_wide_column_index_has_trailing_space");
+    let header: Vec<String> = (0..=1000).map(|i| format!("c{}", i)).collect();
+    let row: Vec<String> = (0..=1000).map(|i| format!("v{}", i)).collect();
+    wrk.create("in.csv", vec![header, row]);
+
+    let mut cmd = wrk.command("headers");
+    cmd.arg("in.csv");
+
+    let got: String = wrk.stdout(&mut cmd);
+    let last_line = got.lines().last().unwrap();
+    // Index 1000 must be separated from header name by whitespace, not glued.
+    assert_eq!(last_line, "1000 c1000");
+}
+
+#[test]
 fn headers_multiple() {
     let (wrk, mut cmd) = setup("headers_multiple");
     cmd.arg("in2.csv").arg("-j");
