@@ -65,6 +65,7 @@
 * Fixing granularity inference of `xan plot -T`.
 * Fixing `xan from -f (json|ndjson)` to emit empty outputs from empty inputs.
 * Fixing `xan headers` layout when input files have a very large number of columns (>= 1000).
+* Fixing arity validation of `top`, `argtop`, `most_common` & `most_common_counts` aggregation functions.
 
 *Performance*
 
