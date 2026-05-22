@@ -746,7 +746,7 @@ fn get_function_arguments_parser(name: &str) -> Option<(FunctionArguments, Argum
         "argmax" => (FunctionArguments::with_range(1..=2), |args| {
             Ok(ArgMax(args.last().cloned()))
         }),
-        "argtop" => (FunctionArguments::with_range(1..=4), |args| {
+        "argtop" => (FunctionArguments::with_range(2..=4), |args| {
             Ok(ArgTop(
                 cast_as_static_value(args.first().unwrap(), DynamicValue::try_as_usize)?,
                 args.get(1).cloned(),
@@ -821,13 +821,13 @@ fn get_function_arguments_parser(name: &str) -> Option<(FunctionArguments, Argum
         "modes" => (FunctionArguments::with_range(1..=2), |args| {
             Ok(Modes(cast_as_separator(args.first())?))
         }),
-        "most_common" => (FunctionArguments::with_range(1..=3), |args| {
+        "most_common" => (FunctionArguments::with_range(2..=3), |args| {
             Ok(MostCommonValues(
                 cast_as_static_value(args.first().unwrap(), DynamicValue::try_as_usize)?,
                 cast_as_separator(args.get(1))?,
             ))
         }),
-        "most_common_counts" => (FunctionArguments::with_range(1..=3), |args| {
+        "most_common_counts" => (FunctionArguments::with_range(2..=3), |args| {
             Ok(MostCommonCounts(
                 cast_as_static_value(args.first().unwrap(), DynamicValue::try_as_usize)?,
                 cast_as_separator(args.get(1))?,
@@ -873,7 +873,7 @@ fn get_function_arguments_parser(name: &str) -> Option<(FunctionArguments, Argum
         "stddev" | "stddev_pop" => (FunctionArguments::unary(), |_| Ok(StddevPop)),
         "stddev_sample" => (FunctionArguments::unary(), |_| Ok(StddevSample)),
         "sum" => (FunctionArguments::unary(), |_| Ok(Sum)),
-        "top" => (FunctionArguments::with_range(1..=3), |args| {
+        "top" => (FunctionArguments::with_range(2..=3), |args| {
             Ok(Top(
                 cast_as_static_value(args.first().unwrap(), DynamicValue::try_as_usize)?,
                 cast_as_separator(args.get(1))?,
@@ -982,8 +982,9 @@ pub fn concretize_aggregations(
     for mut aggregation in aggregations {
         let args_count = aggregation.args.len();
 
-        if ["most_common", "most_common_counts", "top", "argtop"]
-            .contains(&aggregation.func_name.as_str())
+        if aggregation.args.len() >= 2
+            && ["most_common", "most_common_counts", "top", "argtop"]
+                .contains(&aggregation.func_name.as_str())
         {
             aggregation.args.swap(0, 1);
         }
