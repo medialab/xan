@@ -122,6 +122,7 @@ plot options:
     --timezone <name>          Timezone used to discretize time series as well as used to
                                format x axis ticks. Is only relevant when given values
                                have timezone information. Defaults to system's timezone.
+    --hide-legend              Hide legend when plotting multiple series.
 
 Common options:
     -h, --help             Display this message

@@ -267,6 +267,7 @@ plot options:
     --timezone <name>          Timezone used to discretize time series as well as used to
                                format x axis ticks. Is only relevant when given values
                                have timezone information. Defaults to system's timezone.
+    --hide-legend              Hide legend when plotting multiple series.
 
 Common options:
     -h, --help             Display this message
@@ -308,6 +309,7 @@ struct Args {
     flag_color: ColorMode,
     flag_ignore: bool,
     flag_timezone: Option<TimeZoneArg>,
+    flag_hide_legend: bool,
 }
 
 impl Args {
@@ -819,7 +821,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 // Create the chart and link all the parts together
                 let mut chart = Chart::new(datasets).x_axis(x_axis).y_axis(y_axis);
 
-                if !showing_multiple_series {
+                if !showing_multiple_series || args.flag_hide_legend {
                     chart = chart.legend_position(None);
                 } else {
                     chart =
