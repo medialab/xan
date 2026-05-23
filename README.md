@@ -767,6 +767,10 @@ All those commands have a standard `--color=(auto|always|never)` flag to tweak t
 
 They also respect typical environment variables related to ANSI colouring, such as `NO_COLOR`, `CLICOLOR` & `CLICOLOR_FORCE`, as documented [here](https://bixense.com/clicolors/).
 
+Also, note that some `xan` commands (`xan heatmap` & `xan spark` notably) require a terminal able to display `truecolor` (24bits) ANSI colors (at least if you want them to be able to print continuous color gradients).
+
+Sometimes you might want to explicitly set the `COLORTERM` env variable to `truecolor`, if you know your terminal supports them but your shell does not know it (e.g. sometimes when using `screen`, `tmux` or `ssh`).
+
 ## Expression language reference
 
 - [Cheatsheet](./docs/moonblade/cheatsheet.md)
