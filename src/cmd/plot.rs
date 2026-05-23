@@ -268,6 +268,8 @@ plot options:
                                format x axis ticks. Is only relevant when given values
                                have timezone information. Defaults to system's timezone.
     --hide-legend              Hide legend when plotting multiple series.
+    -Q, --square               Attempt to make the plot region as square as possible to avoid
+                               distortion.
 
 Common options:
     -h, --help             Display this message
@@ -310,6 +312,7 @@ struct Args {
     flag_ignore: bool,
     flag_timezone: Option<TimeZoneArg>,
     flag_hide_legend: bool,
+    flag_square: bool,
 }
 
 impl Args {
@@ -700,7 +703,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     // Solving cols & rows
-    let cols = util::acquire_term_cols_ratio(&args.flag_cols)?;
+    let mut cols = util::acquire_term_cols_ratio(&args.flag_cols)?;
 
     if cols < 10 {
         Err("not enough cols to draw!")?;
@@ -711,6 +714,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if rows < 3 {
         Err("not enough rows to draw!")?;
     }
+
+    let (harmonized_x_axis_info, harmonized_y_axis_info) = AxisInfo::from_multiple_series(
+        (args.flag_x_scale, args.flag_y_scale),
+        finalized_series.iter(),
+        actual_timezone.clone(),
+    );
 
     // NOTE: when drawing small multiples, if --rows was not given, we split vertical space
     // if we have more than what can fit in a single column by default
@@ -723,20 +732,56 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     // NOTE: leaving one row for the prompt
     rows = rows.saturating_sub(1);
 
+    // Squarifying
+    if args.flag_square {
+        let mut max_y_label_tick_width = harmonized_y_axis_info
+            .scale
+            .formatted_ticks(2)
+            .last()
+            .unwrap()
+            .width();
+
+        // TODO: adjust wrt axis hiding later on
+        let x_axis_offset = 2;
+        let y_axis_offset = 1;
+
+        // Axis line
+        max_y_label_tick_width += y_axis_offset;
+
+        let mut plot_cols = cols.saturating_sub(max_y_label_tick_width);
+        let plot_rows = rows.saturating_sub(x_axis_offset);
+
+        if let Some(grid_cols) = args.flag_small_multiples {
+            if grid_cols.get() > 1 {
+                plot_cols /= grid_cols.get();
+                plot_cols = plot_cols.saturating_sub(grid_cols.get().saturating_sub(1) * 2);
+            }
+        }
+
+        let half_plot_cols = plot_cols / 2;
+
+        if half_plot_cols > plot_rows {
+            cols = max_y_label_tick_width + y_axis_offset + plot_rows * 2;
+
+            if let Some(grid_cols) = args.flag_small_multiples {
+                if grid_cols.get() > 1 {
+                    cols *= grid_cols.get();
+                    cols += grid_cols.get().saturating_sub(1) * 2;
+                }
+            }
+        } else if half_plot_cols < plot_rows {
+            rows = half_plot_cols + x_axis_offset;
+        }
+    }
+
     let y_ticks = args.infer_y_ticks(rows);
 
     // Drawing
     match args.flag_small_multiples {
         None => {
             print_ratatui_frame_to_stdout(cols, rows, |frame| {
-                // let n = finalized_series[0].1.len();
-
-                // x axis information
-                let (x_axis_info, y_axis_info) = AxisInfo::from_multiple_series(
-                    (args.flag_x_scale, args.flag_y_scale),
-                    finalized_series.iter(),
-                    actual_timezone.clone(),
-                );
+                let x_axis_info = harmonized_x_axis_info;
+                let y_axis_info = harmonized_y_axis_info;
 
                 let finalized_floats = finalized_series
                     .iter()
@@ -836,12 +881,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let grid_cols = grid_cols.get();
             let mut color_i: usize = 0;
             let mut first_grid_col = true;
-
-            let (harmonized_x_axis_info, harmonized_y_axis_info) = AxisInfo::from_multiple_series(
-                (args.flag_x_scale, args.flag_y_scale),
-                finalized_series.iter(),
-                actual_timezone.clone(),
-            );
 
             for finalized_series_column in finalized_series.chunks(grid_cols) {
                 let x_column_name = x_column_name.clone();
@@ -946,13 +985,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         // Create the chart and link all the parts together
                         let mut chart = Chart::new(vec![dataset]).x_axis(x_axis).y_axis(y_axis);
 
-                        if category_column_index.is_some() {
+                        if args.flag_hide_legend || category_column_index.is_none() {
+                            chart = chart.legend_position(None);
+                        } else {
                             chart = chart.hidden_legend_constraints((
                                 Constraint::Min(0),
                                 Constraint::Min(0),
                             ));
-                        } else {
-                            chart = chart.legend_position(None);
                         }
 
                         frame.render_widget(chart, layout[i]);
