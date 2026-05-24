@@ -1,6 +1,7 @@
 // Issue tracking:
 //  - https://github.com/ratatui/ratatui/issues/334
 //  - https://github.com/ratatui/ratatui/issues/1391
+use std::cmp::Ordering;
 use std::convert::TryFrom;
 use std::fmt;
 use std::io::{stderr, stdout, Write};
@@ -270,6 +271,8 @@ plot options:
     --hide-legend              Hide legend when plotting multiple series.
     -Q, --square               Attempt to make the plot region as square as possible to avoid
                                distortion.
+    --hide-x-axis              Completely hide x-axis and ticks.
+    --hide-y-axis              Completely hide y-axis and ticks.
 
 Common options:
     -h, --help             Display this message
@@ -313,6 +316,8 @@ struct Args {
     flag_timezone: Option<TimeZoneArg>,
     flag_hide_legend: bool,
     flag_square: bool,
+    flag_hide_x_axis: bool,
+    flag_hide_y_axis: bool,
 }
 
 impl Args {
@@ -741,9 +746,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .unwrap()
             .width();
 
-        // TODO: adjust wrt axis hiding later on
-        let x_axis_offset = 2;
-        let y_axis_offset = 1;
+        let x_axis_offset = if args.flag_hide_x_axis { 0 } else { 2 };
+        let y_axis_offset = if args.flag_hide_y_axis { 0 } else { 1 };
 
         // Axis line
         max_y_label_tick_width += y_axis_offset;
@@ -760,18 +764,22 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         let half_plot_cols = plot_cols / 2;
 
-        if half_plot_cols > plot_rows {
-            cols = max_y_label_tick_width + y_axis_offset + plot_rows * 2;
+        match half_plot_cols.cmp(&plot_rows) {
+            Ordering::Greater => {
+                cols = max_y_label_tick_width + y_axis_offset + plot_rows * 2;
 
-            if let Some(grid_cols) = args.flag_small_multiples {
-                if grid_cols.get() > 1 {
-                    cols *= grid_cols.get();
-                    cols += grid_cols.get().saturating_sub(1) * 2;
+                if let Some(grid_cols) = args.flag_small_multiples {
+                    if grid_cols.get() > 1 {
+                        cols *= grid_cols.get();
+                        cols += grid_cols.get().saturating_sub(1) * 2;
+                    }
                 }
             }
-        } else if half_plot_cols < plot_rows {
-            rows = half_plot_cols + x_axis_offset;
-        }
+            Ordering::Less => {
+                rows = half_plot_cols + x_axis_offset;
+            }
+            Ordering::Equal => (),
+        };
     }
 
     let y_ticks = args.infer_y_ticks(rows);
@@ -839,29 +847,40 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 let y_ticks_labels = y_axis_info.ticks(y_ticks);
                 let x_ticks = infer_x_ticks(args.flag_x_ticks, &x_axis_info, &y_ticks_labels, cols);
 
-                let y_axis = Axis::default()
-                    .title(if !has_added_series && y_axis_info.can_be_displayed {
-                        y_column_name.dim()
-                    } else {
-                        "".dim()
-                    })
+                let mut y_axis = Axis::default()
+                    .title(
+                        if !has_added_series
+                            && y_axis_info.can_be_displayed
+                            && !args.flag_hide_y_axis
+                        {
+                            y_column_name.dim()
+                        } else {
+                            "".dim()
+                        },
+                    )
                     .labels_alignment(Alignment::Right)
                     .style(Style::default().white())
-                    .bounds([0.0, 1.0])
-                    .labels(y_ticks_labels);
+                    .bounds([0.0, 1.0]);
+
+                if !args.flag_hide_y_axis {
+                    y_axis = y_axis.labels(y_ticks_labels);
+                }
 
                 // Create the X axis and define its properties
                 let x_ticks_labels = x_axis_info.ticks(x_ticks);
 
-                let x_axis = Axis::default()
-                    .title(if x_axis_info.can_be_displayed {
+                let mut x_axis = Axis::default()
+                    .title(if x_axis_info.can_be_displayed && !args.flag_hide_x_axis {
                         x_column_name.dim()
                     } else {
                         "".dim()
                     })
                     .style(Style::default().white())
-                    .bounds([0.0, 1.0])
-                    .labels(x_ticks_labels.clone());
+                    .bounds([0.0, 1.0]);
+
+                if !args.flag_hide_x_axis {
+                    x_axis = x_axis.labels(x_ticks_labels.clone());
+                }
 
                 // Create the chart and link all the parts together
                 let mut chart = Chart::new(datasets).x_axis(x_axis).y_axis(y_axis);
@@ -874,7 +893,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
 
                 frame.render_widget(chart, frame.area());
-                patch_buffer(frame.buffer_mut(), None, &x_ticks_labels, args.flag_grid);
+                patch_buffer(
+                    frame.buffer_mut(),
+                    None,
+                    &x_ticks_labels,
+                    args.flag_grid,
+                    args.flag_hide_x_axis,
+                );
             })?;
         }
         Some(grid_cols) => {
@@ -954,8 +979,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             &y_ticks_labels,
                             cols / grid_cols,
                         );
-                        let y_axis = Axis::default()
-                            .title(if can_display_y_axis_title {
+                        let mut y_axis = Axis::default()
+                            .title(if can_display_y_axis_title && !args.flag_hide_y_axis {
                                 if has_added_series {
                                     single_finalized_series.0.unwrap().dim()
                                 } else {
@@ -966,21 +991,27 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             })
                             .labels_alignment(Alignment::Right)
                             .style(Style::default().white())
-                            .bounds([0.0, 1.0])
-                            .labels(y_ticks_labels);
+                            .bounds([0.0, 1.0]);
+
+                        if !args.flag_hide_y_axis {
+                            y_axis = y_axis.labels(y_ticks_labels);
+                        }
 
                         // Create the X axis and define its properties
                         let x_ticks_labels = x_axis_info.ticks(x_ticks);
 
-                        let x_axis = Axis::default()
-                            .title(if x_axis_info.can_be_displayed {
+                        let mut x_axis = Axis::default()
+                            .title(if x_axis_info.can_be_displayed && !args.flag_hide_x_axis {
                                 x_column_name.clone().dim()
                             } else {
                                 "".dim()
                             })
                             .style(Style::default().white())
-                            .bounds([0.0, 1.0])
-                            .labels(x_ticks_labels.clone());
+                            .bounds([0.0, 1.0]);
+
+                        if !args.flag_hide_x_axis {
+                            x_axis = x_axis.labels(x_ticks_labels.clone());
+                        }
 
                         // Create the chart and link all the parts together
                         let mut chart = Chart::new(vec![dataset]).x_axis(x_axis).y_axis(y_axis);
@@ -1000,6 +1031,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             Some(&layout[i]),
                             &x_ticks_labels,
                             args.flag_grid,
+                            args.flag_hide_x_axis,
                         );
 
                         color_i += 1;
@@ -1176,12 +1208,18 @@ impl AxisInfo {
     }
 }
 
-fn patch_buffer(buffer: &mut Buffer, area: Option<&Rect>, x_ticks: &[String], draw_grid: bool) {
+fn patch_buffer(
+    buffer: &mut Buffer,
+    area: Option<&Rect>,
+    x_ticks: &[String],
+    draw_grid: bool,
+    hide_x_axis: bool,
+) {
     let area = *area.unwrap_or(buffer.area());
 
     let origin_col = (area.x..area.x + area.width)
         .find(|x| buffer.cell((*x, area.y)).unwrap().symbol() == "│")
-        .unwrap();
+        .unwrap_or(0);
 
     // Drawing ticks for y axis
     for y in area.y..area.y + area.height {
@@ -1204,6 +1242,10 @@ fn patch_buffer(buffer: &mut Buffer, area: Option<&Rect>, x_ticks: &[String], dr
                 }
             }
         }
+    }
+
+    if hide_x_axis {
+        return;
     }
 
     // Fixing ticks for x axis

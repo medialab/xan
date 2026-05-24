@@ -51,7 +51,7 @@
 * Adding the `xan spark` command.
 * Adding `xan stats -R/--report, --color, --cols, --sep`.
 * Adding `xan (freq|p freq) -X/--approx-algo`.
-* Adding `xan plot --hide-legend & -Q/--square`.
+* Adding `xan plot --hide-legend, --hide-x-axis, --hide-y-axis & -Q/--square`.
 
 *Fixes*
 

@@ -123,6 +123,10 @@ plot options:
                                format x axis ticks. Is only relevant when given values
                                have timezone information. Defaults to system's timezone.
     --hide-legend              Hide legend when plotting multiple series.
+    -Q, --square               Attempt to make the plot region as square as possible to avoid
+                               distortion.
+    --hide-x-axis              Completely hide x-axis and ticks.
+    --hide-y-axis              Completely hide y-axis and ticks.
 
 Common options:
     -h, --help             Display this message
