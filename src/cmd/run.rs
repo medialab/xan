@@ -1,13 +1,11 @@
 use std::env;
 use std::fs;
+use std::io;
 use std::process::{Command, Stdio};
 
 use crate::processing::{parse_pipeline, Children};
 use crate::util;
 use crate::CliResult;
-
-// TODO: binary serialization
-// TODO: inherit for all stderr stream? no. proper error handling using a checker thread
 
 static USAGE: &str = "
 Run the given xan pipeline or execute a xan script.
@@ -29,6 +27,11 @@ count
 ```
 
     $ xan run -f script.xan data.csv
+
+This script can also be fed from stdin using the usual \"-\" stand-in, in which
+can you forego the possibility to feed your command its input data through stdin:
+
+    $ echo 'search -r john | count' | xan run -f - data.csv
 
 The syntax of those scripts can be thought of as POSIX shell and it will be parsed
 first by normalizing CRLF newlines to LF then using `shlex`.
@@ -78,18 +81,30 @@ struct Args {
 }
 
 impl Args {
-    fn resolve(&mut self) -> CliResult<()> {
-        if self.flag_file {
-            self.arg_pipeline = fs::read_to_string(&self.arg_pipeline)?;
-        }
+    fn resolve(&mut self) -> CliResult<bool> {
+        let stdin_was_consumed = if self.flag_file {
+            if self.arg_pipeline == "-" {
+                if matches!(&self.arg_input, Some(p) if p == "-") {
+                    Err("cannot take both -f/--file & <input> from stdin!")?;
+                }
 
-        Ok(())
+                self.arg_pipeline = io::read_to_string(io::stdin())?;
+                true
+            } else {
+                self.arg_pipeline = fs::read_to_string(&self.arg_pipeline)?;
+                false
+            }
+        } else {
+            false
+        };
+
+        Ok(stdin_was_consumed)
     }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut args: Args = util::get_args(USAGE, argv)?;
-    args.resolve()?;
+    let stdin_was_consumed = args.resolve()?;
 
     let exe = env::current_exe()?;
 
@@ -138,14 +153,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     .expect("could not consume last child stdout"),
             );
         } else {
-            // First command in pipeline must read the file
+            // First command in pipeline could read <input>
             match &args.arg_input {
                 Some(path) if path != "-" => {
                     command.stdin(Stdio::null());
                     command.arg(path);
                 }
                 _ => {
-                    command.stdin(Stdio::inherit());
+                    if stdin_was_consumed {
+                        command.stdin(Stdio::null());
+                    } else {
+                        command.stdin(Stdio::inherit());
+                    }
                 }
             }
         }

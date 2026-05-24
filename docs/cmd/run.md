@@ -22,6 +22,11 @@ count
 
     $ xan run -f script.xan data.csv
 
+This script can also be fed from stdin using the usual "-" stand-in, in which
+can you forego the possibility to feed your command its input data through stdin:
+
+    $ echo 'search -r john | count' | xan run -f - data.csv
+
 The syntax of those scripts can be thought of as POSIX shell and it will be parsed
 first by normalizing CRLF newlines to LF then using `shlex`.
 
