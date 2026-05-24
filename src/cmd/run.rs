@@ -139,11 +139,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             );
         } else {
             // First command in pipeline must read the file
-            if let Some(path) = &args.arg_input {
-                command.stdin(Stdio::null());
-                command.arg(path);
-            } else {
-                command.stdin(Stdio::inherit());
+            match &args.arg_input {
+                Some(path) if path != "-" => {
+                    command.stdin(Stdio::null());
+                    command.arg(path);
+                }
+                _ => {
+                    command.stdin(Stdio::inherit());
+                }
             }
         }
 
