@@ -6,7 +6,7 @@ use regex::bytes::Regex;
 use simd_csv::ByteRecord;
 
 use crate::config::{Config, Delimiter};
-use crate::select::SelectedColumns;
+use crate::select::{SelectedColumns, Selection};
 use crate::util;
 use crate::CliResult;
 
@@ -69,6 +69,9 @@ Examples:
   Split column named 'code' into of segments defined by byte offsets [0, 2), [2, 6) and [6, 9):
     $ xan separate code --offsets 0,2,6,9 data.csv
 
+  Giving empty column names to --into to skip some columns in the output:
+    $ xan separate date - --into year,,day dates.csv
+
 Usage:
     xan separate [options] <column> <separator> [<input>]
     xan separate --help
@@ -99,6 +102,8 @@ separate options:
                            be separated into 'text1', 'text2', etc.). If used with --max,
                            the number of names provided must be equal or lower
                            than <n>. Cannot be used with --prefix.
+                           Note that you can give some output columns an empty name to
+                           skip them altogether from the output.
     --prefix <prefix>      Specify a prefix for the new columns created by the
                            splits. By default, no prefix is used and new columns
                            are named before the original column name ('text'
@@ -619,6 +624,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         max_seen
     };
 
+    let mut splitted_cells_to_skip: Vec<usize> = vec![];
+
     // Writing headers
     if !rconf.no_headers {
         let mut new_headers = ByteRecord::new();
@@ -632,7 +639,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut offset: usize = 0;
 
         if let Some(names) = &new_column_names {
-            let to_extend = names.iter().take(number_of_new_columns);
+            let to_extend = names
+                .iter()
+                .take(number_of_new_columns)
+                .enumerate()
+                .filter(|(i, name)| {
+                    if name.is_empty() {
+                        splitted_cells_to_skip.push(*i);
+                        false
+                    } else {
+                        true
+                    }
+                })
+                .map(|(_, name)| name)
+                .collect::<Vec<_>>();
+
             offset = to_extend.len();
             new_headers.extend(to_extend);
             number_of_new_columns = number_of_new_columns.saturating_sub(names.len());
@@ -647,6 +668,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         wtr.write_byte_record(&new_headers)?;
     }
+
+    let splitted_cells_to_keep_selection =
+        Selection::without_indices(max_splits, &splitted_cells_to_skip);
 
     let split_options = SplitOptions {
         too_many_mode,
@@ -667,7 +691,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 record
                     .iter()
                     .take(separated_column_index + args.flag_keep as usize)
-                    .chain(output_record.iter())
+                    .chain(splitted_cells_to_keep_selection.select(output_record))
                     .chain(record.iter().skip(separated_column_index + 1)),
             )?;
 

@@ -60,6 +60,9 @@ Examples:
   Split column named 'code' into of segments defined by byte offsets [0, 2), [2, 6) and [6, 9):
     $ xan separate code --offsets 0,2,6,9 data.csv
 
+  Giving empty column names to --into to skip some columns in the output:
+    $ xan separate date - --into year,,day dates.csv
+
 Usage:
     xan separate [options] <column> <separator> [<input>]
     xan separate --help
@@ -90,6 +93,8 @@ separate options:
                            be separated into 'text1', 'text2', etc.). If used with --max,
                            the number of names provided must be equal or lower
                            than <n>. Cannot be used with --prefix.
+                           Note that you can give some output columns an empty name to
+                           skip them altogether from the output.
     --prefix <prefix>      Specify a prefix for the new columns created by the
                            splits. By default, no prefix is used and new columns
                            are named before the original column name ('text'

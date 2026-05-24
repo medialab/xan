@@ -623,3 +623,26 @@ fn separate_trim() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn separate_empty_into_names() {
+    let wrk = Workdir::new("separate_empty_into_names");
+    wrk.create(
+        "data.csv",
+        vec![svec!["date"], svec!["2016-01-23"], svec!["2018-04-10"]],
+    );
+    let mut cmd = wrk.command("separate");
+    cmd.arg("date")
+        .arg("-")
+        .arg("-k")
+        .args(["--into", ",month,"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["date", "month"],
+        ["2016-01-23", "01"],
+        ["2018-04-10", "04"],
+    ];
+    assert_eq!(got, expected);
+}
