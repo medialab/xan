@@ -72,10 +72,9 @@ edgelist options:
                            (use "-" to feed the file from stdin).
     --node-column <name>   Name of the column containing node keys.
                            [default: node]
-    --range <max>          Indicate that node ids are u32 ranging from 0 to
-                           given <max>. This can be used to increase performance.
-                           Currently incompatible with --nodes.
-
+    --range <n>            Indicate that given graph contains <n> nodes having
+                           ids ranging from 0 to <n> - 1. This can be used as
+                           a means to increase performance.
 
 bipartite options:
     --disjoint-keys  Pass this if you know both partitions of the graph

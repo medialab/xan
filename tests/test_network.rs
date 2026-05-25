@@ -203,3 +203,29 @@ fn network_json() {
         "{\"options\":{\"allowSelfLoops\":false,\"multi\":false,\"type\":\"directed\"},\"nodes\":[{\"key\":\"A\"},{\"key\":\"B\"},{\"key\":\"C\"}],\"edges\":[{\"source\":\"A\",\"target\":\"B\"},{\"source\":\"B\",\"target\":\"C\"}]}"
     );
 }
+
+#[test]
+fn network_range() {
+    let wrk = Workdir::new("network_range");
+    wrk.create(
+        "edges.csv",
+        vec![svec!["source", "target"], svec!["0", "1"], svec!["1", "2"]],
+    );
+
+    wrk.create(
+        "nodes.csv",
+        vec![svec!["node"], svec!["A"], svec!["B"], svec!["C"]],
+    );
+
+    let mut cmd = wrk.command("network");
+    cmd.arg("edgelist")
+        .args(["source", "target"])
+        .args(["-f", "nodelist"])
+        .args(["--range", "3"])
+        .args(["--nodes", "nodes.csv"])
+        .arg("edges.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![["node"], ["A"], ["B"], ["C"]];
+    assert_eq!(got, expected);
+}

@@ -345,15 +345,15 @@ impl GraphBuilder {
             last_target_index: None,
             node_model: Vec::new(),
             edge_model: Vec::new(),
-            nodes: if let Some(max) = options.range_node_store {
+            nodes: if let Some(n) = options.range_node_store {
                 if options.fill_range_node_store {
                     NodeStore::Range(
-                        (0..(max + 1) as usize)
+                        (0..n as usize)
                             .map(|_| (None, Attributes::default()))
                             .collect(),
                     )
                 } else {
-                    NodeStore::Range(Vec::with_capacity(max as usize + 1))
+                    NodeStore::Range(Vec::with_capacity(n as usize))
                 }
             } else {
                 NodeStore::Hash(new_index_map())

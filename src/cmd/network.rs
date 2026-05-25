@@ -117,10 +117,9 @@ edgelist options:
                            (use \"-\" to feed the file from stdin).
     --node-column <name>   Name of the column containing node keys.
                            [default: node]
-    --range <max>          Indicate that node ids are u32 ranging from 0 to
-                           given <max>. This can be used to increase performance.
-                           Currently incompatible with --nodes.
-
+    --range <n>            Indicate that given graph contains <n> nodes having
+                           ids ranging from 0 to <n> - 1. This can be used as
+                           a means to increase performance.
 
 bipartite options:
     --disjoint-keys  Pass this if you know both partitions of the graph
@@ -284,9 +283,9 @@ impl Args {
                 process_node_record(&record);
             }
 
-            if let Some(max) = self.flag_range {
-                if graph_builder.order() as u32 != max + 1 {
-                    Err(format!("--nodes file did not give a correct number of nodes (max id {}) wrt what max was given to --range ({})!", graph_builder.order().saturating_sub(1), max))?;
+            if let Some(n) = self.flag_range {
+                if graph_builder.order() as u32 != n {
+                    Err(format!("--nodes file did not give a correct number of nodes ({}) wrt what max was given to --range ({})!", graph_builder.order(), n))?;
                 }
             }
         }
