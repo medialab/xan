@@ -4,12 +4,13 @@ target
 *.csv
 *.tsv
 *.vcf
+*.log
 *.gz
 *.zst
 *.cdx
 *.xan
 *.idx
+*.npy
 builds
 .vscode
-*.npy
 *.code-workspace

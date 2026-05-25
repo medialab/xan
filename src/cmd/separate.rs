@@ -1,3 +1,4 @@
+use std::io::Read;
 use std::iter::once;
 use std::num::NonZeroUsize;
 
@@ -9,6 +10,24 @@ use crate::config::{Config, Delimiter};
 use crate::select::{SelectedColumns, Selection};
 use crate::util;
 use crate::CliResult;
+
+enum GenericReader<R: Read> {
+    Csv(simd_csv::Reader<R>, Vec<ByteRecord>),
+    Txt(simd_csv::LineReader<R>, Vec<Vec<u8>>),
+}
+
+impl<R: Read> GenericReader<R> {
+    fn byte_headers(&mut self) -> simd_csv::Result<ByteRecord> {
+        match self {
+            Self::Csv(inner, _) => inner.byte_headers().cloned(),
+            Self::Txt(_, _) => {
+                let mut h = ByteRecord::new();
+                h.push_field(b"line");
+                Ok(h)
+            }
+        }
+    }
+}
 
 static USAGE: &str = r#"
 Separate a single column into multiple ones by splitting its cells according
@@ -73,6 +92,7 @@ Examples:
     $ xan separate date - --into year,,day dates.csv
 
 Usage:
+    xan separate --txt [options] <separator> [<input>]
     xan separate [options] <column> <separator> [<input>]
     xan separate --help
 
@@ -94,6 +114,9 @@ separate mode options:
                         comma-separated list of increasing, non-repeating integers).
 
 separate options:
+    -T, --txt              Indicate that input should be considered as text lines, instead
+                           of CSV data. If -k/--keep is used, the line will be kept in a
+                           column of the output named "line".
     -M, --max <n>          Limit the number of cells splitted to at most <n>.
                            By default, all possible splits are made.
     --into <column-names>  Specify names for the new columns created by the
@@ -157,6 +180,7 @@ struct Args {
     flag_cuts: bool,
     flag_offsets: bool,
     flag_trim: bool,
+    flag_txt: bool,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -493,8 +517,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
-    let mut rdr = rconf.simd_reader()?;
-    let headers = rdr.byte_headers()?.clone();
+    let mut rdr = if args.flag_txt {
+        GenericReader::Txt(
+            simd_csv::LineReader::from_reader(rconf.io_reader()?),
+            Vec::new(),
+        )
+    } else {
+        GenericReader::Csv(rconf.simd_reader()?, Vec::new())
+    };
+
+    let headers = rdr.byte_headers()?;
 
     let separated_column_index = rconf.single_selection(&headers)?;
 
@@ -596,8 +628,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Splitter::Substring(args.arg_separator.as_bytes().to_vec())
     };
 
-    let mut buffered_records: Option<Vec<ByteRecord>> = None;
-
     let max_splits = if let Some(n) = args.flag_max {
         n
     } else if let Some(names) = &new_column_names {
@@ -608,18 +638,27 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         // We need to buffer the records to memory to know what the max number
         // of splits is.
         let mut max_seen = 0;
-        let mut records = Vec::new();
 
-        for result in rdr.byte_records() {
-            let record = result?;
+        match &mut rdr {
+            GenericReader::Csv(inner, buffer) => {
+                for result in inner.byte_records() {
+                    let record = result?;
 
-            let numsplits = splitter.count_splits(&record[separated_column_index]);
-            max_seen = max_seen.max(numsplits);
+                    let numsplits = splitter.count_splits(&record[separated_column_index]);
+                    max_seen = max_seen.max(numsplits);
 
-            records.push(record);
+                    buffer.push(record);
+                }
+            }
+            GenericReader::Txt(inner, buffer) => {
+                while let Some(line) = inner.read_line()? {
+                    let numsplits = splitter.count_splits(line);
+                    max_seen = max_seen.max(numsplits);
+
+                    buffer.push(line.to_vec());
+                }
+            }
         }
-
-        buffered_records = Some(records);
 
         max_seen
     };
@@ -679,36 +718,64 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     };
 
     // Flushing
-    let mut process_record =
-        |record: &ByteRecord, output_record: &mut ByteRecord| -> CliResult<()> {
-            splitter.split_cell_into(
-                &record[separated_column_index],
-                split_options,
-                output_record,
-            )?;
-
-            wtr.write_record(
-                record
-                    .iter()
-                    .take(separated_column_index + args.flag_keep as usize)
-                    .chain(splitted_cells_to_keep_selection.select(output_record))
-                    .chain(record.iter().skip(separated_column_index + 1)),
-            )?;
-
-            Ok(())
-        };
 
     let mut output_record = ByteRecord::new();
 
-    if let Some(records) = buffered_records {
-        for record in records {
-            process_record(&record, &mut output_record)?;
-        }
-    } else {
-        let mut record = ByteRecord::new();
+    match &mut rdr {
+        GenericReader::Csv(inner, buffer) => {
+            let mut process_record =
+                |record: &ByteRecord, output_record: &mut ByteRecord| -> CliResult<()> {
+                    splitter.split_cell_into(
+                        &record[separated_column_index],
+                        split_options,
+                        output_record,
+                    )?;
 
-        while rdr.read_byte_record(&mut record)? {
-            process_record(&record, &mut output_record)?;
+                    wtr.write_record(
+                        record
+                            .iter()
+                            .take(separated_column_index + args.flag_keep as usize)
+                            .chain(splitted_cells_to_keep_selection.select(output_record))
+                            .chain(record.iter().skip(separated_column_index + 1)),
+                    )?;
+
+                    Ok(())
+                };
+
+            if !buffer.is_empty() {
+                for record in buffer {
+                    process_record(record, &mut output_record)?;
+                }
+            } else {
+                let mut record = ByteRecord::new();
+
+                while inner.read_byte_record(&mut record)? {
+                    process_record(&record, &mut output_record)?;
+                }
+            }
+        }
+        GenericReader::Txt(inner, buffer) => {
+            let mut process_line = |line: &[u8], output_record: &mut ByteRecord| -> CliResult<()> {
+                splitter.split_cell_into(line, split_options, output_record)?;
+
+                if args.flag_keep {
+                    wtr.write_record([line].into_iter().chain(output_record.iter()))?;
+                } else {
+                    wtr.write_byte_record(output_record)?;
+                }
+
+                Ok(())
+            };
+
+            if !buffer.is_empty() {
+                for line in buffer {
+                    process_line(line, &mut output_record)?;
+                }
+            } else {
+                while let Some(line) = inner.read_line()? {
+                    process_line(line, &mut output_record)?;
+                }
+            }
         }
     }
 
