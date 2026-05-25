@@ -10,6 +10,8 @@ into other xan commands.
 Supported input modes:
     `edgelist`:  converts a CSV of edges with a column representing
                  sources and another column targets.
+    `nodelist`:  converts a CSV of nodes with a column representing node keys
+                 into an empty graph.
     `bipartite`: converts a CSV with two columns representing the
                  edges between both parts of a bipartite graph.
 
@@ -41,6 +43,7 @@ You can easily find duplicated (source, target) pairs using `xan dedup`:
     $ xan dedup -s source,target --keep-duplicates edges.csv
 
 Usage:
+    xan network nodelist [options] <node> [<input>]
     xan network edgelist [options] <source> <target> [<input>]
     xan network bipartite [options] <part1> <part2> [<input>]
     xan network --help

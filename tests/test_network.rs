@@ -229,3 +229,30 @@ fn network_range() {
     let expected = vec![["node"], ["A"], ["B"], ["C"]];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn network_nodelist() {
+    let wrk = Workdir::new("network_nodelist");
+
+    wrk.create(
+        "nodes.csv",
+        vec![
+            svec!["node", "name"],
+            svec!["A", "john"],
+            svec!["B", "silver"],
+            svec!["C", "babka"],
+        ],
+    );
+
+    let mut cmd = wrk.command("network");
+    cmd.arg("nodelist")
+        .arg("node")
+        .arg("nodes.csv")
+        .arg("--minify");
+
+    let got: String = wrk.stdout(&mut cmd);
+    assert_eq!(
+        got.trim(),
+        "{\"options\":{\"allowSelfLoops\":false,\"multi\":false,\"type\":\"directed\"},\"nodes\":[{\"key\":\"A\",\"attributes\":{\"name\":\"john\"}},{\"key\":\"B\",\"attributes\":{\"name\":\"silver\"}},{\"key\":\"C\",\"attributes\":{\"name\":\"babka\"}}],\"edges\":[]}"
+    );
+}

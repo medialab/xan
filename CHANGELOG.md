@@ -43,6 +43,7 @@
 * `xan to npy` is now able to stream.
 * Adding `xan parallel top` & `xan top -p/--parallel, -t/--threads`.
 * Adding `xan network edgelist --range`.
+* Adding `xan network nodelist`.
 * Adding the `xan run` command.
 * Adding `xan view --name`.
 * Adding `xan join -S/--sorted, -R/--reverse & -N/--numeric`.

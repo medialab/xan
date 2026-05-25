@@ -55,6 +55,8 @@ into other xan commands.
 Supported input modes:
     `edgelist`:  converts a CSV of edges with a column representing
                  sources and another column targets.
+    `nodelist`:  converts a CSV of nodes with a column representing node keys
+                 into an empty graph.
     `bipartite`: converts a CSV with two columns representing the
                  edges between both parts of a bipartite graph.
 
@@ -86,6 +88,7 @@ You can easily find duplicated (source, target) pairs using `xan dedup`:
     $ xan dedup -s source,target --keep-duplicates edges.csv
 
 Usage:
+    xan network nodelist [options] <node> [<input>]
     xan network edgelist [options] <source> <target> [<input>]
     xan network bipartite [options] <part1> <part2> [<input>]
     xan network --help
@@ -145,9 +148,11 @@ Common options:
 
 #[derive(Deserialize, Debug)]
 struct Args {
+    cmd_nodelist: bool,
     cmd_edgelist: bool,
     cmd_bipartite: bool,
     arg_input: Option<String>,
+    arg_node: Option<SelectedColumns>,
     arg_source: Option<SelectedColumns>,
     arg_target: Option<SelectedColumns>,
     arg_part1: Option<SelectedColumns>,
@@ -288,6 +293,10 @@ impl Args {
                     Err(format!("--nodes file did not give a correct number of nodes ({}) wrt what max was given to --range ({})!", graph_builder.order(), n))?;
                 }
             }
+        }
+
+        if self.cmd_nodelist {
+            return Ok(graph_builder);
         }
 
         let mut edge_reader = edges_rconf.simd_reader()?;
@@ -443,7 +452,7 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = util::get_args(USAGE, argv)?;
 
     if !args.flag_format.is_nodelist() {
         if args.flag_degrees {
@@ -472,7 +481,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         ))?;
     }
 
-    let mut builder = (if args.cmd_edgelist {
+    let mut builder = (if args.cmd_nodelist {
+        args.flag_nodes = args.arg_input.clone().or_else(|| Some("-".to_string()));
+        args.flag_node_column = args.arg_node.clone().unwrap();
+        args.edgelist()
+    } else if args.cmd_edgelist {
         args.edgelist()
     } else if args.cmd_bipartite {
         args.bipartite()
