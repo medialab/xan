@@ -737,22 +737,24 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     // NOTE: leaving one row for the prompt
     rows = rows.saturating_sub(1);
 
+    let y_ticks = args.infer_y_ticks(rows);
+
     // Squarifying
     if args.flag_square {
-        let mut max_y_label_tick_width = harmonized_y_axis_info
-            .scale
-            .formatted_ticks(2)
-            .last()
-            .unwrap()
-            .width();
+        let max_y_label_tick_width = harmonized_y_axis_info
+            .ticks(y_ticks)
+            .into_iter()
+            .map(|tick| tick.width())
+            .max()
+            .unwrap();
 
         let x_axis_offset = if args.flag_hide_x_axis { 0 } else { 2 };
         let y_axis_offset = if args.flag_hide_y_axis { 0 } else { 1 };
 
         // Axis line
-        max_y_label_tick_width += y_axis_offset;
-
-        let mut plot_cols = cols.saturating_sub(max_y_label_tick_width);
+        let mut plot_cols = cols
+            .saturating_sub(max_y_label_tick_width)
+            .saturating_sub(y_axis_offset);
         let plot_rows = rows.saturating_sub(x_axis_offset);
 
         if let Some(grid_cols) = args.flag_small_multiples {
@@ -781,8 +783,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Ordering::Equal => (),
         };
     }
-
-    let y_ticks = args.infer_y_ticks(rows);
 
     // Drawing
     match args.flag_small_multiples {
