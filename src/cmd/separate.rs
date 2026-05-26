@@ -659,7 +659,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
             GenericReader::Txt(inner, buffer) => {
                 while let Some(line) = inner.read_line()? {
-                    if line.trim().is_empty() {
+                    if line.is_empty() {
                         continue;
                     }
 
@@ -784,7 +784,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
             } else {
                 while let Some(line) = inner.read_line()? {
-                    if line.trim().is_empty() {
+                    if line.is_empty() {
                         continue;
                     }
 
