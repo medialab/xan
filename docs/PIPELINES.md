@@ -82,20 +82,17 @@ means: "join `downloaded` to each row's `path` column value, then read the conte
 
 ## Parsing logs using `xan separate`
 
-`xan separate` is a command able to "separate" a single CSV column into multiple ones through a variety of different methods. It boasts both a `-r/--regex` and `-c/--capture` flags that let you give a regex pattern and create new columns based on its matched groups. It is therefore suitable to use it to parse logs.
+`xan separate` is a command able to "separate" a single CSV column into multiple ones through a variety of different methods. It boasts both a `-r/--regex` and `-c/--capture` flags that let you give a regex pattern and create new columns based on its matched groups. It is therefore suitable to use it to parse logs. You could of course convert your logs to proper CSV data first using `xan from -f txt` (log lines could contain commas or double quotes and those must be dealt with properly) but using `xan separate` to "parse" text lines into proper CSV data is so common a use-case that `xan separate` has a dedicated `-T/--txt` flag for this.
 
 See an example here of using a command to parse k8s access logs to structure them better and produce some quick time series:
 
 ```bash
-xan from --from txt ~/Downloads/access.log.gz --column log | \
-xan separate log -rc '- - \[([^\]]+)\] "([^"]+)" (\d+) \d+ "[^"]*" "([^"]+)"' \
+xan separate --txt -rc '- - \[([^\]]+)\] "([^"]+)" (\d+) \d+ "[^"]*" "([^"]+)"' \
   --keep \
   --into datetime,http_call,http_status,user_agent \ |
 xan map --overwrite 'datetime.datetime("%d/%b/%Y:%H:%M:%S %z") as datetime, http_call.split(" ")[1] as url' \
 > logs.csv
 ```
-
-First we use the `xan from` command to convert our log lines into proper CSV data (log lines can contain commas or quotes for instance and those must be dealt with properly).
 
 Then we apply our unwieldy regex to create some new columns given to the `--into` flag. The `--keep` flag is here because we want to keep the original log line in the result, so we can add further processing later on if needed.
 
