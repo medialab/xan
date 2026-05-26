@@ -43,6 +43,10 @@ to some splitting method that can be one of:
     * --cuts: cut at predefined byte offsets
     * --offsets: extract byte slices
 
+This command can also operate on arbitrary text streams, treating each line as a
+makeshift CSV record containing a single column. This is very useful to parse
+line-based data such as logs into proper tabular data.
+
 Created columns can be given a name using the --into flag, else they will be
 given generic names based on the original column name. For instance, splitting a
 column named "text" will produce columns named "text1", "text2"... The --prefix
@@ -66,6 +70,9 @@ Examples:
   Splitting a full name
     $ xan separate fullname ' ' data.csv
     $ xan separate --into first_name,last_name ' ' data.csv
+
+  Processing text lines
+    $ xan separate --txt ' ' --into first_name,last_name names.txt
 
   Splitting a full name using a regular expression
     $ xan separate -r fullname '\s+' data.csv
