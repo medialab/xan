@@ -37,7 +37,7 @@ impl SupportedFormat {
             "xls" | "xlsx" | "xlsb" | "ods" => Self::Xls,
             "jsonl" | "ndjson" => Self::NdJSON,
             "json" => Self::Json,
-            "txt" | "text" | "lines" => Self::Text,
+            "txt" | "text" | "lines" | "log" => Self::Text,
             "npy" => Self::Npy,
             "tar" | "tar.gz" => Self::Tar,
             "md" | "markdown" => Self::Md,
