@@ -652,6 +652,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
             GenericReader::Txt(inner, buffer) => {
                 while let Some(line) = inner.read_line()? {
+                    if line.trim().is_empty() {
+                        continue;
+                    }
+
                     let numsplits = splitter.count_splits(line);
                     max_seen = max_seen.max(numsplits);
 
@@ -773,6 +777,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
             } else {
                 while let Some(line) = inner.read_line()? {
+                    if line.trim().is_empty() {
+                        continue;
+                    }
+
                     process_line(line, &mut output_record)?;
                 }
             }
