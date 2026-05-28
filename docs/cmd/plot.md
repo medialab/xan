@@ -113,6 +113,13 @@ plot options:
     --y-scale <scale>          Apply a scale to the y axis. Can be one of "lin", "log",
                                "log2", "log10" or "log(custom_base)" like "log(2.5)".
                                [default: lin]
+    -D, --density-gradient <name>
+                               Name of the color gradient to map to cell density in the plot.
+                               This can be used to enhance readability when points are very
+                               dense and overcome the granularity of braille characters used
+                               to draw them on screen. This transforms the plot into a sort
+                               of heatmap, if you will. Run `xan help gradients` to show available
+                               gradients. Does not work when plotting multiple series.
     --color <when>             When to color the output using ANSI escape codes.
                                Use `auto` for automatic detection, `never` to
                                disable colors completely and `always` to force

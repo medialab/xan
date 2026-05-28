@@ -13,7 +13,7 @@ use unicode_width::UnicodeWidthStr;
 
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
-use ratatui::style::{Style, Stylize};
+use ratatui::style::{Color, Style, Stylize};
 use ratatui::symbols;
 use ratatui::widgets::{Axis, Chart, Dataset, GraphType};
 
@@ -21,7 +21,7 @@ use crate::collections::{HashMap, IndexMap};
 use crate::config::{Config, Delimiter};
 use crate::moonblade::agg::Welford;
 use crate::ratatui::print_ratatui_frame_to_stdout;
-use crate::scales::{Scale, ScaleType};
+use crate::scales::{ExtentBuilder, GradientName, Scale, ScaleType};
 use crate::select::SelectedColumns;
 use crate::temporal::{
     infer_temporal_granularity, parse_fuzzy_temporal, TimeZoneArg, TimestampExt, ZonedExt,
@@ -259,6 +259,13 @@ plot options:
     --y-scale <scale>          Apply a scale to the y axis. Can be one of \"lin\", \"log\",
                                \"log2\", \"log10\" or \"log(custom_base)\" like \"log(2.5)\".
                                [default: lin]
+    -D, --density-gradient <name>
+                               Name of the color gradient to map to cell density in the plot.
+                               This can be used to enhance readability when points are very
+                               dense and overcome the granularity of braille characters used
+                               to draw them on screen. This transforms the plot into a sort
+                               of heatmap, if you will. Run `xan help gradients` to show available
+                               gradients. Does not work when plotting multiple series.
     --color <when>             When to color the output using ANSI escape codes.
                                Use `auto` for automatic detection, `never` to
                                disable colors completely and `always` to force
@@ -318,6 +325,7 @@ struct Args {
     flag_square: bool,
     flag_hide_x_axis: bool,
     flag_hide_y_axis: bool,
+    flag_density_gradient: Option<GradientName>,
 }
 
 impl Args {
@@ -536,6 +544,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let showing_multiple_series =
         category_column_index.is_some() || !additional_series_indices.is_empty();
+
+    if showing_multiple_series && args.flag_density_gradient.is_some() {
+        Err("-D/--density-gradient cannot be used with multiple series!")?;
+    }
 
     let mut record = simd_csv::ByteRecord::new();
 
@@ -893,6 +905,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
 
                 frame.render_widget(chart, frame.area());
+
+                if let Some(gradient_name) = args.flag_density_gradient {
+                    patch_buffer_for_density(
+                        gradient_name,
+                        frame.buffer_mut(),
+                        &finalized_floats.first().unwrap().1,
+                        args.flag_hide_x_axis,
+                    );
+                }
+
                 patch_buffer(
                     frame.buffer_mut(),
                     None,
@@ -1310,6 +1332,59 @@ fn patch_buffer(
         Style::new(),
     );
     buffer.cell_mut(x_axis_end_pos).unwrap().set_symbol("┼");
+}
+
+fn patch_buffer_for_density(
+    gradient_name: GradientName,
+    buffer: &mut Buffer,
+    normalized_points: &[(f64, f64)],
+    x_axis_hidden: bool,
+) {
+    let area = buffer.area();
+
+    let col_offset = (0..area.width)
+        .find(|x| buffer.cell((*x, area.y)).unwrap().symbol() == "│")
+        .unwrap_or(0)
+        + 1;
+
+    let row_offset = if x_axis_hidden { 0 } else { 2 };
+
+    let cols = (area.width - col_offset) as usize;
+    let rows = (area.height - row_offset) as usize;
+
+    let mut density_map = vec![0usize; cols * rows];
+
+    for (x, y) in normalized_points.iter().copied() {
+        debug_assert!((0.0..=1.0).contains(&x));
+        debug_assert!((0.0..=1.0).contains(&y));
+
+        let x = ((cols as f64 * x) as usize).min(cols - 1);
+        let y = ((rows as f64 * y) as usize).min(rows - 1);
+
+        density_map[y * cols + x] += 1;
+    }
+
+    let mut extent_builder = ExtentBuilder::new();
+
+    for density in density_map.iter().copied() {
+        extent_builder.process(density as f64);
+    }
+
+    let gradient = gradient_name.build();
+    let scale = Scale::from_extent(ScaleType::Linear, extent_builder.build().unwrap());
+
+    for (y, row) in density_map.chunks(cols).enumerate() {
+        for (x, density) in row.iter().copied().enumerate() {
+            let density_ratio = scale.ratio(density as f64) as f32;
+            let color = gradient.at(density_ratio).to_rgba8();
+
+            let cell = buffer.cell_mut((x as u16 + col_offset, y as u16)).unwrap();
+
+            if matches!(cell.style().fg, Some(Color::Cyan)) {
+                cell.set_fg(Color::Rgb(color[0], color[1], color[2]));
+            }
+        }
+    }
 }
 
 fn infer_x_ticks(

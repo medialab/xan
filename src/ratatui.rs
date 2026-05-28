@@ -46,6 +46,7 @@ fn print_buffer_to_stdout(buffer: &Buffer, cols: usize) {
             Color::Green => Colorize::green(string),
             Color::Yellow => Colorize::yellow(string),
             Color::Magenta => Colorize::magenta(string),
+            Color::Rgb(r, g, b) => Colorize::truecolor(string, r, g, b),
             _ => unimplemented!(),
         };
 
