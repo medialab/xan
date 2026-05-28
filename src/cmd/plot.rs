@@ -266,6 +266,9 @@ plot options:
                                to draw them on screen. This transforms the plot into a sort
                                of heatmap, if you will. Run `xan help gradients` to show available
                                gradients. Does not work when plotting multiple series.
+    --density-scale <scale>    Apply a scale to the density gradient. Can be one of \"lin\", \"log\",
+                               \"log2\", \"log10\" or \"log(custom_base)\" like \"log(2.5)\".
+                               [default: lin]
     --color <when>             When to color the output using ANSI escape codes.
                                Use `auto` for automatic detection, `never` to
                                disable colors completely and `always` to force
@@ -326,6 +329,7 @@ struct Args {
     flag_hide_x_axis: bool,
     flag_hide_y_axis: bool,
     flag_density_gradient: Option<GradientName>,
+    flag_density_scale: ScaleType,
 }
 
 impl Args {
@@ -909,6 +913,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 if let Some(gradient_name) = args.flag_density_gradient {
                     patch_buffer_for_density(
                         gradient_name,
+                        args.flag_density_scale,
                         frame.buffer_mut(),
                         &finalized_floats.first().unwrap().1,
                         args.flag_hide_x_axis,
@@ -1336,6 +1341,7 @@ fn patch_buffer(
 
 fn patch_buffer_for_density(
     gradient_name: GradientName,
+    scale_type: ScaleType,
     buffer: &mut Buffer,
     normalized_points: &[(f64, f64)],
     x_axis_hidden: bool,
@@ -1359,7 +1365,7 @@ fn patch_buffer_for_density(
         debug_assert!((0.0..=1.0).contains(&y));
 
         let x = ((cols as f64 * x) as usize).min(cols - 1);
-        let y = ((rows as f64 * y) as usize).min(rows - 1);
+        let y = (rows - 1).saturating_sub((rows as f64 * y) as usize);
 
         density_map[y * cols + x] += 1;
     }
@@ -1367,14 +1373,22 @@ fn patch_buffer_for_density(
     let mut extent_builder = ExtentBuilder::new();
 
     for density in density_map.iter().copied() {
+        if density == 0 {
+            continue;
+        }
+
         extent_builder.process(density as f64);
     }
 
     let gradient = gradient_name.build();
-    let scale = Scale::from_extent(ScaleType::Linear, extent_builder.build().unwrap());
+    let scale = Scale::from_extent(scale_type, extent_builder.build().unwrap());
 
     for (y, row) in density_map.chunks(cols).enumerate() {
         for (x, density) in row.iter().copied().enumerate() {
+            if density == 0 {
+                continue;
+            }
+
             let density_ratio = scale.ratio(density as f64) as f32;
             let color = gradient.at(density_ratio).to_rgba8();
 
