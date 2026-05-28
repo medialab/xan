@@ -1371,6 +1371,8 @@ fn patch_buffer(
 // NOTE: I observe that ratatui's Canvas does not fill space uniformly.
 // Its rightmost column is less dense, as well as the bottom column, in a less
 // obvious way.
+// TODO: this function should really take the area correctly into account
+// (notably for small multiples and if we want to implement padding later)
 fn patch_buffer_for_density(
     gradient_name: GradientName,
     scale_type: ScaleType,
@@ -1380,6 +1382,8 @@ fn patch_buffer_for_density(
     x_axis_hidden: bool,
 ) {
     let area = buffer.area();
+
+    debug_assert!(area.x == 0 && area.y == 0);
 
     let col_offset = (0..area.width)
         .find(|x| buffer.cell((*x, area.y)).unwrap().symbol() == "│")
