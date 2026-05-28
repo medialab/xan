@@ -107,10 +107,12 @@ plot options:
     --x-max <n>                Force a maximum value for the x axis.
     --y-min <n>                Force a minimum value for the y axis.
     --y-max <n>                Force a maximum value for the y axis.
-    --x-scale <scale>          Apply a scale to the x axis. Can be one of "lin", "log",
+    --x-scale <scale>          Apply a scale to the x axis. Can be one of "lin", "pow",
+                               "sqrt", "pow(custom_exponent)" like "pow(4.5)", "log",
                                "log2", "log10" or "log(custom_base)" like "log(2.5)".
                                [default: lin]
-    --y-scale <scale>          Apply a scale to the y axis. Can be one of "lin", "log",
+    --y-scale <scale>          Apply a scale to the y axis. Can be one of "lin", "pow",
+                               "sqrt", "pow(custom_exponent)" like "pow(4.5)", "log",
                                "log2", "log10" or "log(custom_base)" like "log(2.5)".
                                [default: lin]
     -D, --density-gradient <name>
@@ -120,7 +122,8 @@ plot options:
                                to draw them on screen. This transforms the plot into a sort
                                of heatmap, if you will. Run `xan help gradients` to show available
                                gradients. Does not work when plotting multiple series.
-    --density-scale <scale>    Apply a scale to the density gradient. Can be one of "lin", "log",
+    --density-scale <scale>    Apply a scale to the density gradient. Can be one of "lin", "pow",
+                               "sqrt", "pow(custom_exponent)" like "pow(4.5)", "log",
                                "log2", "log10" or "log(custom_base)" like "log(2.5)".
                                [default: lin]
     --color <when>             When to color the output using ANSI escape codes.

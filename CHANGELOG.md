@@ -55,6 +55,7 @@
 * Adding `xan plot -D/--density-gradient, --density-scale, --hide-legend, --hide-x-axis, --hide-y-axis & -Q/--square`.
 * `xan separate` will now avoid emitting columns with an empty name given to `--into`.
 * Adding `xan separate --txt`.
+* Adding `pow` & `sqrt` scales.
 
 *Fixes*
 

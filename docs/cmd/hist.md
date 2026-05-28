@@ -63,7 +63,8 @@ hist options:
                              year-month-day). This will sort the bars by date, and add missing dates.
     -G, --compress-gaps <n>  If given, will compress gaps of minimum <n> consecutive
                              entries set to 0 and replace it with an ellipsis.
-    --scale <scale>          Apply a scale to the values. Can be one of "lin", "log",
+    --scale <scale>          Apply a scale to the values. Can be one of "lin", "pow",
+                             "sqrt", "pow(custom_exponent)" like "pow(4.5)", "log",
                              "log2", "log10" or "log(custom_base)" like "log(2.5)".
                              [default: lin]
     --log                    Use a log scale, shorthand for --scale=log.

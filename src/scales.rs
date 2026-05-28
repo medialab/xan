@@ -582,6 +582,36 @@ impl GradientName {
 }
 
 #[derive(Debug, Clone, Copy)]
+pub enum PowerExponent {
+    Two,
+    Int(i32),
+    Float(f64),
+    Sqrt,
+}
+
+impl PowerExponent {
+    #[inline(always)]
+    fn apply(&self, x: f64) -> f64 {
+        match self {
+            Self::Two => x * x,
+            Self::Int(i) => x.powi(*i),
+            Self::Float(f) => x.powf(*f),
+            Self::Sqrt => x.sqrt(),
+        }
+    }
+
+    // #[inline(always)]
+    // fn invert(&self, x: f64) -> f64 {
+    //     match self {
+    //         Self::Two => x.sqrt(),
+    //         Self::Int(i) => x.powf(1.0 / *i as f64),
+    //         Self::Float(f) => x.powf(1.0 / *f),
+    //         Self::Sqrt => x * x,
+    //     }
+    // }
+}
+
+#[derive(Debug, Clone, Copy)]
 pub enum LogBase {
     Natural,
     Base2,
@@ -647,6 +677,7 @@ pub enum ScaleType {
     #[default]
     Linear,
     Logarithmic(LogBase),
+    Power(PowerExponent),
 }
 
 impl ScaleType {
@@ -666,7 +697,7 @@ impl ScaleType {
     #[inline]
     pub fn accepts(&self, x: f64) -> bool {
         match self {
-            Self::Linear => true,
+            Self::Linear | Self::Power(_) => true,
             Self::Logarithmic(base) => {
                 if base.accepts_zero() {
                     x >= 0.0
@@ -702,6 +733,19 @@ impl TryFrom<String> for ScaleType {
                     return Err(format!("could not parse log base \"{}\"", base_str));
                 }
             }
+            "pow" => Self::Power(PowerExponent::Two),
+            "sqrt" => Self::Power(PowerExponent::Sqrt),
+            v if v.starts_with("pow(") && v.ends_with(")") => {
+                let exponent_str = v.split("pow(").nth(1).unwrap().trim_end_matches(')');
+
+                if let Ok(exponent) = exponent_str.parse::<i32>() {
+                    Self::Power(PowerExponent::Int(exponent))
+                } else if let Ok(exponent) = exponent_str.parse::<f64>() {
+                    Self::Power(PowerExponent::Float(exponent))
+                } else {
+                    return Err(format!("could not parse pow exponent \"{}\"", exponent_str));
+                }
+            }
             _ => return Err(format!("unknown scale type \"{}\"", &value)),
         })
     }
@@ -717,6 +761,12 @@ impl fmt::Display for ScaleType {
                 LogBase::Natural => write!(f, "log"),
                 LogBase::Ln1p => write!(f, "ln_1p"),
                 LogBase::Custom(base) => write!(f, "log({})", base),
+            },
+            Self::Power(exponent) => match exponent {
+                PowerExponent::Two => write!(f, "pow"),
+                PowerExponent::Int(i) => write!(f, "pow({})", i),
+                PowerExponent::Float(e) => write!(f, "pow({})", e),
+                PowerExponent::Sqrt => write!(f, "sqrt"),
             },
         }
     }
@@ -1014,9 +1064,76 @@ impl LogScale {
 }
 
 #[derive(Debug, Clone)]
+pub struct PowerScale {
+    exponent: PowerExponent,
+    input_domain: Extent<f64>,
+    converted_input_domain: Extent<f64>,
+    output_range: Extent<f64>,
+}
+
+impl PowerScale {
+    fn new(exponent: PowerExponent, input_domain: (f64, f64), output_range: (f64, f64)) -> Self {
+        assert!(input_domain.0 <= input_domain.1, "input_domain min > max");
+        assert!(output_range.0 <= output_range.1, "output_range min > max");
+
+        Self {
+            exponent,
+            input_domain: Extent::from(input_domain),
+            converted_input_domain: Extent::from((
+                exponent.apply(input_domain.0),
+                exponent.apply(input_domain.1),
+            )),
+            output_range: Extent::from(output_range),
+        }
+    }
+
+    fn nice(
+        exponent: PowerExponent,
+        input_domain: (f64, f64),
+        output_range: (f64, f64),
+        ticks: usize,
+    ) -> Self {
+        Self::new(
+            exponent,
+            linear_nice(input_domain, ticks).unwrap_or(input_domain),
+            output_range,
+        )
+    }
+
+    #[inline]
+    fn ratio(&self, value: f64) -> f64 {
+        (self.exponent.apply(value) - self.converted_input_domain.min())
+            / self.converted_input_domain.width()
+    }
+
+    #[inline]
+    fn map(&self, value: f64) -> f64 {
+        let ratio = self.ratio(value);
+
+        ratio * self.output_range.width() + self.output_range.min()
+    }
+
+    pub fn ticks(&self, count: usize) -> Vec<f64> {
+        ticks(
+            self.input_domain.min(),
+            self.input_domain.max(),
+            count as f64,
+        )
+    }
+
+    fn formatted_ticks(&self, count: usize) -> Vec<String> {
+        self.ticks(count)
+            .into_iter()
+            .map(util::format_number)
+            .collect()
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum Scale {
     Linear(LinearScale),
     Log(LogScale),
+    Power(PowerScale),
     Time(TimeScale),
 }
 
@@ -1026,6 +1143,9 @@ impl Scale {
             ScaleType::Linear => Self::Linear(LinearScale::new(input_domain, output_range)),
             ScaleType::Logarithmic(base) => {
                 Self::Log(LogScale::new(base, input_domain, output_range))
+            }
+            ScaleType::Power(exponent) => {
+                Self::Power(PowerScale::new(exponent, input_domain, output_range))
             }
         }
     }
@@ -1045,6 +1165,12 @@ impl Scale {
             ScaleType::Logarithmic(base) => {
                 Self::Log(LogScale::nice(base, input_domain, output_range))
             }
+            ScaleType::Power(exponent) => Self::Power(PowerScale::nice(
+                exponent,
+                input_domain,
+                output_range,
+                ticks,
+            )),
         }
     }
 
@@ -1065,6 +1191,7 @@ impl Scale {
         match self {
             Self::Linear(inner) => inner.formatted_ticks(count),
             Self::Log(inner) => inner.formatted_ticks(count),
+            Self::Power(inner) => inner.formatted_ticks(count),
             Self::Time(inner) => inner.formatted_ticks(count),
         }
     }
@@ -1073,6 +1200,7 @@ impl Scale {
         match self {
             Self::Linear(inner) => inner.ratio(value),
             Self::Log(inner) => inner.ratio(value),
+            Self::Power(inner) => inner.ratio(value),
             Self::Time(inner) => inner.ratio(value),
         }
     }
@@ -1081,34 +1209,11 @@ impl Scale {
         match self {
             Self::Linear(inner) => inner.map(value),
             Self::Log(inner) => inner.map(value),
+            Self::Power(inner) => inner.map(value),
             Self::Time(inner) => inner.map(value),
         }
     }
 }
-
-// pub struct HorizontalAxisOptions {
-//     columns: usize,
-//     left_offset: usize,
-//     over: bool,
-// }
-
-// impl HorizontalAxisOptions {
-//     fn available_width(&self) -> usize {
-//         self.left_offset + self.columns
-//     }
-
-//     fn capacity(&self) -> usize {
-//         self.available_width() * 2 + 1
-//     }
-// }
-
-// impl Scale {
-//     pub fn draw_horizontal_axis(&self, options: HorizontalAxisOptions) -> String {
-//         let mut output = String::with_capacity(options.capacity());
-
-//         output
-//     }
-// }
 
 #[cfg(test)]
 mod tests {

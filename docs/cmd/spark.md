@@ -86,8 +86,9 @@ spark options:
     -H, --height <n>    Number of characters high a sparkline bar is allowed to be.
                         Can also be given as a ratio or percentage of the terminal's
                         height e.g. \"45%\" or \"0.5\". Defaults to 1.
-    --scale <scale>     Apply a scale to the y axis. Can be one of "lin", "log",
-                        "log2", "log10" or "log(custom_base)" like "log(2.5)".
+    --scale <scale>     Apply a scale to the y axis. Can be one of \"lin\", \"pow\",
+                        \"sqrt\", \"pow(custom_exponent)\" like \"pow(4.5)\", \"log\",
+                        \"log2\", \"log10\" or \"log(custom_base)\" like \"log(2.5)\".
                         [default: lin]
     --log               Use a log scale, shorthand for --scale=log.
     -m, --min <n>       Force <y> minimum value. Any value falling out of range will be
