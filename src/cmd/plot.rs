@@ -748,6 +748,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         (args.flag_x_scale, args.flag_y_scale),
         finalized_series.iter(),
         actual_timezone.clone(),
+        !args.flag_hide_x_axis,
+        !args.flag_hide_y_axis,
     );
 
     // NOTE: when drawing small multiples, if --rows was not given, we split vertical space
@@ -972,6 +974,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             (args.flag_x_scale, args.flag_y_scale),
                             single_finalized_series,
                             actual_timezone.clone(),
+                            !args.flag_hide_x_axis,
+                            !args.flag_hide_y_axis,
                         );
 
                         if share_x_scale {
@@ -1170,14 +1174,24 @@ impl AxisInfo {
         scale_types: (ScaleType, ScaleType),
         series: &(Option<String>, Series),
         timezone: TimeZone,
+        nice_x: bool,
+        nice_y: bool,
     ) -> (AxisInfo, AxisInfo) {
-        Self::from_multiple_series(scale_types, std::iter::once(series), timezone)
+        Self::from_multiple_series(
+            scale_types,
+            std::iter::once(series),
+            timezone,
+            nice_x,
+            nice_y,
+        )
     }
 
     fn from_multiple_series<'a>(
         scale_types: (ScaleType, ScaleType),
         mut series: impl Iterator<Item = &'a (Option<String>, Series)>,
         timezone: TimeZone,
+        nice_x: bool,
+        nice_y: bool,
     ) -> (AxisInfo, AxisInfo) {
         let first_series = &series.next().unwrap().1;
         let mut x_domain = first_series.x_domain().unwrap();
@@ -1221,11 +1235,17 @@ impl AxisInfo {
 
         let x_scale = if let AxisType::Timestamp(unit) = x_axis_type {
             Scale::time(x_domain, (0.0, 1.0), unit, timezone)
-        } else {
+        } else if nice_x {
             Scale::nice(scale_types.0, x_domain, (0.0, 1.0), 10)
+        } else {
+            Scale::new(scale_types.0, x_domain, (0.0, 1.0))
         };
 
-        let y_scale = Scale::nice(scale_types.1, y_domain, (0.0, 1.0), 10);
+        let y_scale = if nice_y {
+            Scale::nice(scale_types.1, y_domain, (0.0, 1.0), 10)
+        } else {
+            Scale::new(scale_types.1, y_domain, (0.0, 1.0))
+        };
 
         (
             AxisInfo {
