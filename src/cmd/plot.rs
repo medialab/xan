@@ -1081,7 +1081,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 }
 
 fn is_int(float: f64) -> bool {
-    float.fract() <= f64::EPSILON
+    float.trunc() == float
 }
 
 fn parse_as_seconds(cell: &[u8], timezone: TimeZone) -> Result<(bool, f64), CliError> {
