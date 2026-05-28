@@ -15,7 +15,10 @@ use ratatui::buffer::Buffer;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Style, Stylize};
 use ratatui::symbols;
-use ratatui::widgets::{Axis, Chart, Dataset, GraphType};
+use ratatui::widgets::{
+    canvas::{Context, Painter},
+    Axis, Chart, Dataset, GraphType,
+};
 
 use crate::collections::{HashMap, IndexMap};
 use crate::config::{Config, Delimiter};
@@ -549,8 +552,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let showing_multiple_series =
         category_column_index.is_some() || !additional_series_indices.is_empty();
 
-    if showing_multiple_series && args.flag_density_gradient.is_some() {
-        Err("-D/--density-gradient cannot be used with multiple series!")?;
+    if (showing_multiple_series || args.flag_small_multiples.is_some())
+        && args.flag_density_gradient.is_some()
+    {
+        Err("-D/--density-gradient cannot be used with multiple series nor -S/--small-multiples yet!")?;
     }
 
     let mut record = simd_csv::ByteRecord::new();
@@ -914,6 +919,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     patch_buffer_for_density(
                         gradient_name,
                         args.flag_density_scale,
+                        args.flag_marker.into_inner(),
                         frame.buffer_mut(),
                         &finalized_floats.first().unwrap().1,
                         args.flag_hide_x_axis,
@@ -1339,9 +1345,13 @@ fn patch_buffer(
     buffer.cell_mut(x_axis_end_pos).unwrap().set_symbol("┼");
 }
 
+// NOTE: I observe that ratatui's Canvas does not fill space uniformly.
+// Its rightmost column is less dense, as well as the bottom column, in a less
+// obvious way.
 fn patch_buffer_for_density(
     gradient_name: GradientName,
     scale_type: ScaleType,
+    marker: symbols::Marker,
     buffer: &mut Buffer,
     normalized_points: &[(f64, f64)],
     x_axis_hidden: bool,
@@ -1350,13 +1360,23 @@ fn patch_buffer_for_density(
 
     let col_offset = (0..area.width)
         .find(|x| buffer.cell((*x, area.y)).unwrap().symbol() == "│")
-        .unwrap_or(0)
-        + 1;
+        .map(|c| c + 1)
+        .unwrap_or(0);
 
     let row_offset = if x_axis_hidden { 0 } else { 2 };
 
     let cols = (area.width - col_offset) as usize;
     let rows = (area.height - row_offset) as usize;
+
+    let mut ctx = Context::new(cols as u16, rows as u16, [0.0, 1.0], [0.0, 1.0], marker);
+
+    let (x_res, y_res) = match marker {
+        symbols::Marker::Braille => (2, 4),
+        symbols::Marker::HalfBlock => (1, 2),
+        _ => (1, 1),
+    };
+
+    let painter = Painter::from(&mut ctx);
 
     let mut density_map = vec![0usize; cols * rows];
 
@@ -1364,10 +1384,11 @@ fn patch_buffer_for_density(
         debug_assert!((0.0..=1.0).contains(&x));
         debug_assert!((0.0..=1.0).contains(&y));
 
-        let x = ((cols as f64 * x) as usize).min(cols - 1);
-        let y = (rows - 1).saturating_sub((rows as f64 * y) as usize);
-
-        density_map[y * cols + x] += 1;
+        if let Some((px, py)) = painter.get_point(x, y) {
+            let cx = px / x_res as usize;
+            let cy = py / y_res as usize;
+            density_map[cy * cols + cx] += 1;
+        }
     }
 
     let mut extent_builder = ExtentBuilder::new();
@@ -1381,20 +1402,22 @@ fn patch_buffer_for_density(
     }
 
     let gradient = gradient_name.build();
-    let scale = Scale::from_extent(scale_type, extent_builder.build().unwrap());
+    let extent = extent_builder.build().unwrap();
+    let scale = Scale::from_extent(scale_type, extent);
 
     for (y, row) in density_map.chunks(cols).enumerate() {
-        for (x, density) in row.iter().copied().enumerate() {
-            if density == 0 {
-                continue;
-            }
-
-            let density_ratio = scale.ratio(density as f64) as f32;
-            let color = gradient.at(density_ratio).to_rgba8();
-
+        for (x, mut density) in row.iter().copied().enumerate() {
             let cell = buffer.cell_mut((x as u16 + col_offset, y as u16)).unwrap();
 
+            // We only adjust cells that are actually painted
             if matches!(cell.style().fg, Some(Color::Cyan)) {
+                // We clamp to min
+                if density == 0 {
+                    density = extent.min() as usize;
+                }
+
+                let density_ratio = scale.ratio(density as f64) as f32;
+                let color = gradient.at(density_ratio).to_rgba8();
                 cell.set_fg(Color::Rgb(color[0], color[1], color[2]));
             }
         }
