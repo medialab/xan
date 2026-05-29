@@ -289,6 +289,7 @@ plot options:
     --hide-legend              Hide legend when plotting multiple series.
     --hide-x-axis              Completely hide x-axis and ticks.
     --hide-y-axis              Completely hide y-axis and ticks.
+    --hide-all                 Shorthand for --hide-legend, --hide-x-axis, --hide-y-axis.
 
 Common options:
     -h, --help             Display this message
@@ -330,15 +331,24 @@ struct Args {
     flag_color: ColorMode,
     flag_ignore: bool,
     flag_timezone: Option<TimeZoneArg>,
-    flag_hide_legend: bool,
     flag_square: bool,
+    flag_hide_legend: bool,
     flag_hide_x_axis: bool,
     flag_hide_y_axis: bool,
+    flag_hide_all: bool,
     flag_density_gradient: Option<GradientName>,
     flag_density_scale: ScaleType,
 }
 
 impl Args {
+    fn resolve(&mut self) {
+        if self.flag_hide_all {
+            self.flag_hide_legend = true;
+            self.flag_hide_x_axis = true;
+            self.flag_hide_y_axis = true;
+        }
+    }
+
     fn timezone(&self) -> TimeZone {
         self.flag_timezone
             .clone()
@@ -426,8 +436,10 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = util::get_args(USAGE, argv)?;
+    args.resolve();
     args.flag_color.apply();
+
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);

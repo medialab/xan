@@ -52,7 +52,7 @@
 * Adding the `xan spark` command.
 * Adding `xan stats -R/--report, --color, --cols, --sep`.
 * Adding `xan (freq|p freq) -X/--approx-algo`.
-* Adding `xan plot -D/--density-gradient, --density-scale, --hide-legend, --hide-x-axis, --hide-y-axis & -Q/--square`.
+* Adding `xan plot -D/--density-gradient, --density-scale, --hide-legend, --hide-x-axis, --hide-y-axis, --hide-all & -Q/--square`.
 * `xan separate` will now avoid emitting columns with an empty name given to `--into`.
 * Adding `xan separate --txt`.
 * Adding `pow` & `sqrt` scales.

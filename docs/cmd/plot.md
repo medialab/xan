@@ -140,6 +140,7 @@ plot options:
     --hide-legend              Hide legend when plotting multiple series.
     --hide-x-axis              Completely hide x-axis and ticks.
     --hide-y-axis              Completely hide y-axis and ticks.
+    --hide-all                 Shorthand for --hide-legend, --hide-x-axis, --hide-y-axis.
 
 Common options:
     -h, --help             Display this message
