@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.58.0 (provisional)
+## 0.58.0
 
 *Breaking*
 
