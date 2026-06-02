@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::collections::BTreeSet;
+use std::fs;
 use std::num::{NonZeroU8, NonZeroUsize};
 use std::str::{from_utf8, Utf8Error};
 use std::sync::Arc;
@@ -707,6 +708,7 @@ and -D/--damerau-levenshtein.
 Usage:
     xan search [options] --non-empty [<input>]
     xan search [options] --empty [<input>]
+    xan search [options] --pattern-file <path> [<input>]
     xan search [options] --patterns <index> [<input>]
     xan search [options] <pattern> [-P <pattern>...] [<input>]
     xan search --help
@@ -733,47 +735,51 @@ search mode options:
                            increasing <k> too much.
 
 search options:
-    -i, --ignore-case         Case insensitive search.
-    -v, --invert-match        Select only rows that did not match
-    -s, --select <arg>        Select the columns to search. See 'xan select -h'
-                              for the full syntax.
-    --every-column            Only output a row when every selected column matches
-                              a pattern, instead of the default behavior outputting
-                              a row if any selected column matches.
-    -f, --flag <column>       Instead of filtering rows, add a new column indicating if any match
-                              was found.
-    -c, --count <column>      Report the number of non-overlapping pattern matches in a new column with
-                              given name. Will still filter out rows with 0 matches, unless --left
-                              is used. Does not work with -v/--invert-match.
-    --overlapping             When used with -c/--count or -b/--breakdown, return the count of
-                              overlapping matches. Note that this can sometimes be one order of
-                              magnitude slower that counting non-overlapping matches.
-    -R, --replace <with>      If given, the command will not filter rows but will instead
-                              replace matches with the given replacement.
-                              Does not work with --replacement-column.
-                              Regex replacement string syntax can be found here:
-                              https://docs.rs/regex/latest/regex/struct.Regex.html#replacement-string-syntax
-    -l, --limit <n>           Maximum of number rows to return. Useful to avoid downstream
-                              buffering some times (e.g. when searching for very few
-                              rows in a big file before piping to `view` or `flatten`).
-    -B, --before-context <n>  Number of rows to keep before a matching one.
-    -A, --after-context <n>   Number of rows to keep after a matching one.
-    --left                    Rows without any matches will be kept in the output when
-                              using -U/--unique-matches, or -b/--breakdown, or -c/--count.
-    -Z, --fast-parser         Use a faster, zero-copy parser when searching the file.
-                              Note that no normalization of the input format will be applied when
-                              used without -s/--select. Also, this can only work using this command's
-                              default mode, i.e. filtering, and does not work with parallelization.
-                              Note that this parser is also unable to unescape CSV cells. This means
-                              you must take care of considering quotes to be doubled, and when using
-                              this flag without -s/--select, the command will attempt to match the
-                              whole row at once, so it may contain raw delimiters & newlines.
-    -p, --parallel            Whether to use parallelization to speed up computation.
-                              Will automatically select a suitable number of threads to use
-                              based on your number of cores. Use -t, --threads if you want to
-                              indicate the number of threads yourself.
-    -t, --threads <threads>   Parellize computations using this many threads. Use -p, --parallel
-                              if you want the number of threads to be automatically chosen instead.
+    -i, --ignore-case          Case insensitive search.
+    -v, --invert-match         Select only rows that did not match
+    -s, --select <arg>         Select the columns to search. See 'xan select -h'
+                               for the full syntax.
+    --every-column             Only output a row when every selected column matches
+                               a pattern, instead of the default behavior outputting
+                               a row if any selected column matches.
+    -f, --flag <column>        Instead of filtering rows, add a new column indicating if any match
+                               was found.
+    -c, --count <column>       Report the number of non-overlapping pattern matches in a new column with
+                               given name. Will still filter out rows with 0 matches, unless --left
+                               is used. Does not work with -v/--invert-match.
+    --overlapping              When used with -c/--count or -b/--breakdown, return the count of
+                               overlapping matches. Note that this can sometimes be one order of
+                               magnitude slower that counting non-overlapping matches.
+    -R, --replace <with>       If given, the command will not filter rows but will instead
+                               replace matches with the given replacement.
+                               Does not work with --replacement-column.
+                               Regex replacement string syntax can be found here:
+                               https://docs.rs/regex/latest/regex/struct.Regex.html#replacement-string-syntax
+    -l, --limit <n>            Maximum of number rows to return. Useful to avoid downstream
+                               buffering some times (e.g. when searching for very few
+                               rows in a big file before piping to `view` or `flatten`).
+    -B, --before-context <n>   Number of rows to keep before a matching one.
+    -A, --after-context <n>    Number of rows to keep after a matching one.
+    --left                     Rows without any matches will be kept in the output when
+                               using -U/--unique-matches, or -b/--breakdown, or -c/--count.
+    -x, --pattern-file <path>  Read pattern from given file <path> and trims it or toggle verbose mode `(?x)`
+                               when using -r/--regex (this means the regex can use whitespace and comments).
+                               This can be useful your pattern is complex and unwieldy. Must not be confused
+                               with --patterns that should be used for multiple patterns.
+    -Z, --fast-parser          Use a faster, zero-copy parser when searching the file.
+                               Note that no normalization of the input format will be applied when
+                               used without -s/--select. Also, this can only work using this command's
+                               default mode, i.e. filtering, and does not work with parallelization.
+                               Note that this parser is also unable to unescape CSV cells. This means
+                               you must take care of considering quotes to be doubled, and when using
+                               this flag without -s/--select, the command will attempt to match the
+                               whole row at once, so it may contain raw delimiters & newlines.
+    -p, --parallel             Whether to use parallelization to speed up computation.
+                               Will automatically select a suitable number of threads to use
+                               based on your number of cores. Use -t, --threads if you want to
+                               indicate the number of threads yourself.
+    -t, --threads <threads>    Parellize computations using this many threads. Use -p, --parallel
+                               if you want the number of threads to be automatically chosen instead.
 
 multiple patterns options:
     -P, --add-pattern <pattern>  Manually add patterns to query without needing to feed a file
@@ -853,6 +859,7 @@ struct Args {
     flag_fast_parser: bool,
     flag_before_context: Option<NonZeroUsize>,
     flag_after_context: Option<NonZeroUsize>,
+    flag_pattern_file: Option<String>,
 }
 
 #[inline(always)]
@@ -871,6 +878,14 @@ fn check_limit(limit_opt: Option<NonZeroUsize>, is_match: bool, matches_count: &
 }
 
 impl Args {
+    fn resolve(&mut self) -> CliResult<()> {
+        if let Some(path) = &self.flag_pattern_file {
+            self.arg_pattern = Some(fs::read_to_string(path)?.trim().to_string());
+        }
+
+        Ok(())
+    }
+
     fn is_replacing(&self) -> bool {
         self.flag_replace.is_some() || self.flag_replacement_column.is_some()
     }
@@ -883,6 +898,8 @@ impl Args {
         if self.flag_empty {
             return Ok(Matcher::Empty);
         }
+
+        let verbose_regex = self.flag_pattern_file.is_some();
 
         match patterns {
             None => {
@@ -898,6 +915,7 @@ impl Args {
                     Matcher::Regex(
                         RegexBuilder::new(pattern)
                             .case_insensitive(self.flag_ignore_case)
+                            .ignore_whitespace(verbose_regex)
                             .build()?,
                     )
                 } else if self.flag_url_prefix {
@@ -923,6 +941,7 @@ impl Args {
                     Matcher::Regex(
                         RegexBuilder::new(&regex::escape(pattern))
                             .case_insensitive(self.flag_ignore_case)
+                            .ignore_whitespace(verbose_regex)
                             .build()?,
                     )
                 } else {
@@ -959,6 +978,7 @@ impl Args {
                             .map(|pattern| {
                                 RegexBuilder::new(pattern)
                                     .case_insensitive(self.flag_ignore_case)
+                                    .ignore_whitespace(verbose_regex)
                                     .build()
                                     .map_err(CliError::from)
                             })
@@ -967,7 +987,11 @@ impl Args {
                 } else {
                     Matcher::RegexSet(
                         RegexSet::builder()
-                            .syntax(syntax::Config::new().case_insensitive(self.flag_ignore_case))
+                            .syntax(
+                                syntax::Config::new()
+                                    .case_insensitive(self.flag_ignore_case)
+                                    .ignore_whitespace(verbose_regex),
+                            )
                             .build_many(&patterns.iter().collect::<Vec<_>>())?,
                     )
                 }
@@ -1002,7 +1026,11 @@ impl Args {
             } else if self.is_replacing() {
                 Matcher::RegexSet(
                     RegexSet::builder()
-                        .syntax(syntax::Config::new().case_insensitive(self.flag_ignore_case))
+                        .syntax(
+                            syntax::Config::new()
+                                .case_insensitive(self.flag_ignore_case)
+                                .ignore_whitespace(verbose_regex),
+                        )
                         .build_many(
                             &patterns
                                 .iter()
@@ -1032,7 +1060,9 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = util::get_args(USAGE, argv)?;
+
+    args.resolve()?;
 
     let matchers_count: u8 = args.flag_exact as u8
         + args.flag_regex as u8

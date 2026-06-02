@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.59.0 (provisional)
+
+*Features*
+
+* Adding `xan search -x/--pattern-file`.
+
 ## 0.58.0
 
 *Breaking*
