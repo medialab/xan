@@ -547,6 +547,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let regex_mode = if args.flag_match {
             RegexMode::Match
         } else if args.flag_captures {
+            if pattern.captures_len() < 2 {
+                Err("-c/--captures should be given a pattern capturing at least one thing (check your parentheses)!")?;
+            }
+
             if new_column_names.is_none() {
                 new_column_names = Some(
                     pattern
@@ -563,6 +567,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             RegexMode::Captures
         } else if args.flag_all_captures {
+            if pattern.captures_len() < 2 {
+                Err("-C/--all-captures should be given a pattern capturing at least one thing (check your parentheses)!")?;
+            }
+
             RegexMode::AllCaptures
         } else {
             RegexMode::Split
