@@ -646,3 +646,39 @@ fn separate_empty_into_names() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn separate_filter() {
+    let wrk = Workdir::new("separate_filter");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name"],
+            svec!["john"],
+            svec!["john hammond"],
+            svec!["john hammond davis"],
+        ],
+    );
+
+    let mut cmd = wrk.command("separate");
+    cmd.arg("name").arg(" ").arg("--filter").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["name1", "name2", "name3"],
+        ["john", "hammond", ""],
+        ["john", "hammond", "davis"],
+    ];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("separate");
+    cmd.arg("name")
+        .arg("-rc")
+        .arg("\\w+ \\w+ (?<last_name>\\w+)")
+        .arg("--filter")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![["last_name"], ["davis"]];
+    assert_eq!(got, expected);
+}

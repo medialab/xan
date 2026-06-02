@@ -155,6 +155,8 @@ separate options:
                            discarding it.
     --trim                 Whether to trim splitted values of leading/trailing
                            whitespace.
+    -F, --filter           Drop rows from the output when cell could not be separated.
+                           This can mean various things depending on used mode.
 
 Common options:
     -h, --help               Display this message
@@ -188,6 +190,7 @@ struct Args {
     flag_offsets: bool,
     flag_trim: bool,
     flag_txt: bool,
+    flag_filter: bool,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -424,7 +427,7 @@ impl Splitter {
         cell: &[u8],
         options: SplitOptions,
         record: &mut ByteRecord,
-    ) -> CliResult<()> {
+    ) -> CliResult<bool> {
         let SplitOptions {
             max,
             too_many_mode,
@@ -455,12 +458,22 @@ impl Splitter {
             }
         };
 
+        let is_match = match self {
+            Self::Regex(_, mode) => match mode {
+                RegexMode::Split => record.len() > 1,
+                _ => !record.is_empty(),
+            },
+            Self::Substring(_) => record.len() > 1,
+            Self::FixedWidth(n) => cell.len() >= *n,
+            Self::Offsets(_, _) => record.len() < max,
+        };
+
         // Padding
         while record.len() < max {
             record.push_field(b"");
         }
 
-        Ok(())
+        Ok(is_match)
     }
 }
 
@@ -744,11 +757,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         GenericReader::Csv(inner, buffer) => {
             let mut process_record =
                 |record: &ByteRecord, output_record: &mut ByteRecord| -> CliResult<()> {
-                    splitter.split_cell_into(
+                    let is_match = splitter.split_cell_into(
                         &record[separated_column_index],
                         split_options,
                         output_record,
                     )?;
+
+                    if args.flag_filter && !is_match {
+                        return Ok(());
+                    }
 
                     wtr.write_record(
                         record
@@ -775,7 +792,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
         GenericReader::Txt(inner, buffer) => {
             let mut process_line = |line: &[u8], output_record: &mut ByteRecord| -> CliResult<()> {
-                splitter.split_cell_into(line, split_options, output_record)?;
+                let is_match = splitter.split_cell_into(line, split_options, output_record)?;
+
+                if args.flag_filter && !is_match {
+                    return Ok(());
+                }
 
                 if args.flag_keep {
                     wtr.write_record([line].into_iter().chain(output_record.iter()))?;

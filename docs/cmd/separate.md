@@ -127,6 +127,8 @@ separate options:
                            discarding it.
     --trim                 Whether to trim splitted values of leading/trailing
                            whitespace.
+    -F, --filter           Drop rows from the output when cell could not be separated.
+                           This can mean various things depending on used mode.
 
 Common options:
     -h, --help               Display this message
