@@ -12,6 +12,7 @@ This document is a showcase & guide to data visualisation in the terminal using 
 - [Downloading the datasets used in this guide](#downloading-the-datasets-used-in-this-guide)
 - [`xan view` to display tables](#xan-view-to-display-tables)
     - [Fitting the screen](#fitting-the-screen)
+    - [Dealing with emojis](#dealing-with-emojis)
 - [`xan flatten` for close reading](#xan-flatten-for-close-reading)
 - [`xan stats -R/--report` for automatic statistical reports](#xan-stats--r--report-for-automatic-statistical-reports)
 - [`xan hist` for detailed bar plots](#xan-hist-for-detailed-bar-plots)
@@ -119,11 +120,29 @@ But the above command is quite a mouthful and (if you are not on legacy Windows 
 xan view -p file.csv
 ```
 
+### Dealing with emojis
+
+Funnily enough, there is no way to predict, even when using a monospace font (which is customary in a terminal), the width an emoji will take on screen once rendered.
+
+This is unfortunate because terminal rendering is character-based and layout computations work by knowing what width a character will have on screen (yes some characters can span 2 columns or sometimes do not appear on screen at all).
+
+So if you spot this kind of artifacts when using `xan view`:
+
+<p align="center">
+    <img alt="view-emojis.png" src="./img/dataviz/view-emojis.png" width="40%" />
+</p>
+
+Just use the `-E/--sanitize-emojis` flag to print their shortcodes instead:
+
+```bash
+xan view -E data-with-emojis.csv
+```
+
+<p align="center">
+    <img alt="view-emojis-sanitized.png" src="./img/dataviz/view-emojis-sanitized.png" width="40%" />
+</p>
+
 <!--
-
-emojis
-
-see data are colored by types
 
 groupby
 
