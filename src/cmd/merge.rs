@@ -9,7 +9,7 @@ use crate::cmd::sort::{iter_cmp, iter_cmp_num};
 use crate::config::{Config, Delimiter};
 use crate::select::{SelectedColumns, Selection};
 use crate::util;
-use crate::CliResult;
+use crate::{CliError, CliResult};
 
 type MergeHeapEntry = (ByteRecord, usize);
 
@@ -181,6 +181,12 @@ Feeding CSV as stdin (\"-\") to --paths:
 
     $ cat filelist.csv | xan merge --paths - --path-column path > merged.csv
 
+You can also use the --glob flag to feed the command a glob pattern (for instance
+if your shell does not support it natively or if the number of files exceeds the
+arguments limit):
+
+    $ xan merge --glob '*.csv' > merged.csv
+
 Usage:
     xan merge [options] [<inputs>...]
     xan merge --help
@@ -199,6 +205,7 @@ merge options:
                                 through the command's arguments.
     --path-column <name>        When given a column name, --paths will be considered as CSV, and paths
                                 to CSV files to merge will be extracted from the selected column.
+    --glob <pattern>            Use given glob <pattern> to collect files to merge.
 
 Common options:
     -h, --help             Display this message
@@ -223,6 +230,7 @@ struct Args {
     flag_source_column: Option<String>,
     flag_paths: Option<String>,
     flag_path_column: Option<SelectedColumns>,
+    flag_glob: Option<String>,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -323,6 +331,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
 impl Args {
     fn configs(&self) -> CliResult<Vec<Config>> {
+        let modes = self.flag_paths.is_some() as u8
+            + !self.arg_inputs.is_empty() as u8
+            + self.flag_glob.is_some() as u8;
+
+        if modes > 1 {
+            Err("this command either accepts arguments or --paths or --glob but not a combination of those!")?;
+        }
+
         if let Some(path) = &self.flag_paths {
             return Config::new(&Some(path.clone()))
                 .lines(&self.flag_path_column)?
@@ -333,6 +349,18 @@ impl Args {
                         .delimiter(self.flag_delimiter)
                         .no_headers(self.flag_no_headers)
                         .select(self.flag_select.clone()))
+                })
+                .collect::<Result<Vec<_>, _>>();
+        }
+
+        if let Some(pattern) = &self.flag_glob {
+            return glob::glob(pattern)?
+                .map(|result| match result {
+                    Ok(p) => Ok(Config::new(&Some(p.to_string_lossy().into_owned()))
+                        .delimiter(self.flag_delimiter)
+                        .no_headers(self.flag_no_headers)
+                        .select(self.flag_select.clone())),
+                    Err(err) => Err(CliError::from(err)),
                 })
                 .collect::<Result<Vec<_>, _>>();
         }

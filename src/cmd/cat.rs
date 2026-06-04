@@ -44,6 +44,12 @@ Feeding CSV as stdin (\"-\") to --paths:
 
     $ cat filelist.csv | xan cat rows --paths - --path-column path > concatenated.csv
 
+You can also use the --glob flag to feed the command a glob pattern (for instance
+if your shell does not support it natively or if the number of files exceeds the
+arguments limit):
+
+    $ xan cat rows --glob '*.csv' > concatenated.csv
+
 Usage:
     xan cat rows [options] [<inputs>...]
     xan cat (cols|columns) [options] [<inputs>...]

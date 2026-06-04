@@ -5,7 +5,7 @@
 *Features*
 
 * Adding `xan search -x/--pattern-file`.
-* Adding `xan cat --glob`.
+* Adding `xan cat --glob`, `xan merge --glob`.
 
 ## 0.58.0
 

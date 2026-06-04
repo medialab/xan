@@ -35,6 +35,12 @@ Feeding CSV as stdin ("-") to --paths:
 
     $ cat filelist.csv | xan merge --paths - --path-column path > merged.csv
 
+You can also use the --glob flag to feed the command a glob pattern (for instance
+if your shell does not support it natively or if the number of files exceeds the
+arguments limit):
+
+    $ xan merge --glob '*.csv' > merged.csv
+
 Usage:
     xan merge [options] [<inputs>...]
     xan merge --help
@@ -53,6 +59,7 @@ merge options:
                                 through the command's arguments.
     --path-column <name>        When given a column name, --paths will be considered as CSV, and paths
                                 to CSV files to merge will be extracted from the selected column.
+    --glob <pattern>            Use given glob <pattern> to collect files to merge.
 
 Common options:
     -h, --help             Display this message

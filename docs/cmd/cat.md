@@ -36,6 +36,12 @@ Feeding CSV as stdin ("-") to --paths:
 
     $ cat filelist.csv | xan cat rows --paths - --path-column path > concatenated.csv
 
+You can also use the --glob flag to feed the command a glob pattern (for instance
+if your shell does not support it natively or if the number of files exceeds the
+arguments limit):
+
+    $ xan cat rows --glob '*.csv' > concatenated.csv
+
 Usage:
     xan cat rows [options] [<inputs>...]
     xan cat (cols|columns) [options] [<inputs>...]
@@ -51,6 +57,7 @@ cat rows options:
                                  containing one path of CSV file to concatenate per line.
     --path-column <name>         When given a column name, --paths will be considered as CSV, and paths
                                  to CSV files to concatenate will be extracted from the selected column.
+    --glob <pattern>             Use given glob <pattern> to collect files to concatenate.
     -S, --source-column <name>   Name of a column to prepend in the output of "cat rows"
                                  indicating the path to source file.
     -P, --preprocess <op>        Preprocessing using only `xan` subcommands.
