@@ -59,6 +59,7 @@ cat rows options:
                                  containing one path of CSV file to concatenate per line.
     --path-column <name>         When given a column name, --paths will be considered as CSV, and paths
                                  to CSV files to concatenate will be extracted from the selected column.
+    --glob <pattern>             Use given glob <pattern> to collect files to concatenate.
     -S, --source-column <name>   Name of a column to prepend in the output of \"cat rows\"
                                  indicating the path to source file.
     -P, --preprocess <op>        Preprocessing using only `xan` subcommands.
@@ -91,6 +92,7 @@ struct Args {
     arg_inputs: Vec<String>,
     flag_paths: Option<String>,
     flag_path_column: Option<SelectedColumns>,
+    flag_glob: Option<String>,
     flag_pad: bool,
     flag_output: Option<String>,
     flag_no_headers: bool,
@@ -146,8 +148,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
 impl Args {
     fn paths(&self) -> CliResult<Box<dyn Iterator<Item = CliResult<String>>>> {
+        let modes = self.flag_paths.is_some() as u8
+            + !self.arg_inputs.is_empty() as u8
+            + self.flag_glob.is_some() as u8;
+
+        if modes > 1 {
+            Err("this command either accepts arguments or --paths or --glob but not a combination of those!")?;
+        }
+
         if let Some(paths_path) = self.flag_paths.as_ref() {
             Config::new(&Some(paths_path.clone())).lines(&self.flag_path_column)
+        } else if let Some(pattern) = self.flag_glob.as_ref() {
+            Ok(Box::new(glob::glob(pattern)?.map(|result| {
+                Ok(result.unwrap().to_string_lossy().into_owned())
+            })))
         } else {
             Ok(Box::new(self.arg_inputs.clone().into_iter().map(Ok)))
         }
