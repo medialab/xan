@@ -324,7 +324,12 @@ impl SparklineRenderer {
         }
     }
 
-    fn show_numbers(&mut self, left_padding: usize, numbers: &[f64], scale_opt: Option<&Scale>) {
+    fn show_numbers(
+        &mut self,
+        left_padding: usize,
+        numbers: &[f64],
+        percentage_denominator: Option<f64>,
+    ) {
         self.draw_buffer.push('\n');
 
         for _ in 0..left_padding {
@@ -336,8 +341,15 @@ impl SparklineRenderer {
         for x in numbers.iter().copied() {
             self.draw_buffer.push_str(
                 &util::unicode_aware_ellipsis(
-                    &(if let Some(scale) = scale_opt {
-                        format!("{:3.0}%", scale.ratio(x) * 100.0)
+                    &(if let Some(denominator) = percentage_denominator {
+                        // Percentages are over the sum of the series, like
+                        // `xan hist`, so the displayed values add up to 100%.
+                        let percentage = if denominator == 0.0 {
+                            0.0
+                        } else {
+                            x / denominator * 100.0
+                        };
+                        format!("{:3.0}%", percentage)
                     } else {
                         util::format_number(x)
                     }),
@@ -1490,7 +1502,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
 
                 if args.flag_show_percentages {
-                    sparkline_renderer.show_numbers(name_padding.len(), chunk, Some(&scale));
+                    sparkline_renderer.show_numbers(
+                        name_padding.len(),
+                        chunk,
+                        Some(chunk.iter().sum()),
+                    );
                 }
 
                 if args.flag_show_numbers {
