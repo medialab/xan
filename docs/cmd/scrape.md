@@ -94,10 +94,7 @@ to keep in the output. Note that using this flag with an empty selection (-k '')
 means outputting only the scraped columns.
 
 Usage:
-    xan scrape head <column> [options] [<input>]
-    xan scrape urls <column> [options] [<input>]
-    xan scrape article <column> [options] [<input>]
-    xan scrape images <column> [options] [<input>]
+    xan scrape (head|urls|article|images) <column> [options] [<input>]
     xan scrape -e <expr> <column> [options] [<input>]
     xan scrape -f <path> <column> [options] [<input>]
     xan scrape --help
