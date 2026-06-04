@@ -28,7 +28,7 @@ use crate::moonblade::{AggregationProgram, GroupAggregationProgram, Stats};
 use crate::processing::{parse_pipeline, Children};
 use crate::select::SelectedColumns;
 use crate::util::{self, FilenameTemplate};
-use crate::CliResult;
+use crate::{CliError, CliResult};
 
 fn get_spinner_style(path: ColoredString, unspecified: bool) -> ProgressStyle {
     ProgressStyle::with_template(
@@ -514,6 +514,12 @@ per line or in a CSV column when using the --path-column flag:
     Paths from a CSV column through stdin:
     $ cat filelist.csv | xan parallel count --path-column path
 
+You can also use the --glob flag to feed the command a glob pattern (for instance
+if your shell does not support it natively or if the number of files exceeds the
+arguments limit):
+
+    $ xan parallel count --glob 'data/**/docs.csv'
+
 Note that sometimes you might find useful to use the `split` or `partition`
 command to preemptively split a large file into manageable chunks, if you can
 spare the disk space.
@@ -588,6 +594,7 @@ parallel options:
                                  number based on the available CPUs.
     --path-column <name>         Name of the path column if stdin is given as a CSV file
                                  instead of one path per line.
+    --glob <pattern>             Use given glob <pattern> to collect files to process.
     --dont-chunk                 Tell the command not to attempt to split CSV inputs into
                                  chunks when the number of available threads is larger
                                  than the number of files to process. This can be useful
@@ -684,6 +691,7 @@ pub struct Args {
     flag_progress: bool,
     pub flag_threads: Option<NonZeroUsize>,
     flag_path_column: Option<SelectedColumns>,
+    flag_glob: Option<String>,
     flag_dont_chunk: bool,
     flag_buffer_size: isize,
     pub flag_source_column: Option<String>,
@@ -767,7 +775,14 @@ impl Args {
     }
 
     fn inputs(&self) -> CliResult<(Vec<Input>, usize)> {
-        let mut inputs = if !self.arg_inputs.is_empty() {
+        let mut inputs = if let Some(pattern) = &self.flag_glob {
+            glob::glob(pattern)?
+                .map(|result| match result {
+                    Ok(p) => Ok(p.to_string_lossy().into_owned()),
+                    Err(err) => Err(CliError::from(err)),
+                })
+                .collect::<Result<Vec<_>, _>>()?
+        } else if !self.arg_inputs.is_empty() {
             self.arg_inputs.clone()
         } else if io::stdin().is_terminal() {
             vec![]
@@ -834,7 +849,16 @@ impl Args {
                 .delimiter(self.flag_delimiter)
                 .no_headers(self.flag_no_headers);
 
-            let mut seeker = config.simd_seeker()?.ok_or("could not sample file!")?;
+            let mut seeker = config.simd_seeker()?.ok_or_else(|| {
+                format!(
+                    "could not sample file {}!",
+                    config
+                        .path
+                        .unwrap_or(PathBuf::from("<stdin>"))
+                        .to_string_lossy()
+                )
+            })?;
+
             let segments = seeker.segments(t)?;
 
             actual_threads += segments.len();

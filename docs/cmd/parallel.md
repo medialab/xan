@@ -28,6 +28,12 @@ per line or in a CSV column when using the --path-column flag:
     Paths from a CSV column through stdin:
     $ cat filelist.csv | xan parallel count --path-column path
 
+You can also use the --glob flag to feed the command a glob pattern (for instance
+if your shell does not support it natively or if the number of files exceeds the
+arguments limit):
+
+    $ xan parallel count --glob 'data/**/docs.csv'
+
 Note that sometimes you might find useful to use the `split` or `partition`
 command to preemptively split a large file into manageable chunks, if you can
 spare the disk space.
@@ -102,6 +108,7 @@ parallel options:
                                  number based on the available CPUs.
     --path-column <name>         Name of the path column if stdin is given as a CSV file
                                  instead of one path per line.
+    --glob <pattern>             Use given glob <pattern> to collect files to process.
     --dont-chunk                 Tell the command not to attempt to split CSV inputs into
                                  chunks when the number of available threads is larger
                                  than the number of files to process. This can be useful
