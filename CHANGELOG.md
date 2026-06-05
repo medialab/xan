@@ -8,6 +8,10 @@
 * Adding `xan cat --glob`, `xan merge --glob`, `xan parallel --glob`.
 * Adding the `hostname` moonblade function.
 
+*Performance*
+
+* Improving performance of `xan scrape`.
+
 ## 0.58.0
 
 *Breaking*

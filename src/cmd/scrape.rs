@@ -891,6 +891,54 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         writer.write_byte_record(&output_headers)?;
     }
 
+    // TODO: amortize allocations
+    let scrape = move |row_index: usize,
+                       column_index: usize,
+                       record: &ByteRecord|
+          -> CliResult<Vec<Vec<DynamicValue>>> {
+        let cell = &record[column_index];
+
+        if cell.trim().is_empty() {
+            return Ok(if scraper.is_plural() {
+                vec![]
+            } else {
+                vec![vec![DynamicValue::None; padding]]
+            });
+        }
+
+        let target = if let Some(input_dir) = &args.flag_input_dir {
+            ScraperTarget::HtmlFile {
+                input_dir,
+                filename: from_utf8(cell).expect("invalid utf-8"),
+                encoding,
+            }
+        } else {
+            ScraperTarget::HtmlCell(cell)
+        };
+
+        scraper.scrape_or_report(row_index, record, &target)
+    };
+
+    // TODO: amortize allocations
+    let mut write_output =
+        |output_rows: &[Vec<DynamicValue>], record: &ByteRecord| -> CliResult<()> {
+            for output_row in output_rows {
+                let mut output_record = if let Some(keep_sel) = &keep {
+                    keep_sel.select(record).collect()
+                } else {
+                    record.clone()
+                };
+
+                for value in output_row {
+                    value.push_field_to_record(&mut output_record);
+                }
+
+                writer.write_byte_record(&output_record)?;
+            }
+
+            Ok(())
+        };
+
     if let Some(t) = threads {
         reader
             .into_byte_records()
@@ -899,31 +947,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 |o| o.threads(t),
                 move |(index, result)| -> CliResult<(ByteRecord, Vec<Vec<DynamicValue>>)> {
                     let record = result?;
-
-                    let cell = &record[column_index];
-
-                    if cell.trim().is_empty() {
-                        return Ok((
-                            record,
-                            if scraper.is_plural() {
-                                vec![]
-                            } else {
-                                vec![vec![DynamicValue::None; padding]]
-                            },
-                        ));
-                    }
-
-                    let target = if let Some(input_dir) = &args.flag_input_dir {
-                        ScraperTarget::HtmlFile {
-                            input_dir,
-                            filename: from_utf8(cell).expect("invalid utf-8"),
-                            encoding,
-                        }
-                    } else {
-                        ScraperTarget::HtmlCell(cell)
-                    };
-
-                    let output_rows = scraper.scrape_or_report(index, &record, &target)?;
+                    let output_rows = scrape(index, column_index, &record)?;
 
                     Ok((record, output_rows))
                 },
@@ -931,19 +955,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .try_for_each(|result| -> CliResult<()> {
                 let (record, output_rows) = result?;
 
-                for output_row in output_rows {
-                    let mut output_record = if let Some(keep_sel) = &keep {
-                        keep_sel.select(&record).collect()
-                    } else {
-                        record.clone()
-                    };
-
-                    for value in output_row {
-                        output_record.push_field(&value.serialize_as_bytes());
-                    }
-
-                    writer.write_byte_record(&output_record)?;
-                }
+                write_output(&output_rows, &record)?;
 
                 Ok(())
             })?;
@@ -952,43 +964,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut index: usize = 0;
 
         while reader.read_byte_record(&mut record)? {
-            let cell = &record[column_index];
+            let output_rows = scrape(index, column_index, &record)?;
 
-            let output_rows = {
-                if cell.trim().is_empty() {
-                    if scraper.is_plural() {
-                        vec![]
-                    } else {
-                        vec![vec![DynamicValue::None; padding]]
-                    }
-                } else {
-                    let target = if let Some(input_dir) = &args.flag_input_dir {
-                        ScraperTarget::HtmlFile {
-                            input_dir,
-                            filename: from_utf8(cell).expect("invalid utf-8"),
-                            encoding,
-                        }
-                    } else {
-                        ScraperTarget::HtmlCell(cell)
-                    };
-
-                    scraper.scrape_or_report(index, &record, &target)?
-                }
-            };
-
-            for output_row in output_rows {
-                let mut output_record = if let Some(keep_sel) = &keep {
-                    keep_sel.select(&record).collect()
-                } else {
-                    record.clone()
-                };
-
-                for value in output_row {
-                    output_record.push_field(&value.serialize_as_bytes());
-                }
-
-                writer.write_byte_record(&output_record)?;
-            }
+            write_output(&output_rows, &record)?;
 
             index += 1;
         }
