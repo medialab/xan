@@ -1466,6 +1466,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             series.len()
         };
 
+        let series_sum: f64 = series.numbers.iter().sum();
+
         let mut offset: usize = 0;
 
         for (chunk_i, chunk) in series.numbers.chunks(chunk_size).enumerate() {
@@ -1505,7 +1507,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     sparkline_renderer.show_numbers(
                         name_padding.len(),
                         chunk,
-                        Some(chunk.iter().sum()),
+                        Some(series_sum),
                     );
                 }
 
