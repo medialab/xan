@@ -3,14 +3,12 @@ mod context_buffer;
 mod counter;
 mod heap;
 mod incremental_id;
-mod union_find;
 
 pub use clustered_insert_hashmap::ClusteredInsertHashmap;
 pub use context_buffer::ContextBuffer;
 pub use counter::{ApproxCounterAlgorithm, Counter, CounterSpec};
 pub use heap::{DynamicOrd, TopKHeap, TopKHeapMap, TopKHeapMapWithTies};
 pub use incremental_id::IncrementalId;
-pub use union_find::UnionFind;
 
 pub use ahash::AHashMap as HashMap;
 pub use ahash::AHashSet as HashSet;

@@ -4,6 +4,7 @@ use std::io::Write;
 use std::ops::Not;
 
 use jiff::Zoned;
+use phylacter::UnionFind;
 use serde::ser::{SerializeMap, SerializeSeq, Serializer as _};
 use serde_json::{
     ser::{Formatter, Serializer},
@@ -11,7 +12,7 @@ use serde_json::{
 };
 
 use crate::collections::{
-    hash_map::Entry, index_map::Entry as IndexMapEntry, new_index_map, HashMap, IndexMap, UnionFind,
+    hash_map::Entry, index_map::Entry as IndexMapEntry, new_index_map, HashMap, IndexMap,
 };
 use crate::config::Config;
 use crate::json::{Attributes, JSONType, INTERNER};
@@ -561,7 +562,7 @@ impl GraphBuilder {
 
     pub fn compute_union_find_with_largest(&self) -> (UnionFind, usize) {
         let sets = self.compute_union_find();
-        let largest = sets.largest().unwrap();
+        let largest = sets.largest_entry().unwrap().size();
         (sets, largest)
     }
 
@@ -575,19 +576,19 @@ impl GraphBuilder {
         let sets = self.compute_union_find();
 
         let (order, size, components, max_component_size) = if only_largest_component {
-            let largest_component = sets.largest().unwrap();
+            let largest_component = sets.largest_entry().unwrap();
 
             let order = (0..self.nodes.len())
-                .filter(|i| sets.find(*i) == largest_component)
+                .filter(|i| sets.find(*i) == largest_component.parent())
                 .count();
 
             let size = self
                 .edges
                 .pairs()
-                .filter(|(source, _)| sets.find(*source) == largest_component)
+                .filter(|(source, _)| sets.find(*source) == largest_component.parent())
                 .count();
 
-            (order, size, 1, sets.size(largest_component))
+            (order, size, 1, largest_component.size())
         } else {
             let mut components: usize = 0;
             let mut max_component_size: usize = 0;
@@ -650,8 +651,8 @@ impl GraphBuilder {
 
         for leader in sets.leaders() {
             writer.write_record([
-                leader.size.to_string().as_bytes(),
-                &self.nodes.get_index(leader.parent).unwrap().0.as_bytes(),
+                leader.size().to_string().as_bytes(),
+                &self.nodes.get_index(leader.parent()).unwrap().0.as_bytes(),
             ])?;
         }
 

@@ -1937,6 +1937,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "phylacter"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ff4909bf264e8e7e9d900abf70b435f02627f584d3ec151bbee71234c2e6d41a"
+
+[[package]]
 name = "pkg-config"
 version = "0.3.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3226,6 +3232,7 @@ dependencies = [
  "parquet",
  "pest",
  "pest_derive",
+ "phylacter",
  "py_literal",
  "quick-xml",
  "rand 0.9.2",
