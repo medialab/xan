@@ -12,7 +12,9 @@ fn scrape() {
         ],
     );
     let mut cmd = wrk.command("scrape");
-    cmd.arg("head").arg("html").arg("data.csv");
+    cmd.arg("head")
+        .args(["--doc-column", "html"])
+        .args(["--docs", "data.csv"]);
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
@@ -37,7 +39,10 @@ fn scrape_parallel() {
         ],
     );
     let mut cmd = wrk.command("scrape");
-    cmd.arg("head").arg("html").arg("-p").arg("data.csv");
+    cmd.arg("head")
+        .args(["--doc-column", "html"])
+        .args(["--docs", "data.csv"])
+        .arg("-p");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
@@ -51,20 +56,46 @@ fn scrape_parallel() {
 }
 
 #[test]
-fn scrape_input_dir() {
-    let wrk = Workdir::new("scrape_input_dir");
+fn scrape_paths() {
+    let wrk = Workdir::new("scrape_paths");
     wrk.write("one.html", "<title>One</title>");
     wrk.write("two.html", "<title>Two</title>");
 
     wrk.create(
-        "data.csv",
+        "paths.csv",
         vec![svec!["path"], svec!["one.html"], svec!["two.html"]],
     );
+
+    // --path-column
     let mut cmd = wrk.command("scrape");
     cmd.arg("head")
-        .arg("path")
-        .args(["-I", "."])
-        .arg("data.csv");
+        .args(["--paths", "paths.csv"])
+        .args(["--path-column", "path"])
+        .args(["-I", "."]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["path", "title", "canonical_url"],
+        svec!["one.html", "One", ""],
+        svec!["two.html", "Two", ""],
+    ];
+    assert_eq!(got, expected);
+
+    // <inputs>...
+    let mut cmd = wrk.command("scrape");
+    cmd.arg("head").args(["one.html", "two.html"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["path", "title", "canonical_url"],
+        svec!["one.html", "One", ""],
+        svec!["two.html", "Two", ""],
+    ];
+    assert_eq!(got, expected);
+
+    // --glob
+    let mut cmd = wrk.command("scrape");
+    cmd.arg("head").args(["--glob", "*.html"]);
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
@@ -88,9 +119,9 @@ fn scrape_keep() {
     );
     let mut cmd = wrk.command("scrape");
     cmd.arg("head")
-        .arg("html")
         .args(["--keep", ""])
-        .arg("data.csv");
+        .args(["--doc-column", "html"])
+        .args(["--docs", "data.csv"]);
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
@@ -113,10 +144,10 @@ fn scrape_evaluate() {
         ],
     );
     let mut cmd = wrk.command("scrape");
-    cmd.arg("html")
-        .args(["-e", "a {title: text; url: attr('href');}"])
+    cmd.args(["-e", "a {title: text; url: attr('href');}"])
         .args(["--keep", ""])
-        .arg("data.csv");
+        .args(["--doc-column", "html"])
+        .args(["--docs", "data.csv"]);
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
@@ -136,11 +167,11 @@ fn scrape_evaluate_foreach() {
     );
     let mut cmd = wrk.command("scrape");
 
-    cmd.arg("html")
-        .args(["-e", "& {item: text;}"])
+    cmd.args(["-e", "& {item: text;}"])
         .args(["--keep", ""])
         .args(["--foreach", "li"])
-        .arg("data.csv");
+        .args(["--doc-column", "html"])
+        .args(["--docs", "data.csv"]);
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["item"], svec!["one"], svec!["two"]];

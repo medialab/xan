@@ -2,11 +2,16 @@
 
 ## 0.59.0 (provisional)
 
+*Breaking*
+
+* Overhauling how `xan scrape` takes its inputs. It now targets HTML files on disk by default now.
+
 *Features*
 
 * Adding `xan search -x/--pattern-file`.
 * Adding `xan cat --glob`, `xan merge --glob`, `xan parallel --glob`.
 * Adding the `hostname` moonblade function.
+* Adding `xan scrape --paths, --path-column, --docs, --docs-column, -D/--stdin-doc & --glob`.
 
 *Performance*
 

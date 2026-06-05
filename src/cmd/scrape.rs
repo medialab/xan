@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 use std::fs::{self, File};
-use std::io::{self, Read};
+use std::io::{self, Cursor, Read};
 use std::path::PathBuf;
 use std::str::from_utf8;
 
@@ -13,7 +13,7 @@ use pariter::IteratorExt;
 use regex::bytes::Regex;
 use scraper::{Html, Selector};
 use serde_json::{Map, Value};
-use simd_csv::ByteRecord;
+use simd_csv::{ByteRecord, Reader, ReaderBuilder, WriterBuilder};
 use url::Url;
 
 use crate::config::{Config, Delimiter};
@@ -22,6 +22,31 @@ use crate::select::{SelectedColumns, Selection};
 use crate::urls::should_follow_href;
 use crate::util;
 use crate::{CliError, CliResult};
+
+fn create_dummy_csv_reader(
+    item_name: &str,
+    items: &[impl AsRef<[u8]>],
+) -> Reader<Box<dyn Read + Send + 'static>> {
+    let mut buffer = Vec::<u8>::new();
+
+    {
+        let mut writer = WriterBuilder::new()
+            .delimiter(b'\t')
+            .quote(b'\x00')
+            .from_writer(&mut buffer);
+
+        writer.write_record([item_name]).unwrap();
+
+        for item in items {
+            writer.write_record([item.as_ref()]).unwrap();
+        }
+    }
+
+    ReaderBuilder::new()
+        .delimiter(b'\t')
+        .quote(b'\x00')
+        .from_reader(Box::new(Cursor::new(buffer)))
+}
 
 // IO helpers
 fn open(input_dir: &str, filename: &str) -> io::Result<Box<dyn Read>> {
@@ -622,26 +647,38 @@ impl Scraper {
 }
 
 static USAGE: &str = "
-Scrape HTML files to output tabular CSV data.
+Scrape HTML files (or any kind of XML files, really) and return structured
+tabular data from the result.
 
-This command can either process a CSV file with a column containing
-raw HTML, or a CSV file with a column of paths to read, relative to what is given
-to the -I/--input-dir flag.
+This command can process a variety of different sources:
 
-Scraping a HTML column:
+Paths to HTML documents on disk, by default
+    $ xan scrape head page1.html page2.html page3.html > result.csv
+    $ xan scrape head **/*.html > result.csv
 
-    $ xan scrape head document docs.csv > enriched-docs.csv
+Paths to HTML documents collected using a glob pattern, using --glob
+    $ xan scrape head --glob '*.csv' > result.csv
 
-Scraping HTML files on disk, using the -I/--input-dir flag:
+A text file containing a HTML document path per line, using --paths
+    $ xan scrape head --paths paths.txt > result.csv
 
-    $ xan scrape head path -I ./downloaded docs.csv > enriched-docs.csv
+A CSV file containing a column with HTML document paths, using --paths & --path-column
+    $ xan scrape head --paths path.csv --path-column path > result.csv
 
-Then, this command knows how to scrape typical stuff from HTML such
-as titles, urls and other metadata using very optimized routines
-or can let you define a custom scraper that you can give through
-the -e/--evaluate or -f/--evaluate-file.
+A CSV file containing a column of inline HTML documents, using --docs & --doc-column
+    $ xan scrape head --docs documents.csv --doc-column html > result.csv
 
-The command can of course use multiple CPUs to go faster using -p/--parallel
+A single HTML document fed through stdin, using -D/--stdin-doc
+    $ curl -L https://www.lemonde.fr/ | xan scrape head -D > result.csv
+
+Now regarding what we can scrape, th command knows how to extract typical stuff
+from HTML documents such as titles, urls and other metadata using very optimized
+routines.
+
+Or you remain free to define a custom scraper that you can give through
+the -e/--evaluate or -f/--evaluate-file flags.
+
+Know also that this command is able to use multiple CPUs to go faster using -p/--parallel
 or -t/--threads.
 
 # Builtin scrapers
@@ -688,13 +725,13 @@ scrape.
 Given scraper will either run once per HTML document or one time per
 element matching the CSS selector given to -F/--foreach.
 
-Example scraping the first h2 title from each document:
+Example scraping the first h2 title from a HTML document:
 
-    $ xan scrape -e 'h2 > a {title: text; url: attr(\"href\");}' html docs.csv
+    $ xan scrape -e 'h2 > a {title: text; url: attr(\"href\");}' page.html
 
-Example scraping all the h2 title from each document:
+Example scraping all the h2 titles from a HTML document:
 
-    $ xan scrape --foreach 'h2 > a' -e '& {title: text; url: attr(\"href\");}' html docs.csv
+    $ xan scrape --foreach 'h2 > a' -e '& {title: text; url: attr(\"href\");}' page.html
 
 A full reference of this language can be found using `xan help scraping`.
 
@@ -714,21 +751,34 @@ to keep in the output. Note that using this flag with an empty selection (-k '')
 means outputting only the scraped columns.
 
 Usage:
-    xan scrape (head|urls|article|images) <column> [options] [<input>]
-    xan scrape -e <expr> <column> [options] [<input>]
-    xan scrape -f <path> <column> [options] [<input>]
+    xan scrape (head|urls|article|images) [options] [<inputs>...]
+    xan scrape -e <expr> [options] [<inputs>...]
+    xan scrape -f <path> [options] [<inputs>...]
     xan scrape --help
 
 scrape options:
     -e, --evaluate <expr>       If given, evaluate the given scraping expression.
     -f, --evaluate-file <path>  If given, evaluate the scraping expression found
                                 in file at <path>.
-    -I, --input-dir <path>      If given, target column will be understood
-                                as relative path to read from this input
-                                directory instead.
-    -E, --encoding <name>       Encoding of HTML to read on disk. Will default utf-8.
+    --paths <input>             If given, reads <input> and consider it as containing
+                                one document path per line.
+    --path-column <name>        If given with --paths, consider <input> as a CSV file
+                                instead and read document paths from selected column.
+    --docs <input>              If givens, reads <input> and consider it as a CSV
+                                file with a column containing inline documents.
+                                Requires --doc-column to be given.
+    --doc-column <name>         Selects column containing inline documents given
+                                through --docs.
+    -D, --stdin-doc             When set, the command will read the content of stdin as
+                                a single document. This can be useful when piping the
+                                result of `curl` or `wget` into the command directly.
+    --glob <pattern>            If given, collects document paths to process by applying
+                                the given glob pattern.
+    -E, --encoding <name>       Encoding of to read on disk. Will default utf-8.
     -k, --keep <column>         Selection of columns from the input to keep in
                                 the output. Default is to keep all columns from input.
+    -I, --input-dir <path>      When set, processed paths will be read relative to the
+                                given base <path>.
     -p, --parallel              Whether to use parallelization to speed up computations.
                                 Will automatically select a suitable number of threads to use
                                 based on your number of cores. Use -t, --threads if you want to
@@ -753,14 +803,19 @@ Common options:
                            Must be a single character.
 ";
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 struct Args {
-    arg_input: Option<String>,
-    arg_column: SelectedColumns,
     cmd_head: bool,
     cmd_urls: bool,
     cmd_article: bool,
     cmd_images: bool,
+    arg_inputs: Vec<String>,
+    flag_paths: Option<String>,
+    flag_path_column: Option<SelectedColumns>,
+    flag_docs: Option<String>,
+    flag_doc_column: Option<SelectedColumns>,
+    flag_stdin_doc: bool,
+    flag_glob: Option<String>,
     flag_delimiter: Option<Delimiter>,
     flag_output: Option<String>,
     flag_no_headers: bool,
@@ -787,16 +842,75 @@ impl Args {
 
         Ok(())
     }
+
+    fn reader(&self) -> CliResult<(usize, Reader<Box<dyn Read + Send + 'static>>)> {
+        if !self.arg_inputs.is_empty() {
+            Ok((0, create_dummy_csv_reader("path", &self.arg_inputs)))
+        } else if let Some(paths_path) = &self.flag_paths {
+            let conf = Config::new(&Some(paths_path.to_string()))
+                .delimiter(self.flag_delimiter)
+                .no_headers(self.flag_no_headers);
+
+            let paths = conf
+                .lines(&self.flag_path_column)?
+                .collect::<Result<Vec<_>, _>>()?;
+
+            Ok((0, create_dummy_csv_reader("path", &paths)))
+        } else if let Some(docs_path) = &self.flag_docs {
+            let Some(doc_column_selector) = self.flag_doc_column.as_ref() else {
+                Err("--docs requires --doc-column!")?
+            };
+
+            let conf = Config::new(&Some(docs_path.to_string()))
+                .delimiter(self.flag_delimiter)
+                .no_headers(self.flag_no_headers);
+
+            let mut reader = conf.simd_reader()?;
+
+            let doc_column_index =
+                doc_column_selector.single_selection(reader.byte_headers()?, !conf.no_headers)?;
+
+            Ok((doc_column_index, reader))
+        } else if let Some(pattern) = &self.flag_glob {
+            let paths = glob::glob(pattern)?
+                .map(|result| match result {
+                    Ok(p) => Ok(p.to_string_lossy().into_owned()),
+                    Err(e) => Err(CliError::from(e)),
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+
+            Ok((0, create_dummy_csv_reader("path", &paths)))
+        } else if self.flag_stdin_doc {
+            let mut doc = String::new();
+            io::stdin().read_to_string(&mut doc)?;
+
+            Ok((0, create_dummy_csv_reader("doc", &[doc])))
+        } else {
+            unreachable!()
+        }
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut args: Args = util::get_args(USAGE, argv)?;
     args.resolve()?;
 
-    let conf = Config::new(&args.arg_input)
-        .delimiter(args.flag_delimiter)
-        .select(args.arg_column)
-        .no_headers(args.flag_no_headers);
+    let input_modes = !args.arg_inputs.is_empty() as u8
+        + args.flag_paths.is_some() as u8
+        + args.flag_docs.is_some() as u8
+        + args.flag_glob.is_some() as u8
+        + args.flag_stdin_doc as u8;
+
+    if input_modes == 0 {
+        Err("must take at least one <input> or --paths or --docs or --glob or -D/--stdin-doc!")?;
+    } else if input_modes > 1 {
+        Err("can only take <inputs>... or --paths or --docs or --glob or -D/--stdin-doc but not a combination of those!")?;
+    }
+
+    let (column_index, mut reader) = args.reader()?;
+    let no_headers = !reader.has_headers();
+
+    let has_inline_docs = args.flag_docs.is_some() || args.flag_stdin_doc;
 
     let encoding = args
         .flag_encoding
@@ -806,9 +920,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         })
         .transpose()?;
 
-    let mut reader = conf.simd_reader()?;
     let headers = reader.byte_headers()?.clone();
-    let column_index = conf.single_selection(&headers)?;
 
     let threads = util::parallelization(args.flag_parallel, args.flag_threads);
 
@@ -819,7 +931,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let url_column_index = args
         .flag_url_column
         .as_ref()
-        .map(|s| s.single_selection(&headers, !conf.no_headers))
+        .map(|s| s.single_selection(&headers, !no_headers))
         .transpose()?;
 
     let scraper = if args.cmd_head {
@@ -834,7 +946,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 .as_ref()
                 .map(|code| -> CliResult<CustomScraper> {
                     Ok(CustomScraper {
-                        program: ScrapingProgram::parse(code, &headers, conf.no_headers)?,
+                        program: ScrapingProgram::parse(code, &headers, no_headers)?,
                         foreach: None,
                     })
                 })
@@ -849,7 +961,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             program: ScrapingProgram::parse(
                 args.flag_evaluate.as_ref().unwrap(),
                 &headers,
-                conf.no_headers,
+                no_headers,
             )?,
             foreach: args
                 .flag_foreach
@@ -867,7 +979,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             if s.is_empty() {
                 Ok(Selection::empty())
             } else {
-                s.selection(&headers, !conf.no_headers)
+                s.selection(&headers, !no_headers)
             }
         })
         .transpose()?;
@@ -877,7 +989,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let scraper_field_names = scraper.names();
     let padding = scraper_field_names.len();
 
-    if !conf.no_headers {
+    if !no_headers {
         let mut output_headers = headers.clone();
 
         if let Some(keep_sel) = &keep {
@@ -906,9 +1018,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             });
         }
 
-        let target = if let Some(input_dir) = &args.flag_input_dir {
+        let target = if !has_inline_docs {
             ScraperTarget::HtmlFile {
-                input_dir,
+                input_dir: args.flag_input_dir.as_deref().unwrap_or("."),
                 filename: from_utf8(cell).expect("invalid utf-8"),
                 encoding,
             }

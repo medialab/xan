@@ -2,26 +2,38 @@
 # xan scrape
 
 ```txt
-Scrape HTML files to output tabular CSV data.
+Scrape HTML files (or any kind of XML files, really) and return structured
+tabular data from the result.
 
-This command can either process a CSV file with a column containing
-raw HTML, or a CSV file with a column of paths to read, relative to what is given
-to the -I/--input-dir flag.
+This command can process a variety of different sources:
 
-Scraping a HTML column:
+Paths to HTML documents on disk, by default
+    $ xan scrape head page1.html page2.html page3.html > result.csv
+    $ xan scrape head **/*.html > result.csv
 
-    $ xan scrape head document docs.csv > enriched-docs.csv
+Paths to HTML documents collected using a glob pattern, using --glob
+    $ xan scrape head --glob '*.csv' > result.csv
 
-Scraping HTML files on disk, using the -I/--input-dir flag:
+A text file containing a HTML document path per line, using --paths
+    $ xan scrape head --paths paths.txt > result.csv
 
-    $ xan scrape head path -I ./downloaded docs.csv > enriched-docs.csv
+A CSV file containing a column with HTML document paths, using --paths & --path-column
+    $ xan scrape head --paths path.csv --path-column path > result.csv
 
-Then, this command knows how to scrape typical stuff from HTML such
-as titles, urls and other metadata using very optimized routines
-or can let you define a custom scraper that you can give through
-the -e/--evaluate or -f/--evaluate-file.
+A CSV file containing a column of inline HTML documents, using --docs & --doc-column
+    $ xan scrape head --docs documents.csv --doc-column html > result.csv
 
-The command can of course use multiple CPUs to go faster using -p/--parallel
+A single HTML document fed through stdin, using -D/--stdin-doc
+    $ curl -L https://www.lemonde.fr/ | xan scrape head -D > result.csv
+
+Now regarding what we can scrape, th command knows how to extract typical stuff
+from HTML documents such as titles, urls and other metadata using very optimized
+routines.
+
+Or you remain free to define a custom scraper that you can give through
+the -e/--evaluate or -f/--evaluate-file flags.
+
+Know also that this command is able to use multiple CPUs to go faster using -p/--parallel
 or -t/--threads.
 
 # Builtin scrapers
@@ -68,13 +80,13 @@ scrape.
 Given scraper will either run once per HTML document or one time per
 element matching the CSS selector given to -F/--foreach.
 
-Example scraping the first h2 title from each document:
+Example scraping the first h2 title from a HTML document:
 
-    $ xan scrape -e 'h2 > a {title: text; url: attr("href");}' html docs.csv
+    $ xan scrape -e 'h2 > a {title: text; url: attr("href");}' page.html
 
-Example scraping all the h2 title from each document:
+Example scraping all the h2 titles from a HTML document:
 
-    $ xan scrape --foreach 'h2 > a' -e '& {title: text; url: attr("href");}' html docs.csv
+    $ xan scrape --foreach 'h2 > a' -e '& {title: text; url: attr("href");}' page.html
 
 A full reference of this language can be found using `xan help scraping`.
 
@@ -94,21 +106,34 @@ to keep in the output. Note that using this flag with an empty selection (-k '')
 means outputting only the scraped columns.
 
 Usage:
-    xan scrape (head|urls|article|images) <column> [options] [<input>]
-    xan scrape -e <expr> <column> [options] [<input>]
-    xan scrape -f <path> <column> [options] [<input>]
+    xan scrape (head|urls|article|images) [options] [<inputs>...]
+    xan scrape -e <expr> [options] [<inputs>...]
+    xan scrape -f <path> [options] [<inputs>...]
     xan scrape --help
 
 scrape options:
     -e, --evaluate <expr>       If given, evaluate the given scraping expression.
     -f, --evaluate-file <path>  If given, evaluate the scraping expression found
                                 in file at <path>.
-    -I, --input-dir <path>      If given, target column will be understood
-                                as relative path to read from this input
-                                directory instead.
-    -E, --encoding <name>       Encoding of HTML to read on disk. Will default utf-8.
+    --paths <input>             If given, reads <input> and consider it as containing
+                                one document path per line.
+    --path-column <name>        If given with --paths, consider <input> as a CSV file
+                                instead and read document paths from selected column.
+    --docs <input>              If givens, reads <input> and consider it as a CSV
+                                file with a column containing inline documents.
+                                Requires --doc-column to be given.
+    --doc-column <name>         Selects column containing inline documents given
+                                through --docs.
+    -D, --stdin-doc             When set, the command will read the content of stdin as
+                                a single document. This can be useful when piping the
+                                result of `curl` or `wget` into the command directly.
+    --glob <pattern>            If given, collects document paths to process by applying
+                                the given glob pattern.
+    -E, --encoding <name>       Encoding of to read on disk. Will default utf-8.
     -k, --keep <column>         Selection of columns from the input to keep in
                                 the output. Default is to keep all columns from input.
+    -I, --input-dir <path>      When set, processed paths will be read relative to the
+                                given base <path>.
     -p, --parallel              Whether to use parallelization to speed up computations.
                                 Will automatically select a suitable number of threads to use
                                 based on your number of cores. Use -t, --threads if you want to
