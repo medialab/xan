@@ -1,6 +1,7 @@
 use base64::prelude::*;
 use bstr::ByteSlice;
 use mime2ext::mime2ext;
+use url::Host;
 
 use crate::urls::LRUStems;
 
@@ -74,4 +75,27 @@ pub fn lru(args: BoundArguments) -> FunctionResult {
     let tagged_url = args.get1().try_as_tagged_url()?;
 
     Ok(DynamicValue::from(LRUStems::from(&tagged_url).to_string()))
+}
+
+pub fn hostname(args: BoundArguments) -> FunctionResult {
+    let url = args.get1().try_as_url()?;
+
+    Ok(match url.host() {
+        None => DynamicValue::None,
+        Some(Host::Ipv4(_) | Host::Ipv6(_)) => url.host_str().into(),
+        Some(Host::Domain(domain)) => domain
+            .split('.')
+            .map(|part| {
+                // NOTE: I don't lowercase the host string because the `url`
+                // crate already takes care of that when normalizing.
+                if let Some(encoded) = part.strip_prefix("xn--") {
+                    idna::punycode::decode_to_string(encoded).unwrap_or_else(|| part.to_string())
+                } else {
+                    part.to_string()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(".")
+            .into(),
+    })
 }

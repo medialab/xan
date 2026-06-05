@@ -255,6 +255,7 @@ add(trim(name) | len, 2)    - Can be used anywhere
 
 ## Urls & web-related
 
+- **hostname**(*url*) -> `string`: Return the normalized hostname of given url.
 - **html_unescape**(*string*) -> `string`: Unescape given HTML string by converting HTML entities back to normal text.
 - **lru**(*string*) -> `string`: Convert the given URL to LRU format.<br>For more info, read this: https://github.com/medialab/ural#about-lrus
 - **mime_ext**(*string*) -> `string`: Return the extension related to given mime type.

@@ -681,6 +681,12 @@
     "title": "Urls & web-related",
     "functions": [
       {
+        "name": "hostname",
+        "arguments": ["url"],
+        "returns": "string",
+        "help": "Return the normalized hostname of given url."
+      },
+      {
         "name": "html_unescape",
         "arguments": ["string"],
         "returns": "string",

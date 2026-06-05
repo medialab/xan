@@ -136,6 +136,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "from_timestamp" => (temporal::from_timestamp, FunctionArguments::unary()),
         "from_timestamp_ms" => (temporal::from_timestamp_ms, FunctionArguments::unary()),
         "get" => (maps::get, FunctionArguments::with_range(2..=3)),
+        "hostname" => (web::hostname, FunctionArguments::unary()),
         "html_unescape" => (web::html_unescape, FunctionArguments::unary()),
         "idiv" => (
             |args| ops::arithmetic_op(args, DynamicNumber::idiv),

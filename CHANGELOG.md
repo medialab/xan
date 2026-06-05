@@ -6,6 +6,7 @@
 
 * Adding `xan search -x/--pattern-file`.
 * Adding `xan cat --glob`, `xan merge --glob`, `xan parallel --glob`.
+* Adding the `hostname` moonblade function.
 
 ## 0.58.0
 

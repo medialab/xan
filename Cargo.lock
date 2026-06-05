@@ -3210,6 +3210,7 @@ dependencies = [
  "heavykeeper",
  "html-escape",
  "hyperloglogplus",
+ "idna",
  "indexmap 2.12.0",
  "indicatif",
  "itoa",
