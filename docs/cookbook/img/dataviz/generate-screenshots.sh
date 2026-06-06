@@ -39,7 +39,16 @@ save "view-custom"
 xan v "$SERIES" -l 10 -MI --name series.csv --repeat-headers never --theme borderless | \
 save "view-borderless"
 
+# flatten
+echo "xan flatten snapshots"
+
+xan f "$SERIES" -l 5 --cols 50 | \
+save "flatten"
+
 # stats -R
 echo "xan stats -R snapshots"
+
+xan stats "$SERIES" | xan f -N --row-separator " " | \
+save "stats-flat"
 
 xan stats -R "$SERIES" | save "stats-report"

@@ -5,6 +5,7 @@ This document is a showcase & guide to data visualisation in the terminal using 
 <!-- TODO: grid view, automagic using imagemacick convert, or gif? -->
 <!-- TODO: how to save -->
 <!-- TODO: layout gif -->
+<!-- TODO: mention you can always zoom out -->
 
 ## Summary
 
@@ -187,9 +188,43 @@ Fortunately `xan` has another command catering to those use-cases, so you can ea
 
 ## `xan flatten` for close reading
 
+`xan flatten` is a command that lets you read full row data more comfortably than `xan view` by "flattening" the representation. That is to say we will let each column take at least a line so the full content of their cells can be read:
+
+```
+xan flatten series.csv
+```
+
+<p align="center">
+    <img alt="flatten.png" src="./img/dataviz/flatten.png" width="40%" />
+</p>
+
+<!-- TODO: wrap, condense, flatter, highlighting -->
+
 ## `xan stats -R/--report` for automatic statistical reports
 
-<!-- TODO: highlighting, -F -->
+`xan` has a `stats` command that can easily compute descriptive statistics about all or a selection of columns of your CSV file.
+
+The result of the command is another CSV file, so people would usually feed to `xan flatten` for better readability:
+
+```bash
+# Some columns in the output correspond to numerical vs. text columns
+# so people use the -N/--non-empty flag of flatten to hide irrelevant information
+xan stats series.csv | xan flatten -N --row-separator " "
+```
+
+<p align="center">
+    <img alt="stats-flat.png" src="./img/dataviz/stats-flat.png" width="40%" />
+</p>
+
+But since this was a prominent use-case and since it would be nice to have inline dataviz such as bar charts, time series and distributions, the command gained a `-R/--report` flag to do just that:
+
+```bash
+xan stats -R series.csv
+```
+
+<p align="center">
+    <img alt="stats-report.png" src="./img/dataviz/stats-report.png" width="80%" />
+</p>
 
 ## `xan hist` for detailed bar plots
 
