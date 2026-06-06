@@ -29,6 +29,16 @@ save "view-rainbow"
 xan v "$SOTU" -l 10 --name sotu.csv --repeat-headers never --cols 50 | \
 save "view-sotu"
 
+xan sample 3 -g category --seed 1 "$SERIES" | \
+xan v -A --repeat-headers never -g category | \
+save "view-grouped"
+
+xan v "$SERIES" -l 10 --name sotu.csv --repeat-headers never -HIMS 5 | \
+save "view-custom"
+
+xan v "$SERIES" -l 10 -MI --name series.csv --repeat-headers never --theme borderless | \
+save "view-borderless"
+
 # stats -R
 echo "xan stats -R snapshots"
 

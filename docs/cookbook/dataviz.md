@@ -4,7 +4,6 @@ This document is a showcase & guide to data visualisation in the terminal using 
 
 <!-- TODO: grid view, automagic using imagemacick convert, or gif? -->
 <!-- TODO: how to save -->
-<!-- TODO: rainbow -->
 <!-- TODO: layout gif -->
 
 ## Summary
@@ -13,6 +12,8 @@ This document is a showcase & guide to data visualisation in the terminal using 
 - [`xan view` to display tables](#xan-view-to-display-tables)
     - [Fitting the screen](#fitting-the-screen)
     - [Dealing with emojis](#dealing-with-emojis)
+    - [Grouping rows](#grouping-rows)
+    - [Customizing the view](#customizing-the-view)
 - [`xan flatten` for close reading](#xan-flatten-for-close-reading)
 - [`xan stats -R/--report` for automatic statistical reports](#xan-stats--r--report-for-automatic-statistical-reports)
 - [`xan hist` for detailed bar plots](#xan-hist-for-detailed-bar-plots)
@@ -142,13 +143,47 @@ xan view -E data-with-emojis.csv
     <img alt="view-emojis-sanitized.png" src="./img/dataviz/view-emojis-sanitized.png" width="40%" />
 </p>
 
-<!--
+### Grouping rows
 
-groupby
+Sometimes, you might want to group rows visually based on the value of some of their columns. You can do so with `xan v -g/--groupby` thusly:
 
-passthrough
+```bash
+xan sample 3 -g category series.csv | \
+xan view -A -g category
+```
 
-flatten -->
+<p align="center">
+    <img alt="view-grouped.png" src="./img/dataviz/view-grouped.png" width="80%" />
+</p>
+
+### Customizing the view
+
+If you call `xan view --help` you will see that the command offers a lot of customization options (some of which you can set as default through the `XAN_VIEW_ARGS` env variable).
+
+For instance, let's hide headers, the index colum, the info text, and force numbers to be formatted using a maximum of 5 significant numbers:
+
+```bash
+xan view -S 5 --hide-index --hide-headers --hide-info series.csv
+```
+
+<p align="center">
+    <img alt="view-custom.png" src="./img/dataviz/view-custom.png" width="80%" />
+</p>
+
+The command even offers a variety of different "themes" that can be used to stylize the table:
+
+```bash
+# -M stands for --hide-info & -I for --hide-index
+xan view -MI --theme borderless series.csv
+```
+
+<p align="center">
+    <img alt="view-borderless.png" src="./img/dataviz/view-borderless.png" width="80%" />
+</p>
+
+Now, the tabular view is a staple for a reason, but it becomes somewhat limited when your file has many columns or if cell values are very long, for instance if they contain full text.
+
+Fortunately `xan` has another command catering to those use-cases, so you can easily read the full contents of a CSV row: `flatten`.
 
 ## `xan flatten` for close reading
 
