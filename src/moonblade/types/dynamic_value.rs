@@ -872,6 +872,9 @@ impl PartialEq for DynamicValue {
             (Self::Boolean(a), Self::Boolean(b)) => a == b,
             (Self::String(a), Self::String(b)) => a == b,
             (Self::Bytes(a), Self::Bytes(b)) => a == b,
+            (Self::String(a), Self::Bytes(b)) | (Self::Bytes(b), Self::String(a)) => {
+                a.as_bytes() == b.as_ref()
+            }
             (Self::Float(a), Self::Float(b)) => a == b,
             (Self::Integer(a), Self::Integer(b)) => a == b,
             (Self::List(a), Self::List(b)) => a == b,

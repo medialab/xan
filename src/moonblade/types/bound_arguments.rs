@@ -356,6 +356,7 @@ impl BoundArgument<'_> {
             Self::Owned(owned) => owned.eq(value),
             Self::Borrowed(borrowed) => (*borrowed).eq(value),
             Self::Cell(cell) => match value {
+                DynamicValue::String(other_cell) => *cell == other_cell.as_bytes(),
                 DynamicValue::Bytes(other_cell) => cell == other_cell.as_ref(),
                 _ => false,
             },

@@ -13,6 +13,10 @@
 * Adding the `hostname` moonblade function.
 * Adding `xan scrape --paths, --path-column, --docs, --docs-column, -D/--stdin-doc & --glob`.
 
+*Fixes*
+
+* Fixing moonblade string with bstring equality.
+
 *Performance*
 
 * Improving performance of `xan scrape`.
