@@ -369,7 +369,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         // Writing output
-        for (name, counter) in field_names.into_iter().zip(fields.into_iter()) {
+        for (name, counter) in field_names.into_iter().zip(fields) {
             let (total, items) = counter.into_total_and_items(
                 if args.flag_limit == 0 {
                     None

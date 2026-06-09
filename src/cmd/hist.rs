@@ -571,7 +571,7 @@ impl Histogram {
 
         let unit = current_unit_opt.unwrap();
 
-        dates.sort_by(|a, b| a.0.cmp(&b.0));
+        dates.sort_by_key(|a| a.0);
 
         let mut previous_date_opt: Option<Date> = None;
 

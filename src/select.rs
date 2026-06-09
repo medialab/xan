@@ -55,7 +55,7 @@ impl SelectedColumns {
         let mut map = vec![];
         for sel in &self.selectors {
             let idxs = sel.indices(&first_record, use_names);
-            map.extend(idxs?.into_iter());
+            map.extend(idxs?);
         }
         if self.invert {
             let mut new_map = vec![];

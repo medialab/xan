@@ -83,23 +83,21 @@ impl Children {
 
         for child in self.iter_mut() {
             match child.try_wait() {
-                Ok(Some(status)) => {
-                    if !status.success() {
-                        must_abort = true;
+                Ok(Some(status)) if !status.success() => {
+                    must_abort = true;
 
-                        // Reading some stderr
-                        let mut stderr_contents = String::new();
-                        let stderr = child.stderr.as_mut().unwrap();
+                    // Reading some stderr
+                    let mut stderr_contents = String::new();
+                    let stderr = child.stderr.as_mut().unwrap();
 
-                        stderr
-                            .take(1024 * 64)
-                            .read_to_string(&mut stderr_contents)
-                            .unwrap();
+                    stderr
+                        .take(1024 * 64)
+                        .read_to_string(&mut stderr_contents)
+                        .unwrap();
 
-                        on_error(stderr_contents);
+                    on_error(stderr_contents);
 
-                        break;
-                    }
+                    break;
                 }
                 Err(_) => {
                     must_abort = true;

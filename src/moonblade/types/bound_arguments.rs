@@ -157,7 +157,7 @@ impl BoundArgument<'_> {
     }
 
     #[inline]
-    pub fn as_string_like(&self) -> Option<BoundStringLike> {
+    pub fn as_string_like(&self) -> Option<BoundStringLike<'_>> {
         match self {
             Self::Owned(owned) => match owned {
                 DynamicValue::String(string) => Some(BoundStringLike::String(string)),
@@ -191,7 +191,7 @@ impl BoundArgument<'_> {
     }
 
     #[inline]
-    pub fn try_as_str(&self) -> Result<Cow<str>, EvaluationError> {
+    pub fn try_as_str(&self) -> Result<Cow<'_, str>, EvaluationError> {
         match self {
             Self::Owned(owned) => owned.try_as_str(),
             Self::Borrowed(borrowed) => borrowed.try_as_str(),
@@ -200,7 +200,7 @@ impl BoundArgument<'_> {
     }
 
     #[inline]
-    pub fn try_as_container(&self) -> Result<BoundContainer, EvaluationError> {
+    pub fn try_as_container(&self) -> Result<BoundContainer<'_>, EvaluationError> {
         match self {
             Self::Owned(owned) => match owned {
                 DynamicValue::String(string) => Ok(BoundContainer::String(string)),
@@ -385,11 +385,11 @@ impl<'a> BoundArguments<'a> {
         self.stack.push(arg);
     }
 
-    pub fn get(&self, i: usize) -> Option<&BoundArgument> {
+    pub fn get(&self, i: usize) -> Option<&BoundArgument<'_>> {
         self.stack.get(i)
     }
 
-    pub fn get_not_none(&self, i: usize) -> Option<&BoundArgument> {
+    pub fn get_not_none(&self, i: usize) -> Option<&BoundArgument<'_>> {
         let arg = self.stack.get(i)?;
 
         match arg {
@@ -405,22 +405,22 @@ impl<'a> BoundArguments<'a> {
         }
     }
 
-    pub fn get1(&self) -> &BoundArgument {
+    pub fn get1(&self) -> &BoundArgument<'_> {
         &self.stack[0]
     }
 
-    pub fn pop1(&mut self) -> BoundArgument {
+    pub fn pop1(&mut self) -> BoundArgument<'_> {
         self.stack.pop().unwrap()
     }
 
-    pub fn pop2(&mut self) -> (BoundArgument, BoundArgument) {
+    pub fn pop2(&mut self) -> (BoundArgument<'_>, BoundArgument<'_>) {
         let second = self.stack.pop().unwrap();
         let first = self.stack.pop().unwrap();
 
         (first, second)
     }
 
-    pub fn pop3(&mut self) -> (BoundArgument, BoundArgument, BoundArgument) {
+    pub fn pop3(&mut self) -> (BoundArgument<'_>, BoundArgument<'_>, BoundArgument<'_>) {
         let third = self.stack.pop().unwrap();
         let second = self.stack.pop().unwrap();
         let first = self.stack.pop().unwrap();
@@ -428,11 +428,11 @@ impl<'a> BoundArguments<'a> {
         (first, second, third)
     }
 
-    pub fn get2(&self) -> (&BoundArgument, &BoundArgument) {
+    pub fn get2(&self) -> (&BoundArgument<'_>, &BoundArgument<'_>) {
         (&self.stack[0], &self.stack[1])
     }
 
-    pub fn get3(&self) -> (&BoundArgument, &BoundArgument, &BoundArgument) {
+    pub fn get3(&self) -> (&BoundArgument<'_>, &BoundArgument<'_>, &BoundArgument<'_>) {
         (&self.stack[0], &self.stack[1], &self.stack[2])
     }
 

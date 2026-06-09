@@ -152,7 +152,7 @@ enum NodeKey<'a> {
 
 impl NodeKey<'_> {
     #[inline]
-    fn as_bytes(&self) -> Cow<[u8]> {
+    fn as_bytes(&self) -> Cow<'_, [u8]> {
         match self {
             Self::String(string) => Cow::Borrowed(string.as_bytes()),
             Self::Id(id) => Cow::Owned(id.to_string().into_bytes()),
@@ -160,7 +160,7 @@ impl NodeKey<'_> {
     }
 
     #[inline]
-    fn as_str(&self) -> Cow<str> {
+    fn as_str(&self) -> Cow<'_, str> {
         match self {
             Self::String(string) => Cow::Borrowed(string),
             Self::Id(id) => Cow::Owned(id.to_string()),
@@ -199,7 +199,7 @@ impl NodeStore {
     }
 
     #[inline]
-    fn get_index(&self, index: usize) -> Option<(NodeKey, &Attributes)> {
+    fn get_index(&self, index: usize) -> Option<(NodeKey<'_>, &Attributes)> {
         match self {
             Self::Hash(map) => map.get_index(index).map(|(k, v)| (NodeKey::String(k), v)),
             Self::Range(list) => list.get(index).map(|(k, v)| {
@@ -223,7 +223,7 @@ impl NodeStore {
     }
 
     #[inline]
-    fn iter(&self) -> Box<dyn Iterator<Item = (NodeKey, &Attributes)> + '_> {
+    fn iter(&self) -> Box<dyn Iterator<Item = (NodeKey<'_>, &Attributes)> + '_> {
         match self {
             Self::Hash(map) => Box::new(map.iter().map(|(k, v)| (NodeKey::String(k), v))),
             Self::Range(list) => Box::new(list.iter().enumerate().map(|(index, (k, v))| {

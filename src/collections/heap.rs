@@ -62,9 +62,6 @@ impl<T: Ord> Ord for DynamicOrd<T> {
     }
 }
 
-#[derive(PartialEq, PartialOrd, Ord, Eq, Debug)]
-pub struct Forward<T>(pub T);
-
 // A specialized heap handy to compute top-k in O(log n) time
 // but only O(k) memory.
 // It is a max-heap by default to fit rust's standard library

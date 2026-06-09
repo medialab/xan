@@ -1082,12 +1082,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut pool: Vec<(String, Series)> = Vec::new();
 
     // Aggregating data
-    let mut index: usize = 0;
-
     if let Some((groupby_sel, mut series_map)) = groupby_opt {
         while reader.read_byte_record(&mut record)? {
-            index += 1;
-
             let group = groupby_sel.select(&record).collect();
 
             let series = series_map.insert_with(group, || args.new_series(None));
@@ -1141,6 +1137,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 pool.push(("--count".to_string(), args.new_series(None)));
             }
         }
+
+        let mut index: usize = 0;
 
         while reader.read_byte_record(&mut record)? {
             if args.flag_along_rows {
