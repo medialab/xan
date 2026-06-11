@@ -564,6 +564,7 @@ macro_rules! impl_from_error {
 
 impl_from_error!(aho_corasick::BuildError);
 impl_from_error!(calamine::Error);
+impl_from_error!(moonblade::ParseError);
 impl_from_error!(moonblade::ConcretizationError);
 impl_from_error!(moonblade::EvaluationError);
 impl_from_error!(moonblade::SpecifiedEvaluationError);

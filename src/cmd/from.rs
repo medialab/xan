@@ -13,7 +13,8 @@ use serde_json::{Map, Value};
 use simd_csv::ByteRecord;
 
 use crate::config::Config;
-use crate::json::JSONTabularizer;
+use crate::json::{GetPath, JSONTabularizer};
+use crate::moonblade::Path as JSONPath;
 use crate::util::{self, ChunksIteratorExt};
 use crate::CliError;
 use crate::CliResult;
@@ -124,6 +125,9 @@ JSON options:
                            [default: value]
     --single-object        Use if JSON only represents a single object that you want
                            to map to a single CSV row, instead of mapping to key,value columns.
+    --path <path>          Convert nested object found at path instead of root object. This path
+                           must be given as a getter using the expression language. For instance
+                           \"data\" or \"_.nodes[0].metadata\".
 
 Text lines options:
     -c, --column <name>    Name of the column to create.
@@ -152,6 +156,7 @@ struct Args {
     flag_key_column: String,
     flag_value_column: String,
     flag_single_object: bool,
+    flag_path: Option<String>,
     flag_column: String,
     flag_nth_table: isize,
 }
@@ -166,6 +171,14 @@ impl Args {
             None
         } else {
             Some(NonZeroUsize::new(self.flag_sample_size as usize).unwrap())
+        }
+    }
+
+    fn path(&self) -> CliResult<Option<JSONPath>> {
+        if let Some(path) = &self.flag_path {
+            Ok(Some(path.parse::<JSONPath>()?))
+        } else {
+            Ok(None)
         }
     }
 
@@ -287,9 +300,17 @@ impl Args {
             let line_mut =
                 unsafe { std::slice::from_raw_parts_mut(line.as_ptr() as *mut u8, line.len()) };
 
-            let value: Value = simd_json::serde::from_slice_with_buffers(line_mut, &mut buffers)?;
+            // NOTE: we use serde for the sample to ensure a consistent ordering of keys
+            if tabularizer.is_sampling() {
+                let value: Value =
+                    simd_json::serde::from_slice_with_buffers(line_mut, &mut buffers)?;
 
-            tabularizer.process(value)?;
+                tabularizer.process(value)?;
+            } else {
+                let value = simd_json::borrowed::to_value_with_buffers(line_mut, &mut buffers)?;
+
+                tabularizer.process_borrowed(value)?;
+            }
         }
 
         Ok(tabularizer.flush()?)
@@ -298,8 +319,14 @@ impl Args {
     fn convert_json(&self) -> CliResult<()> {
         let rdr = BufReader::new(Config::new(&self.arg_input).io_reader()?);
 
-        let mut value =
+        let mut value: Value =
             serde_json::from_reader(rdr).map_err(|err| CliError::Other(err.to_string()))?;
+
+        if let Some(path) = self.path()? {
+            value = value
+                .get_path_owned(&path)
+                .ok_or("could not extract value given to --path!")?;
+        }
 
         // NOTE: recombobulating objects as collections
         if let Value::Object(object) = value {

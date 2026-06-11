@@ -59,6 +59,9 @@ JSON options:
                            [default: value]
     --single-object        Use if JSON only represents a single object that you want
                            to map to a single CSV row, instead of mapping to key,value columns.
+    --path <path>          Convert nested object found at path instead of root object. This path
+                           must be given as a getter using the expression language. For instance
+                           "data" or "_.nodes[0].metadata".
 
 Text lines options:
     -c, --column <name>    Name of the column to create.

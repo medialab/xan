@@ -12,6 +12,7 @@
 * Adding `xan cat --glob`, `xan merge --glob`, `xan parallel --glob`.
 * Adding the `hostname` moonblade function.
 * Adding `xan scrape --paths, --path-column, --docs, --docs-column, -D/--stdin-doc & --glob`.
+* Adding `xan from -f=(json|ndjson) --path <path>`.
 
 *Fixes*
 
@@ -20,6 +21,7 @@
 *Performance*
 
 * Improving performance of `xan scrape`.
+* Improving performance of `xan from -f ndjson`.
 
 ## 0.58.0
 

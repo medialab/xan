@@ -11,6 +11,8 @@ target
 *.xan
 *.idx
 *.npy
+*.ndjson
+*.jsonl
 builds
 .vscode
 *.code-workspace

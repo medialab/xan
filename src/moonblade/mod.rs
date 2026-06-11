@@ -17,6 +17,7 @@ pub use self::agg::{
 pub use self::choose::ChooseProgram;
 pub use self::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
 pub use self::interpreter::{GlobalVariables, Program};
+pub use self::parser::{ParseError, Path, Step};
 pub use self::scrape::ScrapingProgram;
 pub use self::select::SelectionProgram;
 pub use self::types::{DynamicNumber, DynamicValue};

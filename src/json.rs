@@ -8,8 +8,58 @@ use std::rc::Rc;
 use serde::ser::{Serialize, SerializeMap, Serializer};
 use serde_json::{json, Value};
 use simd_csv::{ByteRecord, StringRecord};
+use simd_json::BorrowedValue;
 
+use crate::moonblade::{Path, Step};
 use crate::select::Selection;
+
+pub trait GetPath {
+    // fn get_path<'v>(&'v self, path: &Path) -> Option<&'v Self>;
+    fn get_path_owned(self, path: &Path) -> Option<Self>
+    where
+        Self: Sized;
+}
+
+impl GetPath for Value {
+    fn get_path_owned(self, path: &Path) -> Option<Self> {
+        let mut value = self;
+
+        for step in path.iter() {
+            match step {
+                Step::Index(mut i) => {
+                    if let Some(array) = value.as_array() {
+                        if i < 0 {
+                            i += array.len() as isize;
+                        }
+
+                        if i < 0 {
+                            return None;
+                        } else if let Some(array) = value.as_array_mut() {
+                            if i >= array.len() as isize {
+                                return None;
+                            } else {
+                                value = array.swap_remove(i as usize);
+                            }
+                        } else {
+                            return None;
+                        }
+                    } else {
+                        return None;
+                    }
+                }
+                Step::Key(key) => {
+                    if let Some(object) = value.as_object_mut() {
+                        value = object.remove(key)?;
+                    } else {
+                        return None;
+                    }
+                }
+            }
+        }
+
+        Some(value)
+    }
+}
 
 #[derive(Default)]
 pub struct AttributeNameInterner {
@@ -203,12 +253,11 @@ fn headers_from_stack(stack: &JSONTraversalStack) -> ByteRecord {
     record
 }
 
-fn traverse_with_stack<F>(value: &Value, stack: &JSONTraversalStack, mut callback: F)
+fn traverse_value_with_stack<F>(mut value: &Value, stack: &JSONTraversalStack, mut callback: F)
 where
     F: FnMut(&Value),
 {
     let mut working_stack: Vec<&Value> = vec![];
-    let mut current_value: &Value = value;
 
     let mut i: usize = 0;
 
@@ -217,9 +266,9 @@ where
 
         match state {
             JSONTraversalState::Delve(key, depth) => {
-                working_stack.push(current_value);
+                working_stack.push(value);
 
-                match current_value.as_object().and_then(|o| o.get(key)) {
+                match value.as_object().and_then(|o| o.get(key)) {
                     None => {
                         i += 1;
 
@@ -238,15 +287,75 @@ where
                         }
                     }
                     Some(next_value) => {
-                        current_value = next_value;
+                        value = next_value;
                     }
                 }
             }
             JSONTraversalState::Pop(_) => {
-                current_value = working_stack.pop().expect("cannot pop");
+                value = working_stack.pop().expect("cannot pop");
             }
             JSONTraversalState::Emit => {
-                callback(current_value);
+                callback(value);
+            }
+        }
+
+        i += 1;
+    }
+}
+
+fn traverse_borrowed_value_with_stack<F>(
+    mut value: &BorrowedValue,
+    stack: &JSONTraversalStack,
+    mut callback: F,
+) where
+    F: FnMut(&BorrowedValue),
+{
+    let mut working_stack: Vec<&BorrowedValue> = vec![];
+
+    let mut i: usize = 0;
+
+    'outer: while i < stack.len() {
+        let state = &stack[i];
+
+        match state {
+            JSONTraversalState::Delve(key, depth) => {
+                working_stack.push(value);
+
+                let as_object = match value {
+                    BorrowedValue::Object(object) => Some(object),
+                    _ => None,
+                };
+
+                match as_object.and_then(|o| o.get(key.as_str())) {
+                    None => {
+                        i += 1;
+
+                        while i < stack.len() {
+                            let next_state = &stack[i];
+
+                            match next_state {
+                                JSONTraversalState::Emit => {
+                                    callback(&BorrowedValue::Static(simd_json::StaticNode::Null))
+                                }
+                                JSONTraversalState::Pop(target_depth) if target_depth == depth => {
+                                    continue 'outer;
+                                }
+                                _ => (),
+                            };
+
+                            i += 1;
+                        }
+                    }
+                    Some(next_value) => {
+                        value = next_value;
+                    }
+                }
+            }
+            JSONTraversalState::Pop(_) => {
+                value = working_stack.pop().expect("cannot pop");
+            }
+            JSONTraversalState::Emit => {
+                callback(value);
             }
         }
 
@@ -267,11 +376,46 @@ fn serialize_json_value_to_csv_field(value: &Value) -> Cow<'_, [u8]> {
 }
 
 #[inline]
-fn fill_record(value: &Value, record: &mut ByteRecord, stack: &JSONTraversalStack) {
+fn serialize_borrowed_json_value_to_csv_field<'v>(value: &'v BorrowedValue) -> Cow<'v, [u8]> {
+    match value {
+        BorrowedValue::Static(simd_json::StaticNode::Null) => Cow::Borrowed(b""),
+        BorrowedValue::Static(simd_json::StaticNode::Bool(b)) => {
+            Cow::Borrowed(if *b { b"true" } else { b"false" })
+        }
+        BorrowedValue::String(s) => Cow::Borrowed(s.as_bytes()),
+        BorrowedValue::Static(simd_json::StaticNode::F64(f)) => {
+            Cow::Owned(f.to_string().into_bytes())
+        }
+        BorrowedValue::Static(simd_json::StaticNode::U64(i)) => {
+            Cow::Owned(i.to_string().into_bytes())
+        }
+        BorrowedValue::Static(simd_json::StaticNode::I64(i)) => {
+            Cow::Owned(i.to_string().into_bytes())
+        }
+        BorrowedValue::Array(l) => Cow::Owned(serde_json::to_vec(l).unwrap()),
+        BorrowedValue::Object(o) => Cow::Owned(serde_json::to_vec(o).unwrap()),
+    }
+}
+
+#[inline]
+fn fill_record_from_value(value: &Value, record: &mut ByteRecord, stack: &JSONTraversalStack) {
     record.clear();
 
-    traverse_with_stack(value, stack, |v| {
+    traverse_value_with_stack(value, stack, |v| {
         record.push_field(&serialize_json_value_to_csv_field(v));
+    });
+}
+
+#[inline]
+fn fill_record_from_borrowed_value(
+    value: &BorrowedValue,
+    record: &mut ByteRecord,
+    stack: &JSONTraversalStack,
+) {
+    record.clear();
+
+    traverse_borrowed_value_with_stack(value, stack, |v| {
+        record.push_field(&serialize_borrowed_json_value_to_csv_field(v));
     });
 }
 
@@ -332,11 +476,12 @@ impl<W: Write> JSONTabularizer<W> {
             self.reorder_keys,
             0,
         );
+
         self.writer
             .write_byte_record(&headers_from_stack(&self.stack))?;
 
         for value in self.sample.iter() {
-            fill_record(value, &mut self.output_record, &self.stack);
+            fill_record_from_value(value, &mut self.output_record, &self.stack);
             self.writer.write_byte_record(&self.output_record)?;
         }
 
@@ -347,9 +492,13 @@ impl<W: Write> JSONTabularizer<W> {
         Ok(())
     }
 
+    pub fn is_sampling(&self) -> bool {
+        self.sample_size.is_none() || self.sample.len() < self.sample_size.unwrap()
+    }
+
     pub fn process(&mut self, value: Value) -> simd_csv::Result<()> {
         // Sampling
-        if self.sample_size.is_none() || self.sample.len() < self.sample_size.unwrap() {
+        if self.is_sampling() {
             self.flushed = false;
             merge(&mut self.harmonized_value, &value);
             self.sample.push(value);
@@ -358,7 +507,25 @@ impl<W: Write> JSONTabularizer<W> {
 
         self.flush()?;
 
-        fill_record(&value, &mut self.output_record, &self.stack);
+        fill_record_from_value(&value, &mut self.output_record, &self.stack);
+        self.writer.write_byte_record(&self.output_record)?;
+
+        Ok(())
+    }
+
+    pub fn process_borrowed(&mut self, value: BorrowedValue) -> simd_csv::Result<()> {
+        // Sampling
+        if self.is_sampling() {
+            let value: Value = simd_json::serde::from_borrowed_value(value).unwrap();
+            self.flushed = false;
+            merge(&mut self.harmonized_value, &value);
+            self.sample.push(value);
+            return Ok(());
+        }
+
+        self.flush()?;
+
+        fill_record_from_borrowed_value(&value, &mut self.output_record, &self.stack);
         self.writer.write_byte_record(&self.output_record)?;
 
         Ok(())

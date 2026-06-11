@@ -955,6 +955,12 @@ impl FromStr for Path {
     }
 }
 
+impl Path {
+    pub fn iter(&self) -> impl Iterator<Item = &Step> {
+        self.steps.iter()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::Expr::*;
