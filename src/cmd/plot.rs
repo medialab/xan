@@ -274,7 +274,7 @@ plot options:
     --density-scale <scale>    Apply a scale to the density gradient. Can be one of \"lin\", \"pow\",
                                \"sqrt\", \"pow(custom_exponent)\" like \"pow(4.5)\", \"log\",
                                \"log2\", \"log10\" or \"log(custom_base)\" like \"log(2.5)\".
-                               [default: lin]
+                               [default: log]
     --color <when>             When to color the output using ANSI escape codes.
                                Use `auto` for automatic detection, `never` to
                                disable colors completely and `always` to force

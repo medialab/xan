@@ -6,6 +6,7 @@
 
 * Bumping MSRV to `1.85.0` and edition 2024.
 * Overhauling how `xan scrape` takes its inputs. It now targets HTML files on disk by default now.
+* `xan plot --density-scale` now defaults to `log`.
 
 *Features*
 
