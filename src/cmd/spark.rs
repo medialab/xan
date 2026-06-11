@@ -1491,11 +1491,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 "column-wise series"
             },
             if let Some(names) = selected_column_names {
-                names
-                    .into_iter()
-                    .map(|n| n.green().to_string())
-                    .collect::<Vec<_>>()
-                    .join(", ")
+                if args.flag_along_rows {
+                    format!(
+                        "from {} to {}",
+                        names.first().unwrap().green(),
+                        names.last().unwrap().green()
+                    )
+                } else {
+                    names
+                        .into_iter()
+                        .map(|n| n.green().to_string())
+                        .collect::<Vec<_>>()
+                        .join(" & ")
+                }
             } else {
                 "--count".dimmed().to_string()
             },
@@ -1506,7 +1514,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         .into_iter()
                         .map(|n| n.green().to_string())
                         .collect::<Vec<_>>()
-                        .join(", ")
+                        .join(" & ")
                 )
             } else {
                 "".to_string()
