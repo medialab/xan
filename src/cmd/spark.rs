@@ -7,6 +7,9 @@ use colorgrad::Gradient;
 use jiff::{Timestamp, Unit, tz::TimeZone};
 use ordered_float::NotNan;
 use pad::{Alignment, PadStr};
+use ratatui::buffer::Buffer;
+use ratatui::layout::Rect;
+use ratatui::style::Style;
 use simd_csv::ByteRecord;
 use unicode_width::UnicodeWidthStr;
 
@@ -36,6 +39,29 @@ fn parse_temporal(cell: &[u8]) -> CliResult<(FuzzyTemporal, f64)> {
     let fuzzy_temporal = parse_fuzzy_temporal(cell, true)?;
     let timestamp = fuzzy_temporal.to_lower_bound_timestamp(TimeZone::system())?;
     Ok((fuzzy_temporal, timestamp.as_duration().as_secs_f64()))
+}
+
+fn build_seconds_extent(extent: &TemporalExtent, unit: Unit) -> CliResult<Extent<f64>> {
+    let earliest = FuzzyTemporal::from(extent.earliest().unwrap());
+    let latest = FuzzyTemporal::from(extent.latest().unwrap());
+
+    let earliest_seconds = earliest
+        .to_lower_bound_timestamp(TimeZone::system())?
+        .to_zoned(TimeZone::system())
+        .floor(unit)?
+        .timestamp()
+        .as_duration()
+        .as_secs_f64();
+
+    let latest_seconds = latest
+        .to_lower_bound_timestamp(TimeZone::system())?
+        .to_zoned(TimeZone::system())
+        .floor(unit)?
+        .timestamp()
+        .as_duration()
+        .as_secs_f64();
+
+    Ok(Extent::from((earliest_seconds, latest_seconds)))
 }
 
 fn fill_discretization_gaps<T: Default + Copy, F>(
@@ -427,7 +453,12 @@ impl SparklineRenderer {
         .unwrap();
     }
 
-    fn render_temporal_axis(&mut self, left_padding: usize, width: usize, ticks: &[String]) {
+    fn render_temporal_axis(
+        &mut self,
+        left_padding: usize,
+        width: usize,
+        ticks: &[(usize, String)],
+    ) {
         self.draw_buffer.push('\n');
         self.pad_left(left_padding);
 
@@ -438,19 +469,31 @@ impl SparklineRenderer {
         )
         .unwrap();
 
+        let mut buffer = Buffer::empty(Rect {
+            x: 0,
+            y: 0,
+            width: width as u16,
+            height: 1,
+        });
+
+        let first = &ticks.first().unwrap().1;
+        let last = &ticks.last().unwrap().1;
+
+        buffer.set_string(0, 0, first, Style::default());
+        buffer.set_string((width - last.width()) as u16, 0, last, Style::default());
+
         self.pad_left(left_padding);
 
-        let space =
-            " ".repeat(width - ticks.first().unwrap().width() - ticks.last().unwrap().width());
+        for x in 0..(width as u16) {
+            write!(
+                &mut self.draw_buffer,
+                "{}",
+                buffer.cell((x, 0)).unwrap().symbol()
+            )
+            .unwrap();
+        }
 
-        writeln!(
-            &mut self.draw_buffer,
-            "{}{}{}",
-            ticks.first().unwrap(),
-            space,
-            ticks.last().unwrap()
-        )
-        .unwrap();
+        writeln!(&mut self.draw_buffer).unwrap();
     }
 }
 
@@ -704,26 +747,7 @@ impl Series {
             true
         });
 
-        let earliest = FuzzyTemporal::from(extent.earliest().unwrap());
-        let latest = FuzzyTemporal::from(extent.latest().unwrap());
-
-        let earliest_seconds = earliest
-            .to_lower_bound_timestamp(TimeZone::system())?
-            .to_zoned(TimeZone::system())
-            .floor(unit)?
-            .timestamp()
-            .as_duration()
-            .as_secs_f64();
-
-        let latest_seconds = latest
-            .to_lower_bound_timestamp(TimeZone::system())?
-            .to_zoned(TimeZone::system())
-            .floor(unit)?
-            .timestamp()
-            .as_duration()
-            .as_secs_f64();
-
-        let seconds_extent = Extent::from((earliest_seconds, latest_seconds));
+        let seconds_extent = build_seconds_extent(extent, unit)?;
 
         let mut new_numbers: Vec<_> = (0..count).map(|_| aggregation.new_aggregator()).collect();
         let mut new_categories: Vec<Vec<(usize, usize)>> = (0..count).map(|_| Vec::new()).collect();
@@ -1423,7 +1447,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .saturating_sub(max_label.width());
 
         if budget_cols > 0 {
-            temporal_ticks_opt = Some(vec![min_label, max_label]);
+            // let baseline = min_label.width();
+            let mut ticks = vec![(0, min_label)];
+
+            // let additional_ticks = budget_cols / (baseline + 2);
+
+            ticks.push((cols_for_sparkline, max_label));
+
+            temporal_ticks_opt = Some(ticks);
         }
     }
 
