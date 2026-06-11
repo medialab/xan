@@ -67,7 +67,7 @@ frequency options:
                               `space-saving` (`ss`) algorithm, or `heavy-keeper` (`hk`) algorithm,
                               which is more suited to zipfian streams (items distribution following
                               a power law).
-                              [default: space-saving]
+                              [default: heavy-keeper]
     -N, --no-extra            Don't include empty cells & remaining counts.
     -p, --parallel            Whether to use parallelization to speed up computation.
                               Will automatically select a suitable number of threads to use
