@@ -8,7 +8,6 @@ use std::str::FromStr;
 use std::sync::atomic;
 use std::time::Duration;
 
-
 use crate::Csv;
 
 static XSV_INTEGRATION_TEST_DIR: &str = "xit";

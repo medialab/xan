@@ -1,9 +1,9 @@
 use rand::seq::SliceRandom;
 use std::io::{SeekFrom, Write};
 
+use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::util;
-use crate::CliResult;
 
 static USAGE: &str = "
 Shuffle the rows of a given CSV file. This requires loading the whole

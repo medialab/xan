@@ -2,13 +2,13 @@ use std::convert::TryFrom;
 
 use simd_csv::StringRecord;
 
+use crate::CliResult;
 use crate::collections::IncrementalId;
 use crate::config::{Config, Delimiter};
 use crate::graph::{GraphBuilder, GraphBuilderOptions};
 use crate::json::{Attributes, JSONEmptyMode, JSONTypeInferrenceBuffer};
 use crate::select::{SelectedColumns, Selection};
 use crate::util;
-use crate::CliResult;
 
 #[derive(Deserialize, Debug)]
 #[serde(try_from = "String")]
@@ -40,7 +40,7 @@ impl TryFrom<String> for OutputFormat {
                 return Err(format!(
                     "unknown \"{}\" format given to -f/--format!",
                     value
-                ))
+                ));
             }
         })
     }
@@ -290,7 +290,11 @@ impl Args {
 
             if let Some(n) = self.flag_range {
                 if graph_builder.order() as u32 != n {
-                    Err(format!("--nodes file did not give a correct number of nodes ({}) wrt what max was given to --range ({})!", graph_builder.order(), n))?;
+                    Err(format!(
+                        "--nodes file did not give a correct number of nodes ({}) wrt what max was given to --range ({})!",
+                        graph_builder.order(),
+                        n
+                    ))?;
                 }
             }
         }

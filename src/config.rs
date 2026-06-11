@@ -2,7 +2,7 @@ use std::borrow::{Borrow, ToOwned};
 use std::convert::TryFrom;
 use std::env;
 use std::fs;
-use std::io::{self, prelude::*, BufReader, BufWriter, IsTerminal, Read, SeekFrom};
+use std::io::{self, BufReader, BufWriter, IsTerminal, Read, SeekFrom, prelude::*};
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 
@@ -544,7 +544,10 @@ impl Config {
         Ok(match self.path {
             None => {
                 if io::stdin().is_terminal() {
-                    return Err(io::Error::new(io::ErrorKind::NotFound, "failed to read CSV data from stdin. Did you forget to give a path to your file?"))?;
+                    return Err(io::Error::new(
+                        io::ErrorKind::NotFound,
+                        "failed to read CSV data from stdin. Did you forget to give a path to your file?",
+                    ))?;
                 } else {
                     let x = io::stdin();
 

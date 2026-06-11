@@ -3,11 +3,11 @@ use std::fmt;
 
 use btoi::btoi;
 use jiff::{
+    Error, SignedDuration, SpanRelativeTo, Timestamp, ToSpan, Unit, Zoned, ZonedRound,
     civil::{Date, DateTime, Time},
     fmt::strtime,
     fmt::temporal::{DateTimeParser, PiecesOffset},
     tz::{OffsetConflict, TimeZone},
-    Error, SignedDuration, SpanRelativeTo, Timestamp, ToSpan, Unit, Zoned, ZonedRound,
 };
 
 #[derive(Clone, Deserialize)]
@@ -272,7 +272,7 @@ impl AnyTemporal {
             AnyTemporal::Time(_) => {
                 return Err(Error::from_args(format_args!(
                     "cannot convert a bare time to a lower bound timestamp"
-                )))
+                )));
             }
         })
     }

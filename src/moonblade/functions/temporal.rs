@@ -1,12 +1,12 @@
 use jiff::{
+    Span, Timestamp, Unit, Zoned,
     civil::{Date, Time},
     tz::TimeZone,
-    Span, Timestamp, Unit, Zoned,
 };
 
 use crate::temporal::{
-    parse_maybe_zoned, parse_maybe_zoned_with_format, MaybeZoned, TimestampExt,
-    DEFAULT_DATETIME_PARSER,
+    DEFAULT_DATETIME_PARSER, MaybeZoned, TimestampExt, parse_maybe_zoned,
+    parse_maybe_zoned_with_format,
 };
 
 use super::FunctionResult;
@@ -112,7 +112,7 @@ pub fn date(mut args: BoundArguments) -> FunctionResult {
                 match value {
                     DynamicValue::Zoned(zoned) => return Ok(DynamicValue::from(zoned.date())),
                     DynamicValue::DateTime(datetime) => {
-                        return Ok(DynamicValue::from(datetime.date()))
+                        return Ok(DynamicValue::from(datetime.date()));
                     }
                     _ => (),
                 };
@@ -172,7 +172,7 @@ pub fn time(mut args: BoundArguments) -> FunctionResult {
                 match value {
                     DynamicValue::Zoned(zoned) => return Ok(DynamicValue::from(zoned.time())),
                     DynamicValue::DateTime(datetime) => {
-                        return Ok(DynamicValue::from(datetime.time()))
+                        return Ok(DynamicValue::from(datetime.time()));
                     }
                     _ => (),
                 };
@@ -228,10 +228,13 @@ pub fn with_timezone(mut args: BoundArguments) -> FunctionResult {
         Ok(MaybeZoned::Civil(datetime)) => {
             let tz = tz_arg.try_as_timezone()?;
 
-            datetime.to_zoned(tz).map_err(|_| EvaluationError::TimeRelated(
-                "could not solve timezone ambiguity".to_string()
-            )).map(DynamicValue::from)
-        },
+            datetime
+                .to_zoned(tz)
+                .map_err(|_| {
+                    EvaluationError::TimeRelated("could not solve timezone ambiguity".to_string())
+                })
+                .map(DynamicValue::from)
+        }
         Err(err) => Err(err),
     }
 }
@@ -244,11 +247,12 @@ pub fn with_local_timezone(mut args: BoundArguments) -> FunctionResult {
             "can only add a timezone to a datetime that does not have one already: {:?}. To convert a date to another timezone use `to_timezone` or `to_local_timezone` instead.",
             zoned
         ))),
-        Ok(MaybeZoned::Civil(datetime)) => {
-            datetime.to_zoned(TimeZone::system()).map_err(|_| EvaluationError::TimeRelated(
-                "could not solve timezone ambiguity".to_string()
-            )).map(DynamicValue::from)
-        },
+        Ok(MaybeZoned::Civil(datetime)) => datetime
+            .to_zoned(TimeZone::system())
+            .map_err(|_| {
+                EvaluationError::TimeRelated("could not solve timezone ambiguity".to_string())
+            })
+            .map(DynamicValue::from),
         Err(err) => Err(err),
     }
 }

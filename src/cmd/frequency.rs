@@ -3,12 +3,12 @@ use std::num::NonZeroUsize;
 use bstr::ByteSlice;
 use simd_csv::ByteRecord;
 
+use crate::CliResult;
 use crate::cmd::parallel::Args as ParallelArgs;
 use crate::collections::{ApproxCounterAlgorithm, ClusteredInsertHashmap, Counter, CounterSpec};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
 use crate::util;
-use crate::CliResult;
 
 type GroupKey = ByteRecord;
 type ValueKey = Vec<u8>;

@@ -1,4 +1,4 @@
-use std::collections::{btree_map::Entry, BTreeMap};
+use std::collections::{BTreeMap, btree_map::Entry};
 use std::ops::Index;
 
 use crate::moonblade::parser::Expr;
@@ -141,19 +141,11 @@ impl HeadersIndex {
                     // Negative indexing
                     let pos = pos.unsigned_abs();
 
-                    if pos > len {
-                        None
-                    } else {
-                        Some(len - pos)
-                    }
+                    if pos > len { None } else { Some(len - pos) }
                 } else {
                     let pos = *pos as usize;
 
-                    if pos >= len {
-                        None
-                    } else {
-                        Some(pos)
-                    }
+                    if pos >= len { None } else { Some(pos) }
                 }
             }
             ColumIndexationBy::NameAndNth(name, pos) => self

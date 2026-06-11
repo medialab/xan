@@ -7,9 +7,9 @@ use bytesize::MB;
 use flate2::read::MultiGzDecoder;
 use indicatif::{HumanCount, ProgressBar, ProgressStyle};
 
+use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::util;
-use crate::CliResult;
 
 fn get_progress_style_template(total: u64, color: &str, bytes: bool, unit: &str) -> String {
     let mut f = String::new();

@@ -21,7 +21,13 @@ impl TemporalExtent {
             None => self.extent = Some((value.clone(), value)),
             Some((min, max)) => {
                 if !min.has_same_type(&value) {
-                    return Err(format!("temporal extent attempting to handle incompatible types: {} and {} (current min: {:?}, given value: {:?})", min.kind_as_str(), value.kind_as_str(), min, value));
+                    return Err(format!(
+                        "temporal extent attempting to handle incompatible types: {} and {} (current min: {:?}, given value: {:?})",
+                        min.kind_as_str(),
+                        value.kind_as_str(),
+                        min,
+                        value
+                    ));
                 }
 
                 if value < *min {

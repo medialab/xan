@@ -1,13 +1,13 @@
 use std::cmp::Ordering;
-use std::io::{stderr, SeekFrom, Write};
+use std::io::{SeekFrom, Write, stderr};
 
 use simd_csv::ByteRecord;
 
-use crate::cmd::sort::{compare_num, parse_num, Number};
+use crate::CliResult;
+use crate::cmd::sort::{Number, compare_num, parse_num};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
 use crate::util;
-use crate::CliResult;
 
 #[derive(Clone, PartialEq, Debug)]
 enum Value {

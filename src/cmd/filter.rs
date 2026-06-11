@@ -4,11 +4,11 @@ use std::num::NonZeroUsize;
 use pariter::IteratorExt;
 use simd_csv::ByteRecord;
 
+use crate::CliResult;
 use crate::collections::ContextBuffer;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::Program;
 use crate::util;
-use crate::CliResult;
 
 static USAGE: &str = r#"
 The filter command evaluates an expression for each row of the given CSV file and

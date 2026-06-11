@@ -7,17 +7,17 @@ use jiff::Zoned;
 use phylacter::UnionFind;
 use serde::ser::{SerializeMap, SerializeSeq, Serializer as _};
 use serde_json::{
-    ser::{Formatter, Serializer},
     Value,
+    ser::{Formatter, Serializer},
 };
 
+use crate::CliResult;
 use crate::collections::{
-    hash_map::Entry, index_map::Entry as IndexMapEntry, new_index_map, HashMap, IndexMap,
+    HashMap, IndexMap, hash_map::Entry, index_map::Entry as IndexMapEntry, new_index_map,
 };
 use crate::config::Config;
-use crate::json::{Attributes, JSONType, INTERNER};
+use crate::json::{Attributes, INTERNER, JSONType};
 use crate::xml::XMLWriter;
-use crate::CliResult;
 
 fn density(graph_type: GraphType, order: usize, size: usize) -> f64 {
     match graph_type {

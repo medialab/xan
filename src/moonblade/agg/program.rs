@@ -11,10 +11,10 @@ use super::aggregators::{
     Frequencies, Last, LexicographicExtent, MedianType, Numbers, NumericExtent, RMSWelford, Sum,
     TemporalExtent, Type, Types, Values, Welford,
 };
-use crate::collections::{new_index_map, ClusteredInsertHashmap, IndexMap};
+use crate::collections::{ClusteredInsertHashmap, IndexMap, new_index_map};
 use crate::moonblade::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
-use crate::moonblade::interpreter::{concretize_expression, ConcreteExpr, EvaluationContext};
-use crate::moonblade::parser::{parse_aggregations, Aggregations};
+use crate::moonblade::interpreter::{ConcreteExpr, EvaluationContext, concretize_expression};
+use crate::moonblade::parser::{Aggregations, parse_aggregations};
 use crate::moonblade::types::{DynamicNumber, DynamicValue, FunctionArguments, HeadersIndex};
 
 // NOTE: we are boxing some ones to avoid going over size=64
@@ -228,7 +228,7 @@ impl Aggregator {
                                 record,
                                 headers_index,
                             )
-                            .evaluate(expr)
+                            .evaluate(expr);
                         }
                     }
                 } else {
@@ -267,7 +267,7 @@ impl Aggregator {
                                 record,
                                 headers_index,
                             )
-                            .evaluate(expr)
+                            .evaluate(expr);
                         }
                     }
                 } else {

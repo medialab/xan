@@ -3,9 +3,9 @@ use std::collections::VecDeque;
 use simd_csv::ByteRecord;
 
 use super::aggregators::{Sum, Welford};
-use super::program::{concretize_aggregations, is_agg_fn_name, AggregationProgram};
+use super::program::{AggregationProgram, concretize_aggregations, is_agg_fn_name};
 use crate::moonblade::error::{ConcretizationError, SpecifiedEvaluationError};
-use crate::moonblade::interpreter::{concretize_expression, ConcreteExpr, EvaluationContext};
+use crate::moonblade::interpreter::{ConcreteExpr, EvaluationContext, concretize_expression};
 use crate::moonblade::parser::parse_aggregations;
 use crate::moonblade::types::{DynamicNumber, DynamicValue, FunctionArguments, HeadersIndex};
 

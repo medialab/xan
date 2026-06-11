@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use bytesize::ByteSize;
-use encoding::{label::encoding_from_whatwg_label, DecoderTrap};
+use encoding::{DecoderTrap, label::encoding_from_whatwg_label};
 use flate2::read::MultiGzDecoder;
 use lazy_static::lazy_static;
 use namedlock::{AutoCleanup, LockSpace};
@@ -142,7 +142,7 @@ pub fn read_csv(args: BoundArguments) -> FunctionResult {
             Err(_) => {
                 return Err(EvaluationError::IO(
                     "error while reading CSV row".to_string(),
-                ))
+                ));
             }
             Ok(has_row) => {
                 if !has_row {

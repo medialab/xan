@@ -1,7 +1,7 @@
+use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::select::{SelectedColumns, Selection};
 use crate::util;
-use crate::CliResult;
 
 fn pluralize(name: &[u8]) -> Vec<u8> {
     let mut vec = name.to_vec();

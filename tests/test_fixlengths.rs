@@ -1,5 +1,5 @@
-use crate::workdir::Workdir;
 use crate::CsvRecord;
+use crate::workdir::Workdir;
 
 fn trim_trailing_empty(it: &CsvRecord) -> Vec<String> {
     let mut cloned = it.clone().unwrap();

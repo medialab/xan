@@ -2,11 +2,11 @@ use std::fs;
 
 use pariter::IteratorExt;
 
+use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::Program;
 use crate::select::SelectedColumns;
 use crate::util;
-use crate::CliResult;
 
 static USAGE: &str = r#"
 The transform command can be used to edit a selection of columns for each row

@@ -3,11 +3,11 @@ use std::num::NonZeroUsize;
 
 use simd_csv::ByteRecord;
 
+use crate::CliResult;
 use crate::cmd::parallel::Args as ParallelArgs;
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
 use crate::util;
-use crate::CliResult;
 
 static USAGE: &str = "
 Concatenates CSV data by column or by row.
@@ -159,7 +159,9 @@ impl Args {
             + self.flag_glob.is_some() as u8;
 
         if modes > 1 {
-            Err("this command either accepts arguments or --paths or --glob but not a combination of those!")?;
+            Err(
+                "this command either accepts arguments or --paths or --glob but not a combination of those!",
+            )?;
         }
 
         if let Some(paths_path) = self.flag_paths.as_ref() {
@@ -235,7 +237,10 @@ impl Args {
                         let current_headers = reader.byte_headers()?;
 
                         if current_headers != headers {
-                            Err(format!("found inconsistent headers as soon as \"{}\"!\nExpected: {:?}\nGot: {:?}", path, headers, current_headers))?;
+                            Err(format!(
+                                "found inconsistent headers as soon as \"{}\"!\nExpected: {:?}\nGot: {:?}",
+                                path, headers, current_headers
+                            ))?;
                         }
                     }
                     None => {
@@ -260,7 +265,12 @@ impl Args {
                         let current_headers = reader.byte_headers()?;
 
                         if headers.len() != current_headers.len() {
-                            Err(format!("found inconsistent column count as soon as \"{}\"!\nExpected: {}\nGot: {}", path, headers.len(), current_headers.len()))?;
+                            Err(format!(
+                                "found inconsistent column count as soon as \"{}\"!\nExpected: {}\nGot: {}",
+                                path,
+                                headers.len(),
+                                current_headers.len()
+                            ))?;
                         }
                     }
                     None => {

@@ -2,9 +2,9 @@ use std::collections::BTreeMap;
 
 use colored::Colorize;
 
+use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::util::{self, ColorMode};
-use crate::CliResult;
 
 fn find_duplicates(headers: &[String]) -> Vec<String> {
     let mut counts: BTreeMap<&str, usize> = BTreeMap::new();

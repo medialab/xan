@@ -1,8 +1,8 @@
 use std::io::{self, Write};
 
+use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::util;
-use crate::CliResult;
 
 static USAGE: &str = "
 Enumerate a CSV file by preprending an index column to each row.

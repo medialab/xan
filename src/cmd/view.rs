@@ -8,11 +8,11 @@ use numfmt::{Formatter, Precision};
 use simd_csv::{ByteRecord, StringRecord};
 use unicode_width::UnicodeWidthStr;
 
+use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::read::LeakySponge;
 use crate::select::SelectedColumns;
 use crate::util::{self, ColorMode};
-use crate::CliResult;
 
 #[derive(Debug, Clone, Copy, Default, Deserialize)]
 pub enum ComplexToggle {

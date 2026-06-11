@@ -5,7 +5,7 @@ use url::Url;
 
 use crate::collections::HashMap;
 use crate::moonblade::error::EvaluationError;
-use crate::temporal::{parse_any_temporal, parse_maybe_zoned, AnyTemporal, MaybeZoned};
+use crate::temporal::{AnyTemporal, MaybeZoned, parse_any_temporal, parse_maybe_zoned};
 use crate::urls::TaggedUrl;
 
 use super::{DynamicNumber, DynamicValue};
@@ -264,7 +264,8 @@ impl BoundArgument<'_> {
             Self::Cell(cell) => match parse_maybe_zoned(cell) {
                 Ok(maybe_zoned) => match maybe_zoned {
                     MaybeZoned::Civil(_) => Err(EvaluationError::TimeRelated(format!(
-                        "this operation requires given datetime {:?} to have timezone information but it has none. You can use `with_timezone` or `with_local_timezone` to indicate it if you know the correct one beforehand.", self
+                        "this operation requires given datetime {:?} to have timezone information but it has none. You can use `with_timezone` or `with_local_timezone` to indicate it if you know the correct one beforehand.",
+                        self
                     ))),
                     MaybeZoned::Zoned(zoned) => Ok(zoned),
                 },

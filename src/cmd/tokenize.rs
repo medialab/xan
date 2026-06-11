@@ -3,19 +3,19 @@ use std::ops::RangeInclusive;
 
 use paltoquet::stemmers::{fr::carry_stemmer, s_stemmer};
 use paltoquet::tokenizers::{
-    split_paragraphs, split_sentences, NgramsIteratorExt, WordToken, WordTokenKind,
-    WordTokenizerBuilder,
+    NgramsIteratorExt, WordToken, WordTokenKind, WordTokenizerBuilder, split_paragraphs,
+    split_sentences,
 };
 use pariter::IteratorExt;
 use regex::Regex;
 use simd_csv::ByteRecord;
 
+use crate::CliResult;
 use crate::collections::{HashMap, HashSet};
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{GlobalVariables, Program};
 use crate::select::SelectedColumns;
 use crate::util;
-use crate::CliResult;
 
 fn get_stemmer(name: &str) -> Result<fn(&str) -> Cow<str>, String> {
     Ok(match name {

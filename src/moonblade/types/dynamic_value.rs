@@ -6,19 +6,19 @@ use std::sync::Arc;
 use bstr::BString;
 use btoi::btoi;
 use jiff::{
+    Span, Zoned,
     civil::{Date, DateTime, Time},
     tz::TimeZone,
-    Span, Zoned,
 };
 use regex::Regex;
 use serde::{
-    de::{Deserializer, MapAccess, SeqAccess, Visitor},
     Deserialize, Serialize, Serializer,
+    de::{Deserializer, MapAccess, SeqAccess, Visitor},
 };
 use url::Url;
 
 use crate::temporal::{
-    parse_any_temporal, parse_maybe_zoned, AnyTemporal, MaybeZoned, DEFAULT_DATETIME_PARSER,
+    AnyTemporal, DEFAULT_DATETIME_PARSER, MaybeZoned, parse_any_temporal, parse_maybe_zoned,
 };
 
 use crate::collections::HashMap;
@@ -307,7 +307,7 @@ impl DynamicValue {
                     return Err(EvaluationError::TimeRelated(format!(
                         "could not parse {} as a temporal value",
                         string
-                    )))
+                    )));
                 }
             },
             Self::Bytes(bytes) => match parse_any_temporal(bytes.as_ref()) {
@@ -316,7 +316,7 @@ impl DynamicValue {
                     return Err(EvaluationError::TimeRelated(format!(
                         "could not parse {} as a temporal value",
                         bytes
-                    )))
+                    )));
                 }
             },
             _ => return Err(EvaluationError::from_cast(self, "temporal")),
@@ -330,7 +330,8 @@ impl DynamicValue {
 
         let mismatch_err = || {
             EvaluationError::TimeRelated(format!(
-                "this operation requires given datetime {:?} to have timezone information but it has none. You can use `with_timezone` or `with_local_timezone` to indicate it if you know the correct one beforehand.", self
+                "this operation requires given datetime {:?} to have timezone information but it has none. You can use `with_timezone` or `with_local_timezone` to indicate it if you know the correct one beforehand.",
+                self
             ))
         };
 
@@ -340,13 +341,13 @@ impl DynamicValue {
                 return Err(EvaluationError::TimeRelated(format!(
                     "this operation cannot work on a bare date ({})",
                     date
-                )))
+                )));
             }
             Self::Time(time) => {
                 return Err(EvaluationError::TimeRelated(format!(
                     "this operation cannot work on a bare time ({})",
                     time
-                )))
+                )));
             }
             _ => (),
         };

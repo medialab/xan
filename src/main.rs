@@ -534,9 +534,10 @@ impl<'a> From<&'a str> for CliError {
 impl From<regex::Error> for CliError {
     fn from(err: regex::Error) -> Self {
         match err {
-            regex::Error::CompiledTooBig(size) => {
-                Self::Other(format!("attempted to create too large a regex ({} bytes)! regexes are probably not the answer here, sorry :'(.", size))
-            }
+            regex::Error::CompiledTooBig(size) => Self::Other(format!(
+                "attempted to create too large a regex ({} bytes)! regexes are probably not the answer here, sorry :'(.",
+                size
+            )),
             _ => Self::Other(format!("{:?}", err)),
         }
     }
@@ -545,7 +546,10 @@ impl From<regex::Error> for CliError {
 impl From<regex_automata::meta::BuildError> for CliError {
     fn from(err: regex_automata::meta::BuildError) -> Self {
         if let Some(size) = err.size_limit() {
-            Self::Other(format!("attempted to create too large a regex ({} bytes)! regexes are probably not the answer here, sorry :'(.", size))
+            Self::Other(format!(
+                "attempted to create too large a regex ({} bytes)! regexes are probably not the answer here, sorry :'(.",
+                size
+            ))
         } else {
             Self::Other(format!("{:?}", err))
         }

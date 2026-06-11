@@ -483,9 +483,7 @@ mod tests {
         trie.add("http://lefigaro.fr/business").unwrap();
 
         assert!(trie.is_match("http://lemonde.fr").unwrap());
-        assert!(
-            trie.is_match("http://lemonde.fr/path/to.html").unwrap()
-        );
+        assert!(trie.is_match("http://lemonde.fr/path/to.html").unwrap());
         assert!(!trie.is_match("http://lefigaro.fr").unwrap());
         assert!(
             trie.is_match("http://lefigaro.fr/business/article.html")

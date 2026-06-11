@@ -1,14 +1,14 @@
 use std::io;
 
 use lazy_static::lazy_static;
-use regex::bytes::Regex as BytesRegex;
 use regex::Regex;
+use regex::bytes::Regex as BytesRegex;
 use unidecode::unidecode;
 
+use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::select::{SelectedColumns, Selection};
 use crate::util;
-use crate::CliResult;
 
 lazy_static! {
     static ref TO_UNDERSCORE_REGEX: Regex = Regex::new(r"[\s\-]").unwrap();

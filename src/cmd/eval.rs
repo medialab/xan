@@ -1,10 +1,10 @@
-use std::io::{self, stdout, Write};
+use std::io::{self, Write, stdout};
 
 use colored::Colorize;
 
+use crate::CliResult;
 use crate::moonblade::Program;
 use crate::util;
-use crate::CliResult;
 
 static USAGE: &str = "
 Debug command that can be used to evaluate a moonblade expression.

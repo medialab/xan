@@ -1,7 +1,7 @@
+use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
 use crate::util;
-use crate::CliResult;
 
 static USAGE: &str = "
 Drop columns of a CSV file using the same DSL as \"xan select\".

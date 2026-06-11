@@ -4,11 +4,11 @@ use std::path::Path;
 
 use regex::Regex;
 
-use crate::collections::{hash_map::Entry, HashMap, HashSet};
+use crate::CliResult;
+use crate::collections::{HashMap, HashSet, hash_map::Entry};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
 use crate::util::{self, FilenameTemplate};
-use crate::CliResult;
 
 static USAGE: &str = "
 Partition the given CSV data into chunks based on the values of a column.
@@ -157,13 +157,11 @@ impl Args {
                 let wtr = &mut current.as_mut().unwrap().1;
 
                 if self.flag_drop {
-                    wtr.write_record(row.iter().enumerate().filter_map(|(i, cell)| {
-                        if key_col == i {
-                            None
-                        } else {
-                            Some(cell)
-                        }
-                    }))?;
+                    wtr.write_record(
+                        row.iter()
+                            .enumerate()
+                            .filter_map(|(i, cell)| if key_col == i { None } else { Some(cell) }),
+                    )?;
                 } else {
                     wtr.write_byte_record(&row)?;
                 }
@@ -194,13 +192,11 @@ impl Args {
                 };
 
                 if self.flag_drop {
-                    wtr.write_record(row.iter().enumerate().filter_map(|(i, cell)| {
-                        if key_col == i {
-                            None
-                        } else {
-                            Some(cell)
-                        }
-                    }))?;
+                    wtr.write_record(
+                        row.iter()
+                            .enumerate()
+                            .filter_map(|(i, cell)| if key_col == i { None } else { Some(cell) }),
+                    )?;
                 } else {
                     wtr.write_byte_record(&row)?;
                 }

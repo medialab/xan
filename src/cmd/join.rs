@@ -11,13 +11,13 @@ use pariter::IteratorExt;
 use regex::bytes::{RegexSet, RegexSetBuilder};
 use simd_csv::{ByteRecord, Writer};
 
+use crate::CliResult;
 use crate::cmd::sort::{iter_cmp, iter_cmp_num};
-use crate::collections::{hash_map::Entry, HashMap, HashSet};
+use crate::collections::{HashMap, HashSet, hash_map::Entry};
 use crate::config::{Config, Delimiter};
 use crate::select::{SelectedColumns, Selection};
 use crate::urls::LRUTrieMultiMap;
 use crate::util;
-use crate::CliResult;
 
 #[derive(Deserialize, Clone, Copy)]
 enum DropKey {

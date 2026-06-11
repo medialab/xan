@@ -9,13 +9,13 @@ use rust_xlsxwriter::Workbook;
 use simd_csv::{ByteRecord, StringRecord, ZeroCopyReader};
 use unicode_width::UnicodeWidthStr;
 
+use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::json::{JSONEmptyMode, JSONTypeInferrenceBuffer, OmittableAttributes};
 use crate::moonblade::DynamicNumber;
 use crate::select::{SelectedColumns, Selection};
 use crate::util;
 use crate::xml::XMLWriter;
-use crate::CliResult;
 
 fn is_numeric_column(records: &[Vec<String>], column_index: usize) -> bool {
     let mut all_empty = true;

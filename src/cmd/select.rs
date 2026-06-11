@@ -1,10 +1,10 @@
 use std::fs;
 
+use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::SelectionProgram;
 use crate::select::SelectedColumns;
 use crate::util;
-use crate::CliResult;
 
 static USAGE: &str = "
 Select columns from CSV data using a shorthand notation or by evaluating an expression

@@ -1,9 +1,9 @@
 use simd_csv::ByteRecord;
 
+use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
 use crate::util;
-use crate::CliResult;
 
 // TODO: some --pivot option, that blanks hierarchically
 

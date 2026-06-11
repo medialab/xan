@@ -1,7 +1,7 @@
 use simd_csv::ByteRecord;
 
-use super::error::{ConcretizationError, SpecifiedEvaluationError};
 use super::Program;
+use super::error::{ConcretizationError, SpecifiedEvaluationError};
 
 #[derive(Clone, Debug)]
 pub struct ChooseProgram {

@@ -1,11 +1,11 @@
 use std::num::NonZeroUsize;
 
+use crate::CliResult;
 use crate::cmd::parallel::Args as ParallelArgs;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::AggregationProgram;
 use crate::select::SelectedColumns;
 use crate::util;
-use crate::CliResult;
 
 // NOTE: what was tried for parallelization:
 //   1. Horizontal parallelization (by execution unit of the aggregation planner)

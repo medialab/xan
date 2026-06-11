@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::env;
 use std::fs::{self, File};
-use std::io::{self, stderr, stdout, IsTerminal, Write};
+use std::io::{self, IsTerminal, Write, stderr, stdout};
 use std::iter::once;
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
@@ -15,7 +15,7 @@ use std::time::Duration;
 use bstr::ByteSlice;
 use colored::{ColoredString, Colorize};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use rayon::{prelude::*, ThreadPoolBuilder};
+use rayon::{ThreadPoolBuilder, prelude::*};
 use simd_csv::ByteRecord;
 
 use crate::cmd::progress::get_progress_style;
@@ -25,7 +25,7 @@ use crate::collections::{
 };
 use crate::config::{Compression, Config, Delimiter};
 use crate::moonblade::{AggregationProgram, GroupAggregationProgram, Stats};
-use crate::processing::{parse_pipeline, Children};
+use crate::processing::{Children, parse_pipeline};
 use crate::select::SelectedColumns;
 use crate::util::{self, FilenameTemplate};
 use crate::{CliError, CliResult};
@@ -186,17 +186,19 @@ impl ProcessManager {
         let children_map_handle = self.children_map.clone();
         let bars_handle = self.bars.clone();
 
-        thread::spawn(move || loop {
-            let mut children_map = children_map_handle.lock().unwrap();
-            let must_abort = check_running_processes(&mut children_map, &bars_handle);
+        thread::spawn(move || {
+            loop {
+                let mut children_map = children_map_handle.lock().unwrap();
+                let must_abort = check_running_processes(&mut children_map, &bars_handle);
 
-            if must_abort {
-                std::process::exit(1);
+                if must_abort {
+                    std::process::exit(1);
+                }
+
+                std::mem::drop(children_map);
+
+                thread::sleep(Duration::from_millis(500));
             }
-
-            std::mem::drop(children_map);
-
-            thread::sleep(Duration::from_millis(500));
         });
     }
 
@@ -1166,7 +1168,9 @@ impl Args {
 
     fn cat(self, inputs: Vec<Input>) -> CliResult<()> {
         if !self.has_preprocessing() {
-            Err("`xan parallel cat` without -P/--preprocess or -H/--shell-preprocess is counterproductive!\n`xan cat rows` will be faster.")?
+            Err(
+                "`xan parallel cat` without -P/--preprocess or -H/--shell-preprocess is counterproductive!\n`xan cat rows` will be faster.",
+            )?
         }
 
         let process_manager = self.process_manager(inputs.len());
@@ -1192,11 +1196,18 @@ impl Args {
                 }
             } else {
                 match expected {
-                    Some(expected_headers) if headers.len() != expected_headers.len() => Err(format!("found inconsistent column count as soon as \"{}\"!\nExpected: {}\nGot: {}", path, headers.len(), expected_headers.len()))?,
+                    Some(expected_headers) if headers.len() != expected_headers.len() => {
+                        Err(format!(
+                            "found inconsistent column count as soon as \"{}\"!\nExpected: {}\nGot: {}",
+                            path,
+                            headers.len(),
+                            expected_headers.len()
+                        ))?
+                    }
                     None => {
                         *expected = Some(headers.clone());
                     }
-                    _ => ()
+                    _ => (),
                 }
             }
 
@@ -1587,7 +1598,9 @@ impl Args {
 
     fn map(self, inputs: Vec<Input>) -> CliResult<()> {
         if !self.has_preprocessing() {
-            Err("`xan parallel map` without -P/--preprocess or -H/--shell-preprocess is pointless ;).")?;
+            Err(
+                "`xan parallel map` without -P/--preprocess or -H/--shell-preprocess is pointless ;).",
+            )?;
         }
 
         // NOTE: xan p map on chunked file is basically a parallel xan split, but with some caveats

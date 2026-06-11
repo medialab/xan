@@ -1,26 +1,26 @@
 use std::fmt::{Display, Write as FmtWrite};
-use std::io::{stdout, Write};
+use std::io::{Write, stdout};
 use std::num::NonZeroUsize;
 
 use colored::Colorize;
 use colorgrad::Gradient;
-use jiff::{tz::TimeZone, Timestamp, Unit};
+use jiff::{Timestamp, Unit, tz::TimeZone};
 use ordered_float::NotNan;
 use pad::{Alignment, PadStr};
 use simd_csv::ByteRecord;
 use unicode_width::UnicodeWidthStr;
 
+use crate::CliResult;
 use crate::cmd::heatmap::CramMode;
 use crate::cmd::plot::{Aggregation, Granularity};
 use crate::cmd::stats::linear_time_median;
-use crate::collections::{new_index_map, ClusteredInsertHashmap, IndexMap};
+use crate::collections::{ClusteredInsertHashmap, IndexMap, new_index_map};
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{TemporalExtent, Welford};
 use crate::scales::{Extent, ExtentBuilder, GradientName, HistogramBuilder, Scale, ScaleType};
 use crate::select::{SelectedColumns, Selection};
-use crate::temporal::{parse_fuzzy_temporal, FuzzyTemporal, TimestampExt, ZonedExt};
+use crate::temporal::{FuzzyTemporal, TimestampExt, ZonedExt, parse_fuzzy_temporal};
 use crate::util::{self, ColorMode, ColorOrStyles};
-use crate::CliResult;
 
 fn compute_name_hash(name: &[u8]) -> usize {
     let mut sum: usize = 0;
@@ -961,7 +961,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         + args.flag_rainbow as u8;
 
     if color_mode > 1 {
-        Err("only one of -c/--category, -R/--rainbow, -G/--gradient, -V/--vertical-gradient or -B/--background-gradient can be used at once!")?;
+        Err(
+            "only one of -c/--category, -R/--rainbow, -G/--gradient, -V/--vertical-gradient or -B/--background-gradient can be used at once!",
+        )?;
     }
 
     if args.flag_striped
@@ -970,7 +972,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             || args.flag_background_gradient.is_some()
             || args.flag_vertical_gradient.is_some())
     {
-        Err("-z/--striped does not work with -c/--category, -G/--gradient, -V/--vertical-gradient nor -B/--background-gradient!")?;
+        Err(
+            "-z/--striped does not work with -c/--category, -G/--gradient, -V/--vertical-gradient nor -B/--background-gradient!",
+        )?;
     }
 
     if args.flag_along_rows {

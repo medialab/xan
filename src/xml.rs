@@ -1,8 +1,8 @@
 use std::io::{Result, Write};
 
 use quick_xml::{
-    events::{attributes::Attribute, BytesDecl, BytesEnd, BytesStart, BytesText, Event},
     Writer,
+    events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event, attributes::Attribute},
 };
 
 pub struct XMLWriter<W: Write> {

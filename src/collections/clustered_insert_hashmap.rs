@@ -6,7 +6,7 @@
 // but that it is not guaranteed to be the insertion order!
 use std::hash::Hash;
 
-use super::{index_map::Entry as IndexMapEntry, new_index_map, IndexMap};
+use super::{IndexMap, index_map::Entry as IndexMapEntry, new_index_map};
 
 #[derive(Debug, Clone)]
 pub struct ClusteredInsertHashmap<K, V> {

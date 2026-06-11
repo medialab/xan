@@ -4,11 +4,11 @@ use std::slice;
 use bstr::ByteSlice;
 use simd_csv::ByteRecord;
 
+use crate::CliError;
+use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
 use crate::util;
-use crate::CliError;
-use crate::CliResult;
 
 use crate::moonblade::{DynamicValue, Program};
 

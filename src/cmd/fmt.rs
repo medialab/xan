@@ -1,8 +1,8 @@
 use std::fs;
 
+use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::util;
-use crate::CliResult;
 
 struct TempFileGuard(String);
 
@@ -77,7 +77,9 @@ impl Args {
                 Some(p) => {
                     if let Some(output) = &self.flag_output {
                         if output != p {
-                            Err("-i/--in-place does not work if -o/--output is different than input!")?
+                            Err(
+                                "-i/--in-place does not work if -o/--output is different than input!",
+                            )?
                         }
                     }
 

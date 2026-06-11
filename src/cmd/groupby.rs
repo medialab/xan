@@ -2,6 +2,7 @@ use std::num::NonZeroUsize;
 
 use simd_csv::ByteRecord;
 
+use crate::CliResult;
 use crate::cmd::parallel::Args as ParallelArgs;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{
@@ -9,7 +10,6 @@ use crate::moonblade::{
 };
 use crate::select::SelectedColumns;
 use crate::util;
-use crate::CliResult;
 
 static USAGE: &str = "
 Group a CSV file by values contained in a column selection then aggregate data per

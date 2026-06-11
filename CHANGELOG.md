@@ -14,6 +14,7 @@
 * Adding the `hostname` moonblade function.
 * Adding `xan scrape --paths, --path-column, --docs, --docs-column, -D/--stdin-doc & --glob`.
 * Adding `xan from -f=(json|ndjson) --path <path>`.
+* Adding `xan from -f toml`.
 
 *Fixes*
 

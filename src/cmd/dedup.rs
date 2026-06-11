@@ -1,4 +1,4 @@
-use std::io::{stdout, Write};
+use std::io::{Write, stdout};
 use std::rc::Rc;
 use std::str;
 
@@ -8,14 +8,14 @@ use simd_csv::ByteRecord;
 use transient_btree_index::{BtreeConfig, BtreeIndex};
 use unicode_width::UnicodeWidthStr;
 
+use crate::CliResult;
 use crate::collections::{
-    hash_map::Entry, index_map::Entry as IndexMapEntry, new_index_map, HashMap, HashSet, IndexMap,
+    HashMap, HashSet, IndexMap, hash_map::Entry, index_map::Entry as IndexMapEntry, new_index_map,
 };
 use crate::config::{Config, Delimiter};
 use crate::moonblade::ChooseProgram;
 use crate::select::{SelectedColumns, Selection};
 use crate::util;
-use crate::CliResult;
 
 static USAGE: &str = "
 Deduplicate the rows of a CSV file. Runs in O(n) time, consuming O(c) memory, c being
@@ -564,11 +564,7 @@ impl<W: Write> RecordWriter<'_, W> {
             emit = !emit;
         }
 
-        if emit {
-            b"false"
-        } else {
-            b"true"
-        }
+        if emit { b"false" } else { b"true" }
     }
 
     fn emit_record(&mut self, record: &ByteRecord) -> CliResult<()> {

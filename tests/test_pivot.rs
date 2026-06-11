@@ -147,7 +147,9 @@ fn pivot_multiple_selection() {
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
-        svec!["name", "NL_2000", "NL_2010", "NL_2020", "US_2000", "US_2010", "US_2020"],
+        svec![
+            "name", "NL_2000", "NL_2010", "NL_2020", "US_2000", "US_2010", "US_2020"
+        ],
         svec!["Amsterdam", "1005", "1065", "1158", "", "", ""],
         svec!["Seattle", "", "", "", "564", "608", "738"],
         svec!["New York City", "", "", "", "8015", "8175", "8772"],

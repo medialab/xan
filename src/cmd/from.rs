@@ -6,18 +6,18 @@ use std::{
     path::Path,
 };
 
-use calamine::{open_workbook_auto_from_rs, Data, Reader};
+use calamine::{Data, Reader, open_workbook_auto_from_rs};
 use flate2::read::MultiGzDecoder;
 use jiff::civil::{DateTime, Time};
 use serde_json::{Map, Value};
 use simd_csv::ByteRecord;
 
+use crate::CliError;
+use crate::CliResult;
 use crate::config::Config;
 use crate::json::{GetPathBorrowed, GetPathOwned, JSONTabularizer};
 use crate::moonblade::Path as JSONPath;
 use crate::util::{self, ChunksIteratorExt};
-use crate::CliError;
-use crate::CliResult;
 
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(try_from = "String")]
@@ -25,6 +25,7 @@ enum SupportedFormat {
     Xls,
     NdJSON,
     Json,
+    Toml,
     Text,
     Npy,
     Tar,
@@ -38,6 +39,7 @@ impl SupportedFormat {
             "xls" | "xlsx" | "xlsb" | "ods" => Self::Xls,
             "jsonl" | "ndjson" => Self::NdJSON,
             "json" => Self::Json,
+            "toml" => Self::Toml,
             "txt" | "text" | "lines" | "log" => Self::Text,
             "npy" => Self::Npy,
             "tar" | "tar.gz" => Self::Tar,
@@ -79,6 +81,7 @@ Supported formats:
     - xls, xlsb, xlsx: Excel spreadsheet
     - json: JSON array or object
     - ndjson, jsonl: newline-delimited JSON data
+    - toml: TOML configuration
     - txt: text lines
     - npy: numpy array
     - tar: tarball archive
@@ -110,7 +113,7 @@ Excel/OpenOffice-related options:
     --sheet-name <name>  Name of the sheet to convert.
     --list-sheets        Print sheet names instead of converting file.
 
-JSON options:
+JSON/TOML options:
     --sample-size <n>      Number of records to sample before emitting headers.
                            Set to -1 to sample ALL records before emitting headers.
                            This may cost a lot of memory but will ensure all possible
@@ -332,11 +335,21 @@ impl Args {
         Ok(tabularizer.flush()?)
     }
 
-    fn convert_json(&self) -> CliResult<()> {
-        let rdr = BufReader::new(Config::new(&self.arg_input).io_reader()?);
+    fn convert_json_like(&self, format: SupportedFormat) -> CliResult<()> {
+        let mut rdr = BufReader::new(Config::new(&self.arg_input).io_reader()?);
 
-        let mut value: Value =
-            serde_json::from_reader(rdr).map_err(|err| CliError::Other(err.to_string()))?;
+        let mut value: Value = match format {
+            SupportedFormat::Json => {
+                serde_json::from_reader(rdr).map_err(|err| CliError::Other(err.to_string()))?
+            }
+            SupportedFormat::Toml => {
+                let mut buffer = Vec::new();
+                rdr.read_to_end(&mut buffer)?;
+
+                toml::from_slice(&buffer).map_err(|err| CliError::Other(err.to_string()))?
+            }
+            _ => unreachable!(),
+        };
 
         if let Some(path) = self.path()? {
             value = value
@@ -498,7 +511,7 @@ impl Args {
 
     fn convert_markdown(&self) -> CliResult<()> {
         use comrak::nodes::NodeValue;
-        use comrak::{parse_document, Arena, Options};
+        use comrak::{Arena, Options, parse_document};
 
         let mut rdr = Config::new(&self.arg_input).io_reader()?;
         let mut buf = String::new();
@@ -682,7 +695,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     match target_format {
         SupportedFormat::Xls => args.convert_xls(),
         SupportedFormat::NdJSON => args.convert_ndjson(),
-        SupportedFormat::Json => args.convert_json(),
+        SupportedFormat::Json => args.convert_json_like(target_format),
+        SupportedFormat::Toml => args.convert_json_like(target_format),
         SupportedFormat::Text => args.convert_text_lines(),
         SupportedFormat::Npy => args.convert_npy(),
         SupportedFormat::Tar => args.convert_tar(),

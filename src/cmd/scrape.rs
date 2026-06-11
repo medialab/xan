@@ -6,7 +6,7 @@ use std::str::from_utf8;
 
 use bstr::ByteSlice;
 use colored::Colorize;
-use encoding::{label::encoding_from_whatwg_label, DecoderTrap, EncodingRef};
+use encoding::{DecoderTrap, EncodingRef, label::encoding_from_whatwg_label};
 use flate2::read::MultiGzDecoder;
 use lazy_static::lazy_static;
 use pariter::IteratorExt;
@@ -904,7 +904,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if input_modes == 0 {
         Err("must take at least one <input> or --paths or --docs or --glob or -D/--stdin-doc!")?;
     } else if input_modes > 1 {
-        Err("can only take <inputs>... or --paths or --docs or --glob or -D/--stdin-doc but not a combination of those!")?;
+        Err(
+            "can only take <inputs>... or --paths or --docs or --glob or -D/--stdin-doc but not a combination of those!",
+        )?;
     }
 
     let (column_index, mut reader) = args.reader()?;

@@ -5,7 +5,7 @@ use std::ops::{Deref, Sub};
 
 use colored::Colorize;
 use colorgrad::{Gradient, GradientBuilder};
-use jiff::{tz::TimeZone, Timestamp, Unit};
+use jiff::{Timestamp, Unit, tz::TimeZone};
 
 use crate::temporal::ZonedExt;
 use crate::util;
@@ -168,27 +168,27 @@ impl<T: Copy + PartialOrd> Extent<T> {
 
     #[inline]
     pub fn is_constant(&self) -> bool {
-        self.0 .0 == self.0 .1
+        self.0.0 == self.0.1
     }
 
     #[inline]
     pub fn set_min(&mut self, value: T) {
-        self.0 .0 = value;
+        self.0.0 = value;
     }
 
     #[inline]
     pub fn set_max(&mut self, value: T) {
-        self.0 .1 = value;
+        self.0.1 = value;
     }
 
     #[inline]
     pub fn min(&self) -> T {
-        self.0 .0
+        self.0.0
     }
 
     #[inline]
     pub fn max(&self) -> T {
-        self.0 .1
+        self.0.1
     }
 
     pub fn into_inner(self) -> (T, T) {
@@ -196,12 +196,12 @@ impl<T: Copy + PartialOrd> Extent<T> {
     }
 
     fn process(&mut self, value: T) {
-        if value < self.0 .0 {
-            self.0 .0 = value;
+        if value < self.0.0 {
+            self.0.0 = value;
         }
 
-        if value > self.0 .1 {
-            self.0 .1 = value;
+        if value > self.0.1 {
+            self.0.1 = value;
         }
     }
 }

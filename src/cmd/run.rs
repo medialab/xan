@@ -3,9 +3,9 @@ use std::fs;
 use std::io;
 use std::process::{Command, Stdio};
 
-use crate::processing::{parse_pipeline, Children};
-use crate::util;
 use crate::CliResult;
+use crate::processing::{Children, parse_pipeline};
+use crate::util;
 
 static USAGE: &str = "
 Run the given xan pipeline or execute a xan script.

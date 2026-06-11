@@ -109,7 +109,7 @@ pub fn first(mut args: BoundArguments) -> FunctionResult {
             return Err(EvaluationError::Cast {
                 from_value: arg.into_owned(),
                 to_type: "sequence".to_string(),
-            })
+            });
         }
     })
 }
@@ -125,7 +125,7 @@ pub fn last(mut args: BoundArguments) -> FunctionResult {
             return Err(EvaluationError::Cast {
                 from_value: arg.into_owned(),
                 to_type: "sequence".to_string(),
-            })
+            });
         }
     })
 }
@@ -325,7 +325,7 @@ pub fn compact(mut args: BoundArguments) -> FunctionResult {
             return Err(EvaluationError::Cast {
                 from_value: arg.into_owned(),
                 to_type: "list".to_string(),
-            })
+            });
         }
     })
 }

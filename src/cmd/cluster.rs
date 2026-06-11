@@ -2,12 +2,12 @@ use std::io::{self, Write};
 
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 
-use crate::collections::{hash_map::Entry, HashMap};
+use crate::CliResult;
+use crate::collections::{HashMap, hash_map::Entry};
 use crate::config::{Config, Delimiter};
 use crate::moonblade::Program;
 use crate::select::SelectedColumns;
 use crate::util;
-use crate::CliResult;
 
 static USAGE: &str = "
 TODO...

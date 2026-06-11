@@ -6,7 +6,7 @@ use std::iter::repeat_n;
 use std::ops;
 use std::str::FromStr;
 
-use crate::collections::{new_index_map, IndexMap};
+use crate::collections::{IndexMap, new_index_map};
 
 #[derive(Clone, Deserialize)]
 #[serde(try_from = "String")]

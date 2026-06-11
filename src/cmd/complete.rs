@@ -1,17 +1,17 @@
-use std::io::{stdout, Write};
+use std::io::{Write, stdout};
 use std::str;
 
 use bstr::BStr;
 use jiff::Unit;
 use simd_csv::ByteRecord;
 
+use crate::CliResult;
 use crate::collections::ClusteredInsertHashmap;
 use crate::config::{Config, Delimiter};
 use crate::scales::{Extent, ExtentBuilder};
 use crate::select::SelectedColumns;
 use crate::temporal;
 use crate::util;
-use crate::CliResult;
 
 static USAGE: &str = r#"
 Complete CSV data by adding rows for missing values of a given column.

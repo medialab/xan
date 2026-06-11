@@ -1,7 +1,7 @@
+use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
 use crate::util;
-use crate::CliResult;
 
 static USAGE: &str = "
 Fill empty cells of a CSV file by filling them with any non-empty value seen

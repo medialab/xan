@@ -4,11 +4,11 @@ use bstr::ByteSlice;
 use pariter::IteratorExt;
 use simd_csv::ByteRecord;
 
+use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::SelectionProgram;
 use crate::select::SelectedColumns;
 use crate::util;
-use crate::CliResult;
 
 static USAGE: &str = r#"
 The map command evaluates an expression for each row of the given CSV file and

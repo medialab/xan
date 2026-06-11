@@ -1,13 +1,13 @@
-use std::io::{stdout, Write};
+use std::io::{Write, stdout};
 
 use colored::Colorize;
 use lazy_static::lazy_static;
 use regex::{Captures, Regex};
 use textwrap::{fill, indent};
 
+use crate::CliResult;
 use crate::scales::GradientName;
 use crate::util;
-use crate::CliResult;
 
 fn wrap(string: &str) -> String {
     fill(string, 81)

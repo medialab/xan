@@ -6,10 +6,10 @@ use bstr::ByteSlice;
 use regex::bytes::Regex;
 use simd_csv::ByteRecord;
 
+use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::select::{SelectedColumns, Selection};
 use crate::util;
-use crate::CliResult;
 
 enum GenericReader<R: Read> {
     Csv(simd_csv::Reader<R>, Vec<ByteRecord>),
@@ -443,7 +443,11 @@ impl Splitter {
                 }
 
                 if record.len() > max {
-                    Err(format!("Number of splits exceeded expected maximum {} but got {}. Consider using the --too-many flag to handle extra splitted cells.", max, record.len()))?;
+                    Err(format!(
+                        "Number of splits exceeded expected maximum {} but got {}. Consider using the --too-many flag to handle extra splitted cells.",
+                        max,
+                        record.len()
+                    ))?;
                 }
             }
             TooManyMode::Drop => {
@@ -487,7 +491,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         + args.flag_regex as u8;
 
     if segmenters_count > 1 {
-        Err("Only one of -r/--regex, --fixed-width, --widths, --cuts or --offsets argument can be used!")?;
+        Err(
+            "Only one of -r/--regex, --fixed-width, --widths, --cuts or --offsets argument can be used!",
+        )?;
     }
 
     let regex_mode_count =
@@ -525,7 +531,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Err("--into and --prefix cannot be used together!")?;
         }
         (Some(max), Some(names), _) if names.len() > max => {
-            Err(format!("--into cannot specify more column names than --max : got {} for --into and {} for --max", names.len(), max))?;
+            Err(format!(
+                "--into cannot specify more column names than --max : got {} for --into and {} for --max",
+                names.len(),
+                max
+            ))?;
         }
         _ => (),
     }
@@ -561,7 +571,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             RegexMode::Match
         } else if args.flag_captures {
             if pattern.captures_len() < 2 {
-                Err("-c/--captures should be given a pattern capturing at least one thing (check your parentheses)!")?;
+                Err(
+                    "-c/--captures should be given a pattern capturing at least one thing (check your parentheses)!",
+                )?;
             }
 
             if new_column_names.is_none() {
@@ -581,7 +593,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             RegexMode::Captures
         } else if args.flag_all_captures {
             if pattern.captures_len() < 2 {
-                Err("-C/--all-captures should be given a pattern capturing at least one thing (check your parentheses)!")?;
+                Err(
+                    "-C/--all-captures should be given a pattern capturing at least one thing (check your parentheses)!",
+                )?;
             }
 
             RegexMode::AllCaptures
@@ -593,7 +607,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         if matches!((&new_column_names, splitter.static_count_splits()), (Some(names), Some(expected_count)) if names.len() != expected_count)
         {
-            Err("--into cannot specify more column names than given regex capture groups when using -c/--captures!")?;
+            Err(
+                "--into cannot specify more column names than given regex capture groups when using -c/--captures!",
+            )?;
         }
 
         splitter
@@ -631,14 +647,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         if let Some(names) = &new_column_names {
             if names.len() > splitter.static_count_splits().unwrap() {
-                Err("--into cannot specify more column names than implied by --widths, --cuts or --offsets!")?;
+                Err(
+                    "--into cannot specify more column names than implied by --widths, --cuts or --offsets!",
+                )?;
             }
         }
 
         let mut offsets = splitter.as_offsets().unwrap().to_vec();
 
         if !offsets.is_sorted() {
-            Err(format!("values given to --cuts or --offsets should be monotonically increasing but got {}!", &args.arg_separator))?;
+            Err(format!(
+                "values given to --cuts or --offsets should be monotonically increasing but got {}!",
+                &args.arg_separator
+            ))?;
         }
 
         let len_before = offsets.len();

@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::fs;
 use std::num::{NonZeroU8, NonZeroUsize};
-use std::str::{from_utf8, Utf8Error};
+use std::str::{Utf8Error, from_utf8};
 use std::sync::Arc;
 
 use aho_corasick::AhoCorasick;
@@ -13,13 +13,13 @@ use regex::bytes::{Regex, RegexBuilder};
 use regex_automata::{meta::Regex as RegexSet, util::syntax};
 use simd_csv::ByteRecord;
 
-use crate::collections::{new_index_map, ContextBuffer, HashMap, IndexMap};
+use crate::CliError;
+use crate::CliResult;
+use crate::collections::{ContextBuffer, HashMap, IndexMap, new_index_map};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
 use crate::urls::{LRUStems, LRUTrieMap, TaggedUrl};
 use crate::util;
-use crate::CliError;
-use crate::CliResult;
 
 #[inline]
 fn try_any<'c, F, E>(cells: impl Iterator<Item = &'c [u8]>, predicate: F) -> Result<bool, E>
@@ -924,17 +924,19 @@ impl Args {
                     Matcher::UrlPrefix(LRUStems::from_tagged_url(&tagged_url, true))
                 } else if let Some(k) = self.flag_levenshtein.or(self.flag_damerau_levenshtein) {
                     Matcher::Levenshtein(LevenshteinSet {
-                        dfas: vec![LevenshteinAutomatonBuilder::new(
-                            k.get(),
-                            self.flag_damerau_levenshtein.is_some(),
-                        )
-                        .build_dfa(
-                            &(if self.flag_ignore_case {
-                                pattern.to_lowercase()
-                            } else {
-                                pattern.to_string()
-                            }),
-                        )],
+                        dfas: vec![
+                            LevenshteinAutomatonBuilder::new(
+                                k.get(),
+                                self.flag_damerau_levenshtein.is_some(),
+                            )
+                            .build_dfa(
+                                &(if self.flag_ignore_case {
+                                    pattern.to_lowercase()
+                                } else {
+                                    pattern.to_string()
+                                }),
+                            ),
+                        ],
                         case_insensitive: self.flag_ignore_case,
                     })
                 } else if self.is_replacing() {
@@ -1073,7 +1075,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         + args.flag_damerau_levenshtein.is_some() as u8;
 
     if matchers_count > 1 {
-        Err("must select only one of -e/--exact, -N/--non-empty, -E/--empty, -u/--url-prefix, -L/--levenshtein, -D/--damerau-levenshtein or -r/--regex!")?;
+        Err(
+            "must select only one of -e/--exact, -N/--non-empty, -E/--empty, -u/--url-prefix, -L/--levenshtein, -D/--damerau-levenshtein or -r/--regex!",
+        )?;
     }
 
     if args.flag_overlapping
@@ -1091,7 +1095,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         || args.flag_unique_matches.is_some())
         && args.flag_invert_match
     {
-        Err("-c/--count, -f,--flag, -R/--replace, -b/--breakdown & -U/--unique-matches do not work with -v/--invert-match!")?;
+        Err(
+            "-c/--count, -f,--flag, -R/--replace, -b/--breakdown & -U/--unique-matches do not work with -v/--invert-match!",
+        )?;
     }
 
     if (args.flag_empty || args.flag_non_empty)
@@ -1134,21 +1140,29 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         + args.flag_flag.is_some() as u8;
 
     if actions_count > 1 {
-        Err("must use only one of -R/--replace, --replacement-column, -b/--breakdown, -c/--count, -f/--flag or -U/--unique-matches!")?;
+        Err(
+            "must use only one of -R/--replace, --replacement-column, -b/--breakdown, -c/--count, -f/--flag or -U/--unique-matches!",
+        )?;
     }
 
     if actions_count > 0 && args.flag_fast_parser {
-        Err("-Z/--fast-parser only work with the command default mode.\nNo -R/--replace, --replacement-column, -b/--breakdown, -c/--count, -f/--flag nor -U/--unique-matches!")?;
+        Err(
+            "-Z/--fast-parser only work with the command default mode.\nNo -R/--replace, --replacement-column, -b/--breakdown, -c/--count, -f/--flag nor -U/--unique-matches!",
+        )?;
     }
 
     let tracking_context = args.flag_before_context.is_some() || args.flag_after_context.is_some();
 
     if actions_count > 0 && tracking_context {
-        Err("-B/--before-context & -A/--after-context only work with the command default mode.\nNo -R/--replace, --replacement-column, -b/--breakdown, -c/--count, -f/--flag nor -U/--unique-matches!")?;
+        Err(
+            "-B/--before-context & -A/--after-context only work with the command default mode.\nNo -R/--replace, --replacement-column, -b/--breakdown, -c/--count, -f/--flag nor -U/--unique-matches!",
+        )?;
     }
 
     if args.flag_every_column && actions_count > 0 {
-        Err("--every-column does not work with -R/--replace, --replacement-column, -b/--breakdown, -c/--count nor -U/--unique-matches!")?;
+        Err(
+            "--every-column does not work with -R/--replace, --replacement-column, -b/--breakdown, -c/--count nor -U/--unique-matches!",
+        )?;
     }
 
     let threads = util::parallelization(args.flag_parallel, args.flag_threads);
@@ -1159,7 +1173,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         if tracking_context {
-            Err("-B/--before-context & -A/--after-context does not work with -p/--parallel nor -t/--threads!")?;
+            Err(
+                "-B/--before-context & -A/--after-context does not work with -p/--parallel nor -t/--threads!",
+            )?;
         }
     }
 
@@ -1280,7 +1296,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     // Fast parser path, with selection
     if args.flag_fast_parser && args.flag_select.is_some() {
         if tracking_context {
-            Err("-B/--before-context & -A/--after-context does not work with -Z/--fast-parser & -s/--select as it negates its performance benefit.")?;
+            Err(
+                "-B/--before-context & -A/--after-context does not work with -Z/--fast-parser & -s/--select as it negates its performance benefit.",
+            )?;
         }
 
         let mut rdr = rconfig.simd_zero_copy_reader()?;

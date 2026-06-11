@@ -1,5 +1,5 @@
-use crate::util;
 use crate::CliResult;
+use crate::util;
 
 static USAGE: &str = "
 Print script parts necessary to activate xan completions, tailored

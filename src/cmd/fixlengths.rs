@@ -1,9 +1,9 @@
 use std::cmp::Ordering;
 use std::iter::repeat_n;
 
+use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::util;
-use crate::CliResult;
 
 static USAGE: &str = "
 Transforms CSV data so that all rows have the same number of columns. The number

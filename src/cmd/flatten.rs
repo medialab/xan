@@ -6,10 +6,10 @@ use regex::{Captures, RegexBuilder};
 use simd_csv::{ByteRecord, StringRecord};
 use unicode_width::UnicodeWidthStr;
 
+use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
 use crate::util::{self, ColorMode};
-use crate::CliResult;
 
 static USAGE: &str = "
 Prints flattened records such that fields are labeled separated by a new line.

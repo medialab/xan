@@ -120,19 +120,19 @@ impl ArgExtent {
     }
 
     pub fn min(&self) -> Option<DynamicNumber> {
-        self.extent.as_ref().map(|e| e.0 .0)
+        self.extent.as_ref().map(|e| e.0.0)
     }
 
     pub fn max(&self) -> Option<DynamicNumber> {
-        self.extent.as_ref().map(|e| e.1 .0)
+        self.extent.as_ref().map(|e| e.1.0)
     }
 
     pub fn argmin(&self) -> Option<&(usize, ByteRecord, Option<usize>)> {
-        self.extent.as_ref().map(|e| &e.0 .1)
+        self.extent.as_ref().map(|e| &e.0.1)
     }
 
     pub fn argmax(&self) -> Option<&(usize, ByteRecord, Option<usize>)> {
-        self.extent.as_ref().map(|e| &e.1 .1)
+        self.extent.as_ref().map(|e| &e.1.1)
     }
 
     pub fn merge(&mut self, other: Self) {

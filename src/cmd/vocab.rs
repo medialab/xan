@@ -13,13 +13,13 @@ use std::rc::Rc;
 use bstr::ByteSlice;
 use simd_csv::ByteRecord;
 
+use crate::CliError;
+use crate::CliResult;
 use crate::collections::ClusteredInsertHashmap;
-use crate::collections::{hash_map::Entry, HashMap};
+use crate::collections::{HashMap, hash_map::Entry};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
 use crate::util;
-use crate::CliError;
-use crate::CliResult;
 
 #[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(try_from = "String")]
@@ -617,7 +617,7 @@ impl TryFrom<String> for TfWeighting {
                 return Err(format!(
                     "unsupported significance --tf-weight \"{}\"",
                     &value
-                ))
+                ));
             }
         })
     }

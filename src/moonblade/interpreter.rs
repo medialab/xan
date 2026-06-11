@@ -7,12 +7,12 @@ use simd_csv::ByteRecord;
 use crate::collections::HashMap;
 
 use super::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
-use super::functions::special::{get_special_function, RuntimeFunction as SpecialFunction};
-use super::functions::{get_function, Function};
-use super::parser::{parse_expression, Expr, FunctionCall};
+use super::functions::special::{RuntimeFunction as SpecialFunction, get_special_function};
+use super::functions::{Function, get_function};
+use super::parser::{Expr, FunctionCall, parse_expression};
 use super::types::{
-    BoundArgument, BoundArguments, ColumIndexationBy, DynamicValue, EvaluationResult,
-    FunctionArguments, HeadersIndex, LambdaArguments, BOUND_ARGUMENTS_CAPACITY,
+    BOUND_ARGUMENTS_CAPACITY, BoundArgument, BoundArguments, ColumIndexationBy, DynamicValue,
+    EvaluationResult, FunctionArguments, HeadersIndex, LambdaArguments,
 };
 
 pub type GlobalNames = [&'static str];
@@ -536,11 +536,7 @@ fn concretize_call(
 
             if let Ok(value) = condition.try_unwrap() {
                 let path = if function_name == "if" {
-                    if value.is_truthy() {
-                        1
-                    } else {
-                        2
-                    }
+                    if value.is_truthy() { 1 } else { 2 }
                 } else if value.is_truthy() {
                     2
                 } else {
@@ -616,7 +612,7 @@ fn concretize_call(
             if concrete_call.is_statically_evaluable(&vec![]) {
                 match concrete_call.static_run() {
                     Err(evaluation_error) => {
-                        return Err(ConcretizationError::StaticEvaluationError(evaluation_error))
+                        return Err(ConcretizationError::StaticEvaluationError(evaluation_error));
                     }
                     Ok(value) => return Ok(ConcreteExpr::Value(value)),
                 };
@@ -833,9 +829,9 @@ mod tests {
     use super::super::error::RunError;
     use super::*;
     use jiff::{
+        Timestamp, Zoned,
         civil::{Date, DateTime, Time},
         tz::TimeZone,
-        Timestamp, Zoned,
     };
 
     type TestResult = Result<DynamicValue, RunError>;

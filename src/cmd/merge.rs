@@ -267,7 +267,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         if let Some(i) = headers.iter().skip(1).position(|h| *h != headers[0]) {
             let path = &paths[i + 1];
 
-            Err(format!("All given files should have identical headers, and in the same order!\nFirst diverging file: {}", path.cyan()))?;
+            Err(format!(
+                "All given files should have identical headers, and in the same order!\nFirst diverging file: {}",
+                path.cyan()
+            ))?;
         }
 
         if let Some(name) = &args.flag_source_column {
@@ -336,7 +339,9 @@ impl Args {
             + self.flag_glob.is_some() as u8;
 
         if modes > 1 {
-            Err("this command either accepts arguments or --paths or --glob but not a combination of those!")?;
+            Err(
+                "this command either accepts arguments or --paths or --glob but not a combination of those!",
+            )?;
         }
 
         if let Some(path) = &self.flag_paths {

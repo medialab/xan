@@ -13,6 +13,7 @@ Supported formats:
     - xls, xlsb, xlsx: Excel spreadsheet
     - json: JSON array or object
     - ndjson, jsonl: newline-delimited JSON data
+    - toml: TOML configuration
     - txt: text lines
     - npy: numpy array
     - tar: tarball archive
@@ -44,7 +45,7 @@ Excel/OpenOffice-related options:
     --sheet-name <name>  Name of the sheet to convert.
     --list-sheets        Print sheet names instead of converting file.
 
-JSON options:
+JSON/TOML options:
     --sample-size <n>      Number of records to sample before emitting headers.
                            Set to -1 to sample ALL records before emitting headers.
                            This may cost a lot of memory but will ensure all possible

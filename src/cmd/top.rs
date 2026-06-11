@@ -4,12 +4,12 @@ use std::num::NonZeroUsize;
 use ordered_float::NotNan;
 use simd_csv::ByteRecord;
 
+use crate::CliResult;
 use crate::cmd::parallel::Args as ParallelArgs;
 use crate::collections::{ClusteredInsertHashmap, DynamicOrd, TopKHeapMapWithTies};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
 use crate::util;
-use crate::CliResult;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub enum Value {

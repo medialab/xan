@@ -12,9 +12,9 @@ use crate::collections::HashMap;
 
 use super::error::{ConcretizationError, SpecifiedEvaluationError};
 use super::interpreter::{
-    concretize_expression, ConcreteExpr, EvaluationContext, GlobalNames, GlobalVariables,
+    ConcreteExpr, EvaluationContext, GlobalNames, GlobalVariables, concretize_expression,
 };
-use super::parser::{parse_scraper, Expr, ScrapingBrackets, ScrapingNode};
+use super::parser::{Expr, ScrapingBrackets, ScrapingNode, parse_scraper};
 use super::types::{Argument, DynamicValue, FunctionArguments, HeadersIndex};
 
 trait HtmlExt {

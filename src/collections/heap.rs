@@ -174,7 +174,7 @@ impl<T: Ord, V> TopKHeapMap<T, V> {
         } else {
             let worst_item = heap.peek().unwrap();
 
-            if item > worst_item.0 .0 {
+            if item > worst_item.0.0 {
                 heap.pop();
                 heap.push((Reverse(item), Arbitrary(callback())));
                 return true;
@@ -244,7 +244,7 @@ impl<T: Ord, V> TopKHeapMapWithTies<T, V> {
         } else {
             let worst_item = heap.peek().unwrap();
 
-            match item.cmp(&worst_item.0 .0) {
+            match item.cmp(&worst_item.0.0) {
                 Ordering::Greater => {
                     let mut worst_item_popped = heap.pop().unwrap();
 
@@ -254,11 +254,11 @@ impl<T: Ord, V> TopKHeapMapWithTies<T, V> {
                         ties.clear();
                     }
 
-                    if worst_item_popped.0 .0 == heap.peek().unwrap().0 .0 {
+                    if worst_item_popped.0.0 == heap.peek().unwrap().0.0 {
                         std::mem::swap(&mut heap.peek_mut().unwrap().1, &mut worst_item_popped.1);
 
                         if let Some(ties) = &mut self.ties {
-                            ties.push((worst_item_popped.0 .0, worst_item_popped.1 .0));
+                            ties.push((worst_item_popped.0.0, worst_item_popped.1.0));
                         }
                     }
 

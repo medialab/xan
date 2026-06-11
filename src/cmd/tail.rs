@@ -1,7 +1,7 @@
+use crate::CliResult;
 use crate::cmd::slice::Args as SliceArgs;
 use crate::config::Delimiter;
 use crate::util;
-use crate::CliResult;
 
 static USAGE: &str = "
 Return the last rows of a CSV file.

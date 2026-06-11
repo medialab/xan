@@ -1,10 +1,10 @@
 use std::collections::VecDeque;
-use std::io::{copy, Read, SeekFrom};
+use std::io::{Read, SeekFrom, copy};
 
+use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::Program;
 use crate::util;
-use crate::CliResult;
 
 enum ControlFlow {
     Continue,

@@ -1,9 +1,9 @@
 use regex::bytes::Regex;
 
+use crate::CliResult;
 use crate::config::{Compression, Config, Delimiter};
 use crate::read;
 use crate::util;
-use crate::CliResult;
 
 static USAGE: &str = "
 Read unusually formatted CSV data.

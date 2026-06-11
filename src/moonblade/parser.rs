@@ -5,9 +5,9 @@ use std::str::FromStr;
 
 use lazy_static::lazy_static;
 use pest::{
+    Parser,
     iterators::{Pair, Pairs},
     pratt_parser::{Assoc, Op, PrattParser},
-    Parser,
 };
 use pest_derive::Parser;
 
@@ -928,7 +928,7 @@ impl FromStr for Path {
                         _ => {
                             return Err(ParseError::Custom(
                                 "unsupported expression in path".to_string(),
-                            ))
+                            ));
                         }
                     };
                 }
@@ -944,7 +944,7 @@ impl FromStr for Path {
                 _ => {
                     return Err(ParseError::Custom(
                         "unsupported expression in path".to_string(),
-                    ))
+                    ));
                 }
             }
         }

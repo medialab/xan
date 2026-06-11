@@ -1,9 +1,9 @@
 use std::fs::OpenOptions;
 use std::io::{self, Write};
 
+use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::util;
-use crate::CliResult;
 
 static USAGE: &str = "
 Drop a CSV file's header.
@@ -39,7 +39,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
     if args.flag_append && args.flag_output.is_none() {
-        Err("-A/--append needs to know where the output will be written!\nPlease provide -o/--output.")?;
+        Err(
+            "-A/--append needs to know where the output will be written!\nPlease provide -o/--output.",
+        )?;
     }
 
     let wconf = Config::new(&args.flag_output);

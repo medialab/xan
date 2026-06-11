@@ -1,18 +1,18 @@
 use std::collections::BTreeMap;
-use std::io::{stdout, Write};
+use std::io::{Write, stdout};
 
 use colored::Colorize;
-use jiff::{civil::Date, Unit};
+use jiff::{Unit, civil::Date};
 use simd_csv::ByteRecord;
 use unicode_width::UnicodeWidthStr;
 
-use crate::collections::{index_map::Entry, new_index_map, IndexMap};
+use crate::CliResult;
+use crate::collections::{IndexMap, index_map::Entry, new_index_map};
 use crate::config::{Config, Delimiter};
 use crate::scales::{Scale, ScaleType};
 use crate::select::SelectedColumns;
 use crate::temporal;
 use crate::util::{self, ColorMode};
-use crate::CliResult;
 
 const SMALL_BAR_CHARS: [&str; 2] = ["╸", "━"]; // "╾"
 const MEDIUM_BAR_CHARS: [&str; 1] = ["■"];
@@ -139,7 +139,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let headers = rdr.byte_headers()?.clone();
 
     let err_msg = |err: String| {
-        format!("{}\nxan hist expects a field?,value,count CSV input (typically produced by `xan freq` or `xan bins`)!\nSee xan hist --help for more info.", err)
+        format!(
+            "{}\nxan hist expects a field?,value,count CSV input (typically produced by `xan freq` or `xan bins`)!\nSee xan hist --help for more info.",
+            err
+        )
     };
 
     let label_pos = args

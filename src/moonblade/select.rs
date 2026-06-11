@@ -1,8 +1,8 @@
 use simd_csv::ByteRecord;
 
 use super::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
-use super::interpreter::{concretize_expression, ConcreteExpr, EvaluationContext};
-use super::parser::{parse_named_expressions, ExprName};
+use super::interpreter::{ConcreteExpr, EvaluationContext, concretize_expression};
+use super::parser::{ExprName, parse_named_expressions};
 use super::types::{DynamicValue, HeadersIndex};
 
 #[derive(Clone, Debug)]

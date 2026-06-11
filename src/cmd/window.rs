@@ -1,12 +1,12 @@
 use bstr::ByteSlice;
 use simd_csv::ByteRecord;
 
+use crate::CliResult;
 use crate::collections::ClusteredInsertHashmap;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{WindowAggregationArray, WindowAggregationProgram};
 use crate::select::{SelectedColumns, Selection};
 use crate::util;
-use crate::CliResult;
 
 #[inline]
 fn build_along_columns_record(

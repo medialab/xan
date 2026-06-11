@@ -1,11 +1,11 @@
 use simd_csv::ByteRecord;
 
-use crate::collections::{new_index_set, HashMap, IndexSet};
+use crate::CliResult;
+use crate::collections::{HashMap, IndexSet, new_index_set};
 use crate::config::{Config, Delimiter};
 use crate::moonblade::agg::CovarianceWelford;
 use crate::select::SelectedColumns;
 use crate::util;
-use crate::CliResult;
 
 enum Axes {
     Homogeneous(IndexSet<Vec<u8>>),

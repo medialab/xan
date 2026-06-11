@@ -1,10 +1,10 @@
-use std::io::{stdout, Write};
+use std::io::{Write, stdout};
 
+use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::PivotAggregationProgram;
 use crate::select::{SelectedColumns, Selection};
 use crate::util;
-use crate::CliResult;
 
 // TODO: optimize when names are known beforehand
 // TODO: -S/--sorted

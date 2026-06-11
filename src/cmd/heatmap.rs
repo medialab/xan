@@ -1,5 +1,5 @@
 use std::convert::TryFrom;
-use std::io::{stdout, Write};
+use std::io::{Write, stdout};
 use std::iter::repeat_n;
 use std::num::NonZeroUsize;
 
@@ -7,11 +7,11 @@ use colored::{ColoredString, Colorize};
 use numfmt::{Formatter, Precision};
 use unicode_width::UnicodeWidthStr;
 
+use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::scales::{Extent, ExtentBuilder, GradientName, LinearScale};
 use crate::select::{SelectedColumns, Selection};
 use crate::util::{self, ColorMode};
-use crate::CliResult;
 
 static ASCII_GRADIENT: [char; 4] = ['░', '▒', '▓', '█'];
 
@@ -563,11 +563,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             // NOTE: f  or now, if scale's domain is constant,
                             // we fallback to the midpoint. We might revise this
                             // in the future.
-                            if p.is_nan() {
-                                0.5
-                            } else {
-                                p
-                            }
+                            if p.is_nan() { 0.5 } else { p }
                         });
 
                         if args.flag_ascii {

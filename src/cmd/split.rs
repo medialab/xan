@@ -3,9 +3,9 @@ use std::io;
 use std::num::NonZeroUsize;
 use std::path::Path;
 
+use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::util::{self, FilenameTemplate};
-use crate::CliResult;
 
 static USAGE: &str = "
 Splits the given CSV data into smaller files having a fixed number of

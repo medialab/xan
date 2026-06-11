@@ -1,8 +1,8 @@
 use std::io::Write;
 
+use crate::CliResult;
 use crate::config::Config;
 use crate::util;
-use crate::CliResult;
 
 static USAGE: &str = "
 Create a CSV file with one column representing a numerical range. This is mostly

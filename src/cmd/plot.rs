@@ -4,11 +4,11 @@
 use std::cmp::Ordering;
 use std::convert::TryFrom;
 use std::fmt;
-use std::io::{stderr, stdout, Write};
+use std::io::{Write, stderr, stdout};
 use std::num::NonZeroUsize;
 
 use bstr::BStr;
-use jiff::{tz::TimeZone, Timestamp, Unit, Zoned};
+use jiff::{Timestamp, Unit, Zoned, tz::TimeZone};
 use unicode_width::UnicodeWidthStr;
 
 use ratatui::buffer::Buffer;
@@ -16,8 +16,8 @@ use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Style, Stylize};
 use ratatui::symbols;
 use ratatui::widgets::{
-    canvas::{Context, Painter},
     Axis, Chart, Dataset, GraphType,
+    canvas::{Context, Painter},
 };
 
 use crate::collections::{HashMap, IndexMap};
@@ -27,7 +27,7 @@ use crate::ratatui::print_ratatui_frame_to_stdout;
 use crate::scales::{ExtentBuilder, GradientName, Scale, ScaleType};
 use crate::select::SelectedColumns;
 use crate::temporal::{
-    infer_temporal_granularity, parse_fuzzy_temporal, TimeZoneArg, TimestampExt, ZonedExt,
+    TimeZoneArg, TimestampExt, ZonedExt, infer_temporal_granularity, parse_fuzzy_temporal,
 };
 use crate::util::{self, ColorMode};
 use crate::{CliError, CliResult};
@@ -553,7 +553,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         if args.flag_category.is_some() || has_added_series {
-            Err("-R/--regression-line only works with single series (e.g. when using -c/--category or when selecting multiple columns with <y>)!")?;
+            Err(
+                "-R/--regression-line only works with single series (e.g. when using -c/--category or when selecting multiple columns with <y>)!",
+            )?;
         }
     }
 
@@ -570,7 +572,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if (showing_multiple_series || args.flag_small_multiples.is_some())
         && args.flag_density_gradient.is_some()
     {
-        Err("-D/--density-gradient cannot be used with multiple series nor -S/--small-multiples yet!")?;
+        Err(
+            "-D/--density-gradient cannot be used with multiple series nor -S/--small-multiples yet!",
+        )?;
     }
 
     let mut record = simd_csv::ByteRecord::new();
@@ -706,7 +710,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     for (_, series) in finalized_series.iter_mut() {
         if args.flag_time {
             if args.flag_timezone.is_some() && matches!(has_timezone_opt, Some(false)) {
-                Err("--timezone cannot be used when given time series is civil, i.e. has no timezone info whatsoever!")?;
+                Err(
+                    "--timezone cannot be used when given time series is civil, i.e. has no timezone info whatsoever!",
+                )?;
             }
 
             series.mark_as_temporal(

@@ -1,7 +1,7 @@
+use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
 use crate::util;
-use crate::CliResult;
 
 static USAGE: &str = r#"
 Unpivot a CSV file by allowing multiple columns to be stacked into fewer columns.

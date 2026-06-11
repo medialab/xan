@@ -39,10 +39,12 @@ macro_rules! select_test {
                     .arg("data.csv");
                 let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
 
-                let expected = vec![$expected_rows
-                    .iter()
-                    .map(|s| s.to_string())
-                    .collect::<Vec<String>>()];
+                let expected = vec![
+                    $expected_rows
+                        .iter()
+                        .map(|s| s.to_string())
+                        .collect::<Vec<String>>(),
+                ];
                 assert_eq!(got, expected);
             }
         }

@@ -350,7 +350,7 @@ fn abstract_comptime_col(
                     AbstractColReturnValue::Header => {
                         ConcreteExpr::Value(DynamicValue::from(&headers_index[index]))
                     }
-                }))
+                }));
             }
             None => {
                 return if unsure {
@@ -360,7 +360,7 @@ fn abstract_comptime_col(
                         column_indexation,
                         headers_index.is_headless(),
                     ))
-                }
+                };
             }
         };
     }

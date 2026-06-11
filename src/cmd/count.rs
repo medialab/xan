@@ -1,9 +1,9 @@
 use std::num::NonZeroUsize;
 
+use crate::CliResult;
 use crate::cmd::parallel::Args as ParallelArgs;
 use crate::config::{Config, Delimiter};
 use crate::util;
-use crate::CliResult;
 
 static USAGE: &str = "
 Prints a count of the number of records in the CSV data.

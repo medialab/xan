@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::io::{stdout, Write};
+use std::io::{Write, stdout};
 use std::num::NonZeroUsize;
 
 use bstr::ByteSlice;
@@ -9,6 +9,7 @@ use pad::{Alignment, PadStr};
 use simd_csv::ByteRecord;
 use unicode_width::UnicodeWidthStr;
 
+use crate::CliResult;
 use crate::cmd::parallel::Args as ParallelArgs;
 use crate::cmd::plot::Aggregation;
 use crate::cmd::plot::Granularity;
@@ -16,11 +17,10 @@ use crate::cmd::spark::{Series, SparklineRendererOptions};
 use crate::collections::{ClusteredInsertHashmap, Counter, CounterSpec};
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{DynamicNumber, Stats, TemporalExtent, Welford};
-use crate::scales::{sturges, Extent, ExtentBuilder, HistogramBuilder, Scale, ScaleType};
+use crate::scales::{Extent, ExtentBuilder, HistogramBuilder, Scale, ScaleType, sturges};
 use crate::select::SelectedColumns;
-use crate::temporal::{parse_fuzzy_temporal, AnyTemporal};
-use crate::util::{self, format_number, ColorMode, ColorOrStyles};
-use crate::CliResult;
+use crate::temporal::{AnyTemporal, parse_fuzzy_temporal};
+use crate::util::{self, ColorMode, ColorOrStyles, format_number};
 
 const LABELS_TO_SHOW: usize = 5;
 const CATEGORIES_TO_SHOW: usize = 10;
@@ -682,7 +682,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             match column_type {
                 ColumnType::Void => {
-                    writeln!(&mut out, "\nThere is nothing is this column but the endless depths of the void!\nZilch, nada, rien, keud!")?;
+                    writeln!(
+                        &mut out,
+                        "\nThere is nothing is this column but the endless depths of the void!\nZilch, nada, rien, keud!"
+                    )?;
                 }
                 ColumnType::Categorical {
                     is_bool,

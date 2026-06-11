@@ -3,11 +3,11 @@ use std::cmp::Ordering;
 use bstr::ByteSlice;
 use rayon::slice::ParallelSliceMut;
 
+use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::scales::LinearScale;
 use crate::select::SelectedColumns;
 use crate::util;
-use crate::CliResult;
 
 static USAGE: &str = "
 Discretize selection of columns containing continuous data into bins.
