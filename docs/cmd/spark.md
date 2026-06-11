@@ -85,10 +85,10 @@ spark options:
                         [default: 1]
     -H, --height <n>    Number of characters high a sparkline bar is allowed to be.
                         Can also be given as a ratio or percentage of the terminal's
-                        height e.g. \"45%\" or \"0.5\". Defaults to 1.
-    --scale <scale>     Apply a scale to the y axis. Can be one of \"lin\", \"pow\",
-                        \"sqrt\", \"pow(custom_exponent)\" like \"pow(4.5)\", \"log\",
-                        \"log2\", \"log10\" or \"log(custom_base)\" like \"log(2.5)\".
+                        height e.g. "45%" or "0.5". Defaults to 1.
+    --scale <scale>     Apply a scale to the y axis. Can be one of "lin", "pow",
+                        "sqrt", "pow(custom_exponent)" like "pow(4.5)", "log",
+                        "log2", "log10" or "log(custom_base)" like "log(2.5)".
                         [default: lin]
     --log               Use a log scale, shorthand for --scale=log.
     -m, --min <n>       Force <y> minimum value. Any value falling out of range will be
@@ -98,6 +98,7 @@ spark options:
     --share-scale       Whether to force series to share their y-axis.
     --hide-names        Whether to hide series' names.
     --hide-legend       Whether to hide any kind of legend.
+    --hide-all          Shorthand for --hide-names, --hide-legend.
     -F, --flatter       Print series names on top of them instead of to their left, to
                         make more space for series themselves.
     -w, --wrap          Allow series to overflow on muliple lines instead of discretizing
@@ -115,7 +116,7 @@ spark options:
                         Defaults to using all your terminal's width or 80 if
                         terminal size cannot be found (i.e. when piping to file).
                         Can also be given as a ratio or percentage of the terminal's width
-                        e.g. \"45%\" or \"0.5\".
+                        e.g. "45%" or "0.5".
     --color <when>      When to color the output using ANSI escape codes.
                         Use `auto` for automatic detection, `never` to
                         disable colors completely and `always` to force

@@ -870,10 +870,10 @@ spark options:
                         [default: 1]
     -H, --height <n>    Number of characters high a sparkline bar is allowed to be.
                         Can also be given as a ratio or percentage of the terminal's
-                        height e.g. \"45%\" or \"0.5\". Defaults to 1.
-    --scale <scale>     Apply a scale to the y axis. Can be one of \"lin\", \"pow\",
-                        \"sqrt\", \"pow(custom_exponent)\" like \"pow(4.5)\", \"log\",
-                        \"log2\", \"log10\" or \"log(custom_base)\" like \"log(2.5)\".
+                        height e.g. "45%" or "0.5". Defaults to 1.
+    --scale <scale>     Apply a scale to the y axis. Can be one of "lin", "pow",
+                        "sqrt", "pow(custom_exponent)" like "pow(4.5)", "log",
+                        "log2", "log10" or "log(custom_base)" like "log(2.5)".
                         [default: lin]
     --log               Use a log scale, shorthand for --scale=log.
     -m, --min <n>       Force <y> minimum value. Any value falling out of range will be
@@ -883,6 +883,7 @@ spark options:
     --share-scale       Whether to force series to share their y-axis.
     --hide-names        Whether to hide series' names.
     --hide-legend       Whether to hide any kind of legend.
+    --hide-all          Shorthand for --hide-names, --hide-legend.
     -F, --flatter       Print series names on top of them instead of to their left, to
                         make more space for series themselves.
     -w, --wrap          Allow series to overflow on muliple lines instead of discretizing
@@ -900,7 +901,7 @@ spark options:
                         Defaults to using all your terminal's width or 80 if
                         terminal size cannot be found (i.e. when piping to file).
                         Can also be given as a ratio or percentage of the terminal's width
-                        e.g. \"45%\" or \"0.5\".
+                        e.g. "45%" or "0.5".
     --color <when>      When to color the output using ANSI escape codes.
                         Use `auto` for automatic detection, `never` to
                         disable colors completely and `always` to force
@@ -965,6 +966,7 @@ struct Args {
     flag_small_multiples: Option<NonZeroUsize>,
     flag_hide_names: bool,
     flag_hide_legend: bool,
+    flag_hide_all: bool,
     flag_time: Option<SelectedColumns>,
     flag_aggregate: Option<Aggregation>,
     flag_count: bool,
@@ -992,6 +994,13 @@ struct Args {
 }
 
 impl Args {
+    fn resolve(&mut self) {
+        if self.flag_hide_all {
+            self.flag_hide_names = true;
+            self.flag_hide_legend = true;
+        }
+    }
+
     fn new_series(&self, capacity_opt: Option<usize>) -> Series {
         let mut series = if let Some(capacity) = capacity_opt {
             Series::with_capacity(capacity)
@@ -1021,6 +1030,7 @@ impl Args {
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut args: Args = util::get_args(USAGE, argv)?;
+    args.resolve();
 
     if args.cmd_debate {
         eprintln!(
@@ -1135,6 +1145,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if groupby_opt.is_some() && sel_opt.as_ref().map(|s| s.len()).unwrap_or(1) > 1 {
         Err("only one value column must be selected when using -g/--groupby!")?;
     }
+
+    let selected_column_names = sel_opt.as_ref().map(|sel| {
+        sel.select(&headers)
+            .map(|h| String::from_utf8_lossy(h).into_owned())
+            .collect::<Vec<_>>()
+    });
+
+    let group_column_names = groupby_opt.as_ref().map(|(sel, _)| {
+        sel.select(&headers)
+            .map(|h| String::from_utf8_lossy(h).into_owned())
+            .collect::<Vec<_>>()
+    });
 
     let mut categories_opt = args
         .flag_category
@@ -1456,6 +1478,42 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     };
 
     if !args.flag_hide_legend {
+        writeln!(
+            &mut out,
+            "\nDisplaying {} of {}{}, {} scale\n",
+            if args.flag_dist {
+                "distribution"
+            } else if args.flag_along_rows {
+                "row-wise series"
+            } else if args.flag_time.is_some() {
+                "time series"
+            } else {
+                "column-wise series"
+            },
+            if let Some(names) = selected_column_names {
+                names
+                    .into_iter()
+                    .map(|n| n.green().to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            } else {
+                "--count".dimmed().to_string()
+            },
+            if let Some(names) = group_column_names {
+                format!(
+                    ", grouped by {}",
+                    names
+                        .into_iter()
+                        .map(|n| n.green().to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            } else {
+                "".to_string()
+            },
+            args.flag_scale.to_string().cyan()
+        )?;
+
         // Categorical legend
         if !actually_cram {
             if let Some((_, color_map)) = &categories_opt {
@@ -1488,7 +1546,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             writeln!(
                 &mut out,
-                "Time series from {} to {} (granularity: {})\n",
+                "{} to {} (granularity: {})\n",
                 extent.earliest().unwrap().to_string().cyan(),
                 extent.latest().unwrap().to_string().cyan(),
                 Granularity::new(granularity).to_string().green()
