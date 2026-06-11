@@ -13,7 +13,7 @@ use serde_json::{Map, Value};
 use simd_csv::ByteRecord;
 
 use crate::config::Config;
-use crate::json::{GetPath, JSONTabularizer};
+use crate::json::{GetPathBorrowed, GetPathOwned, JSONTabularizer};
 use crate::moonblade::Path as JSONPath;
 use crate::util::{self, ChunksIteratorExt};
 use crate::CliError;
@@ -285,6 +285,8 @@ impl Args {
     fn convert_ndjson(&self) -> CliResult<()> {
         use simd_json::Buffers;
 
+        let path_opt = self.path()?;
+
         let mut buffers = Buffers::default();
 
         let wtr = self.writer()?;
@@ -302,14 +304,28 @@ impl Args {
 
             // NOTE: we use serde for the sample to ensure a consistent ordering of keys
             if tabularizer.is_sampling() {
-                let value: Value =
+                let mut value: Value =
                     simd_json::serde::from_slice_with_buffers(line_mut, &mut buffers)?;
+
+                if let Some(path) = &path_opt {
+                    value = value
+                        .get_path_owned(path)
+                        .ok_or("could not extract value given to --path!")?;
+                }
 
                 tabularizer.process(value)?;
             } else {
                 let value = simd_json::borrowed::to_value_with_buffers(line_mut, &mut buffers)?;
 
-                tabularizer.process_borrowed(value)?;
+                let mut nested = &value;
+
+                if let Some(path) = &path_opt {
+                    nested = nested
+                        .get_path_borrowed(path)
+                        .ok_or("could not extract value given to --path!")?;
+                }
+
+                tabularizer.process_borrowed_no_sampling(nested)?;
             }
         }
 

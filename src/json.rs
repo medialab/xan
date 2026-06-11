@@ -12,43 +12,68 @@ use simd_json::BorrowedValue;
 use crate::moonblade::{Path, Step};
 use crate::select::Selection;
 
-pub trait GetPath {
-    // fn get_path<'v>(&'v self, path: &Path) -> Option<&'v Self>;
+pub trait GetPathOwned {
     fn get_path_owned(self, path: &Path) -> Option<Self>
     where
         Self: Sized;
 }
 
-impl GetPath for Value {
+impl GetPathOwned for Value {
     fn get_path_owned(self, path: &Path) -> Option<Self> {
         let mut value = self;
 
         for step in path.iter() {
             match step {
                 Step::Index(mut i) => {
-                    if let Some(array) = value.as_array() {
+                    let array = value.as_array_mut()?;
+
+                    if i < 0 {
+                        i += array.len() as isize;
+                    }
+
+                    if i < 0 || i >= array.len() as isize {
+                        return None;
+                    } else {
+                        value = array.swap_remove(i as usize);
+                    }
+                }
+                Step::Key(key) => {
+                    let object = value.as_object_mut()?;
+                    value = object.remove(key)?;
+                }
+            }
+        }
+
+        Some(value)
+    }
+}
+
+pub trait GetPathBorrowed {
+    fn get_path_borrowed<'s>(&'s self, path: &Path) -> Option<&'s Self>
+    where
+        Self: Sized;
+}
+
+impl GetPathBorrowed for BorrowedValue<'_> {
+    fn get_path_borrowed<'s>(&'s self, path: &Path) -> Option<&'s Self> {
+        let mut value = self;
+
+        for step in path.iter() {
+            match step {
+                Step::Index(mut i) => {
+                    if let BorrowedValue::Array(array) = value {
                         if i < 0 {
                             i += array.len() as isize;
                         }
 
-                        if i < 0 {
-                            return None;
-                        } else if let Some(array) = value.as_array_mut() {
-                            if i >= array.len() as isize {
-                                return None;
-                            } else {
-                                value = array.swap_remove(i as usize);
-                            }
-                        } else {
-                            return None;
-                        }
+                        value = array.get(i as usize)?;
                     } else {
                         return None;
                     }
                 }
                 Step::Key(key) => {
-                    if let Some(object) = value.as_object_mut() {
-                        value = object.remove(key)?;
+                    if let BorrowedValue::Object(object) = value {
+                        value = object.get(key.as_str())?;
                     } else {
                         return None;
                     }
@@ -408,11 +433,11 @@ fn fill_record_from_borrowed_value(
     });
 }
 
-fn merge(a: &mut Value, b: &Value) {
+fn merge_with_owned(a: &mut Value, b: &Value) {
     if let Value::Object(a) = a {
         if let Value::Object(b) = b {
             for (k, v) in b {
-                merge(a.entry(k).or_insert(Value::Null), v);
+                merge_with_owned(a.entry(k).or_insert(Value::Null), v);
             }
 
             return;
@@ -489,7 +514,7 @@ impl<W: Write> JSONTabularizer<W> {
         // Sampling
         if self.is_sampling() {
             self.flushed = false;
-            merge(&mut self.harmonized_value, &value);
+            merge_with_owned(&mut self.harmonized_value, &value);
             self.sample.push(value);
             return Ok(());
         }
@@ -502,19 +527,10 @@ impl<W: Write> JSONTabularizer<W> {
         Ok(())
     }
 
-    pub fn process_borrowed(&mut self, value: BorrowedValue) -> simd_csv::Result<()> {
-        // Sampling
-        if self.is_sampling() {
-            let value: Value = simd_json::serde::from_borrowed_value(value).unwrap();
-            self.flushed = false;
-            merge(&mut self.harmonized_value, &value);
-            self.sample.push(value);
-            return Ok(());
-        }
-
+    pub fn process_borrowed_no_sampling(&mut self, value: &BorrowedValue) -> simd_csv::Result<()> {
         self.flush()?;
 
-        fill_record_from_borrowed_value(&value, &mut self.output_record, &self.stack);
+        fill_record_from_borrowed_value(value, &mut self.output_record, &self.stack);
         self.writer.write_byte_record(&self.output_record)?;
 
         Ok(())
