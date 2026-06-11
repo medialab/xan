@@ -20,6 +20,7 @@
 *Fixes*
 
 * Fixing moonblade string with bstring equality.
+* Fixing percentages shown by `xan spark -P`.
 
 *Performance*
 

@@ -342,8 +342,6 @@ impl SparklineRenderer {
             self.draw_buffer.push_str(
                 &util::unicode_aware_ellipsis(
                     &(if let Some(denominator) = percentage_denominator {
-                        // Percentages are over the sum of the series, like
-                        // `xan hist`, so the displayed values add up to 100%.
                         let percentage = if denominator == 0.0 {
                             0.0
                         } else {
@@ -1468,7 +1466,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             series.len()
         };
 
-        let series_sum: f64 = series.numbers.iter().sum();
+        let series_sum_opt = args
+            .flag_show_percentages
+            .then(|| series.numbers.iter().sum::<f64>());
 
         let mut offset: usize = 0;
 
@@ -1506,11 +1506,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
 
                 if args.flag_show_percentages {
-                    sparkline_renderer.show_numbers(
-                        name_padding.len(),
-                        chunk,
-                        Some(series_sum),
-                    );
+                    sparkline_renderer.show_numbers(name_padding.len(), chunk, series_sum_opt);
                 }
 
                 if args.flag_show_numbers {
