@@ -28,6 +28,10 @@
 * Improving performance of `xan scrape`.
 * Improving performance of `xan from -f ndjson`.
 
+*Quality of Life*
+
+* Better legends for `xan spark`.
+
 ## 0.58.0
 
 *Breaking*

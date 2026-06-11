@@ -20,7 +20,7 @@ use crate::moonblade::{TemporalExtent, Welford};
 use crate::scales::{Extent, ExtentBuilder, GradientName, HistogramBuilder, Scale, ScaleType};
 use crate::select::{SelectedColumns, Selection};
 use crate::temporal::{FuzzyTemporal, TimestampExt, ZonedExt, parse_fuzzy_temporal};
-use crate::util::{self, ColorMode, ColorOrStyles};
+use crate::util::{self, ColorMode, ColorOrStyles, format_number};
 
 fn compute_name_hash(name: &[u8]) -> usize {
     let mut sum: usize = 0;
@@ -302,12 +302,16 @@ impl SparklineRenderer {
         self.draw_buffer.pop();
     }
 
+    fn pad_left(&mut self, padding: usize) {
+        for _ in 0..padding {
+            self.draw_buffer.push(' ');
+        }
+    }
+
     fn cram_names<'a>(&mut self, left_padding: usize, names: impl Iterator<Item = &'a [u8]>) {
         self.draw_buffer.push('\n');
 
-        for _ in 0..left_padding {
-            self.draw_buffer.push(' ');
-        }
+        self.pad_left(left_padding);
 
         let width = self.options.width;
 
@@ -332,9 +336,7 @@ impl SparklineRenderer {
     ) {
         self.draw_buffer.push('\n');
 
-        for _ in 0..left_padding {
-            self.draw_buffer.push(' ');
-        }
+        self.pad_left(left_padding);
 
         let width = self.options.width;
 
@@ -369,9 +371,7 @@ impl SparklineRenderer {
     ) {
         self.draw_buffer.push('\n');
 
-        for _ in 0..left_padding {
-            self.draw_buffer.push(' ');
-        }
+        self.pad_left(left_padding);
 
         for i in 0..bins {
             if i == mean_index {
@@ -386,6 +386,45 @@ impl SparklineRenderer {
                 self.draw_buffer.push(' ');
             }
         }
+    }
+
+    fn render_distribution_legend(&mut self, left_padding: usize, info: &DistributionInfo) {
+        let (mean_index, median_index, sigma_left_index, sigma_right_index) =
+            info.central_tendency_indices;
+
+        self.render_central_tendency(
+            left_padding,
+            info.bins,
+            mean_index,
+            median_index,
+            sigma_left_index,
+            sigma_right_index,
+        );
+
+        self.draw_buffer.push('\n');
+        self.pad_left(left_padding);
+
+        write!(
+            &mut self.draw_buffer,
+            "highest: {}/{} ({:.2}%), min: {}, max: {}\n",
+            format_number(info.max_bin_count).red(),
+            format_number(info.count),
+            (info.max_bin_count as f64 / info.count as f64) * 100.0,
+            format_number(info.min).blue(),
+            format_number(info.max).red(),
+        )
+        .unwrap();
+
+        self.pad_left(left_padding);
+
+        write!(
+            &mut self.draw_buffer,
+            "mean: {}, median: {}, stddev: {}\n",
+            format_number(info.mean).green(),
+            format_number(info.median).yellow(),
+            format_number(info.stddev).magenta(),
+        )
+        .unwrap();
     }
 }
 
@@ -421,6 +460,18 @@ impl ColorMap {
     fn new_mask(&self) -> Vec<bool> {
         vec![false; self.map.len()]
     }
+}
+
+struct DistributionInfo {
+    count: usize,
+    central_tendency_indices: (usize, usize, usize, usize),
+    mean: f64,
+    median: f64,
+    stddev: f64,
+    min: f64,
+    max: f64,
+    max_bin_count: u64,
+    bins: usize,
 }
 
 #[derive(Debug)]
@@ -502,9 +553,11 @@ impl Series {
         self.times.push(seconds);
     }
 
-    fn distribution(&mut self, bins: usize) -> (usize, usize, usize, usize) {
+    fn distribution(&mut self, bins: usize) -> DistributionInfo {
+        let extent = self.extent_builder.build().unwrap();
+
         let mut welford = Welford::new();
-        let mut histogram = HistogramBuilder::new(bins, self.extent_builder.build().unwrap());
+        let mut histogram = HistogramBuilder::new(bins, extent);
 
         for x in self.numbers.iter().copied() {
             histogram.add(x);
@@ -518,18 +571,30 @@ impl Series {
         self.extent_builder.process(histogram.max_value());
 
         let mean = welford.mean().unwrap();
-        let sigma = welford.stddev().unwrap();
+        let stddev = welford.stddev().unwrap();
 
         let indices = (
             histogram.discrete_index(mean),
             histogram.discrete_index(median),
-            histogram.discrete_index(mean - sigma),
-            histogram.discrete_index(mean + sigma),
+            histogram.discrete_index(mean - stddev),
+            histogram.discrete_index(mean + stddev),
         );
+
+        let info = DistributionInfo {
+            min: extent.min(),
+            max: extent.max(),
+            central_tendency_indices: indices,
+            count: self.numbers.len(),
+            mean,
+            median,
+            stddev,
+            bins,
+            max_bin_count: histogram.max_count(),
+        };
 
         self.numbers = histogram.into_vec();
 
-        indices
+        info
     }
 
     pub fn discretize(&mut self, count: usize) {
@@ -1247,14 +1312,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let max_bins = cols_for_sparkline / sparkline_width;
 
     // Recasting as distribution
-    let central_tendencies_opt = if args.flag_dist {
-        let mut central_tendencies = Vec::with_capacity(pool.len());
+    let distribution_infos_opt = if args.flag_dist {
+        let mut infos = Vec::with_capacity(pool.len());
 
         for (_, series) in pool.iter_mut() {
-            central_tendencies.push(series.distribution(args.flag_bins.get()));
+            infos.push(series.distribution(args.flag_bins.get()));
         }
 
-        Some(central_tendencies)
+        Some(infos)
     } else {
         None
     };
@@ -1492,17 +1557,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             );
 
             if !args.flag_hide_legend {
-                if let Some(central_tendencies) = &central_tendencies_opt {
-                    let indices = central_tendencies.get(i).unwrap();
+                if let Some(central_tendencies) = &distribution_infos_opt {
+                    let info = central_tendencies.get(i).unwrap();
 
-                    sparkline_renderer.render_central_tendency(
-                        name_padding.len(),
-                        chunk.len(),
-                        indices.0,
-                        indices.1,
-                        indices.2,
-                        indices.3,
-                    );
+                    sparkline_renderer.render_distribution_legend(name_padding.len(), &info);
                 }
 
                 if args.flag_show_percentages {
