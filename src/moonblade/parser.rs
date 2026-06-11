@@ -1,6 +1,7 @@
 // En tant que chef, je m'engage à ce que nous ne nous
 // fassions pas *tous* tuer.
 use std::fmt;
+use std::str::FromStr;
 
 use lazy_static::lazy_static;
 use pest::{
@@ -894,6 +895,66 @@ pub fn parse_scraper(input: &str) -> Result<Vec<ScrapingBrackets>, ParseError> {
         .collect::<Result<Vec<_>, _>>()
 }
 
+#[derive(PartialEq, Debug)]
+pub enum Step {
+    Index(isize),
+    Key(String),
+}
+
+#[derive(PartialEq, Debug)]
+pub struct Path {
+    steps: Vec<Step>,
+}
+
+impl FromStr for Path {
+    type Err = ParseError;
+
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        let mut expr = parse_expression(input)?;
+        let mut steps = vec![];
+
+        loop {
+            match expr {
+                Expr::Func(call) if call.name.as_str() == "get" => {
+                    expr = call.args[0].1.clone();
+
+                    match call.args[1].1.clone() {
+                        Expr::Int(idx) => {
+                            steps.push(Step::Index(idx as isize));
+                        }
+                        Expr::Str(key) | Expr::Identifier(key, false) => {
+                            steps.push(Step::Key(key));
+                        }
+                        _ => {
+                            return Err(ParseError::Custom(
+                                "unsupported expression in path".to_string(),
+                            ))
+                        }
+                    };
+                }
+                Expr::Int(idx) => {
+                    steps.push(Step::Index(idx as isize));
+                    break;
+                }
+                Expr::Str(key) | Expr::Identifier(key, false) => {
+                    steps.push(Step::Key(key));
+                    break;
+                }
+                Expr::Underscore => break,
+                _ => {
+                    return Err(ParseError::Custom(
+                        "unsupported expression in path".to_string(),
+                    ))
+                }
+            }
+        }
+
+        steps.reverse();
+
+        Ok(Self { steps })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::Expr::*;
@@ -1366,5 +1427,32 @@ mod tests {
                 }
             ])
         );
+    }
+
+    #[test]
+    fn test_path() {
+        assert_eq!(
+            "_.name".parse::<Path>(),
+            Ok(Path {
+                steps: vec![Step::Key("name".to_string())]
+            })
+        );
+        assert_eq!(
+            "_.name[0]".parse::<Path>(),
+            Ok(Path {
+                steps: vec![Step::Key("name".to_string()), Step::Index(0)]
+            })
+        );
+        assert_eq!(
+            "_.name[0]['test']".parse::<Path>(),
+            Ok(Path {
+                steps: vec![
+                    Step::Key("name".to_string()),
+                    Step::Index(0),
+                    Step::Key("test".to_string()),
+                ]
+            })
+        );
+        assert!("trim(test)".parse::<Path>().is_err());
     }
 }
