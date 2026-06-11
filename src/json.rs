@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::{btree_map::Entry as BTreeMapEntry, BTreeMap};
 use std::io::{Read, Write};
@@ -364,45 +363,16 @@ fn traverse_borrowed_value_with_stack<F>(
 }
 
 #[inline]
-fn serialize_json_value_to_csv_field(value: &Value) -> Cow<'_, [u8]> {
-    match value {
-        Value::Null => Cow::Borrowed(b""),
-        Value::Bool(b) => Cow::Borrowed(if *b { b"true" } else { b"false" }),
-        Value::String(s) => Cow::Borrowed(s.as_bytes()),
-        Value::Number(n) => Cow::Owned(n.to_string().into_bytes()),
-        Value::Array(l) => Cow::Owned(serde_json::to_vec(l).unwrap()),
-        Value::Object(o) => Cow::Owned(serde_json::to_vec(o).unwrap()),
-    }
-}
-
-#[inline]
-fn serialize_borrowed_json_value_to_csv_field<'v>(value: &'v BorrowedValue) -> Cow<'v, [u8]> {
-    match value {
-        BorrowedValue::Static(simd_json::StaticNode::Null) => Cow::Borrowed(b""),
-        BorrowedValue::Static(simd_json::StaticNode::Bool(b)) => {
-            Cow::Borrowed(if *b { b"true" } else { b"false" })
-        }
-        BorrowedValue::String(s) => Cow::Borrowed(s.as_bytes()),
-        BorrowedValue::Static(simd_json::StaticNode::F64(f)) => {
-            Cow::Owned(f.to_string().into_bytes())
-        }
-        BorrowedValue::Static(simd_json::StaticNode::U64(i)) => {
-            Cow::Owned(i.to_string().into_bytes())
-        }
-        BorrowedValue::Static(simd_json::StaticNode::I64(i)) => {
-            Cow::Owned(i.to_string().into_bytes())
-        }
-        BorrowedValue::Array(l) => Cow::Owned(serde_json::to_vec(l).unwrap()),
-        BorrowedValue::Object(o) => Cow::Owned(serde_json::to_vec(o).unwrap()),
-    }
-}
-
-#[inline]
 fn fill_record_from_value(value: &Value, record: &mut ByteRecord, stack: &JSONTraversalStack) {
     record.clear();
 
-    traverse_value_with_stack(value, stack, |v| {
-        record.push_field(&serialize_json_value_to_csv_field(v));
+    traverse_value_with_stack(value, stack, |v| match v {
+        Value::Null => record.push_field(b""),
+        Value::Bool(b) => record.push_field(if *b { b"true" } else { b"false" }),
+        Value::String(s) => record.push_field(s.as_bytes()),
+        Value::Number(n) => record.fmt_field(n),
+        Value::Array(l) => record.write_field(|view| serde_json::to_writer(view, l).unwrap()),
+        Value::Object(o) => record.write_field(|view| serde_json::to_writer(view, o).unwrap()),
     });
 }
 
@@ -414,8 +384,27 @@ fn fill_record_from_borrowed_value(
 ) {
     record.clear();
 
-    traverse_borrowed_value_with_stack(value, stack, |v| {
-        record.push_field(&serialize_borrowed_json_value_to_csv_field(v));
+    traverse_borrowed_value_with_stack(value, stack, |v| match v {
+        BorrowedValue::Static(simd_json::StaticNode::Null) => record.push_field(b""),
+        BorrowedValue::Static(simd_json::StaticNode::Bool(b)) => {
+            record.push_field(if *b { b"true" } else { b"false" });
+        }
+        BorrowedValue::String(s) => record.push_field(s.as_bytes()),
+        BorrowedValue::Static(simd_json::StaticNode::F64(f)) => {
+            record.fmt_field(f);
+        }
+        BorrowedValue::Static(simd_json::StaticNode::U64(i)) => {
+            record.fmt_field(i);
+        }
+        BorrowedValue::Static(simd_json::StaticNode::I64(i)) => {
+            record.fmt_field(i);
+        }
+        BorrowedValue::Array(l) => {
+            record.write_field(|view| serde_json::to_writer(view, l).unwrap())
+        }
+        BorrowedValue::Object(o) => {
+            record.write_field(|view| serde_json::to_writer(view, o).unwrap())
+        }
     });
 }
 
