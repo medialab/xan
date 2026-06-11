@@ -589,6 +589,7 @@ where
     Self: Sized,
 {
     fn floor(&self, unit: Unit) -> Result<Self, Error>;
+    fn to_string_wrt_unit(&self, unit: Unit) -> String;
 }
 
 impl ZonedExt for Zoned {
@@ -603,6 +604,18 @@ impl ZonedExt for Zoned {
             }
             _ => self.round(ZonedRound::new().smallest(unit))?,
         })
+    }
+
+    fn to_string_wrt_unit(&self, unit: Unit) -> String {
+        self.strftime(match unit {
+            Unit::Year => "%Y",
+            Unit::Month => "%Y-%m",
+            Unit::Day => "%F",
+            Unit::Hour => "%F %H:00",
+            Unit::Minute => "%F %H:%M",
+            _ => "%F %T",
+        })
+        .to_string()
     }
 }
 

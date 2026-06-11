@@ -837,16 +837,7 @@ fn format_timestamp(microseconds: i64, unit: Unit, timezone: TimeZone) -> String
         .floor(unit)
         .unwrap();
 
-    zoned
-        .strftime(match unit {
-            Unit::Year => "%Y",
-            Unit::Month => "%Y-%m",
-            Unit::Day => "%F",
-            Unit::Hour => "%F %H:00",
-            Unit::Minute => "%F %H:%M",
-            _ => "%F %T",
-        })
-        .to_string()
+    zoned.to_string_wrt_unit(unit)
 }
 
 #[derive(Debug, Clone)]
