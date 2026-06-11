@@ -1,11 +1,11 @@
 use std::cell::RefCell;
-use std::collections::{btree_map::Entry as BTreeMapEntry, BTreeMap};
+use std::collections::{BTreeMap, btree_map::Entry as BTreeMapEntry};
 use std::io::{Read, Write};
 use std::num::NonZeroUsize;
 use std::rc::Rc;
 
 use serde::ser::{Serialize, SerializeMap, Serializer};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use simd_csv::{ByteRecord, StringRecord};
 use simd_json::BorrowedValue;
 
@@ -24,7 +24,7 @@ impl GetPathOwned for Value {
 
         for step in path.iter() {
             match step {
-                Step::Index(mut i) => {
+                &Step::Index(mut i) => {
                     let array = value.as_array_mut()?;
 
                     if i < 0 {
@@ -60,7 +60,7 @@ impl GetPathBorrowed for BorrowedValue<'_> {
 
         for step in path.iter() {
             match step {
-                Step::Index(mut i) => {
+                &Step::Index(mut i) => {
                     if let BorrowedValue::Array(array) = value {
                         if i < 0 {
                             i += array.len() as isize;

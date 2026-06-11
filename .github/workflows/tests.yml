@@ -18,7 +18,7 @@ jobs:
         run: |
           echo Before override
           rustup --version
-          rustup override set 1.83.0
+          rustup override set 1.85.0
           echo After override
           rustup --version
       - name: Tests
