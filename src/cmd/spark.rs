@@ -404,9 +404,9 @@ impl SparklineRenderer {
         self.draw_buffer.push('\n');
         self.pad_left(left_padding);
 
-        write!(
+        writeln!(
             &mut self.draw_buffer,
-            "highest: {}/{} ({:.2}%), min: {}, max: {}\n",
+            "highest: {}/{} ({:.2}%), min: {}, max: {}",
             format_number(info.max_bin_count).red(),
             format_number(info.count),
             (info.max_bin_count as f64 / info.count as f64) * 100.0,
@@ -417,12 +417,38 @@ impl SparklineRenderer {
 
         self.pad_left(left_padding);
 
-        write!(
+        writeln!(
             &mut self.draw_buffer,
-            "mean: {}, median: {}, stddev: {}\n",
+            "mean: {}, median: {}, stddev: {}",
             format_number(info.mean).green(),
             format_number(info.median).yellow(),
             format_number(info.stddev).magenta(),
+        )
+        .unwrap();
+    }
+
+    fn render_temporal_axis(&mut self, left_padding: usize, width: usize, ticks: &[String]) {
+        self.draw_buffer.push('\n');
+        self.pad_left(left_padding);
+
+        writeln!(
+            &mut self.draw_buffer,
+            "└{}┘",
+            "─".repeat(width.saturating_sub(2))
+        )
+        .unwrap();
+
+        self.pad_left(left_padding);
+
+        let space =
+            " ".repeat(width - ticks.first().unwrap().width() - ticks.last().unwrap().width());
+
+        writeln!(
+            &mut self.draw_buffer,
+            "{}{}{}",
+            ticks.first().unwrap(),
+            space,
+            ticks.last().unwrap()
         )
         .unwrap();
     }
@@ -1348,6 +1374,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     // Temporal discretization
     let mut granularity_opt = None;
+    let mut temporal_ticks_opt = None;
 
     if let Some((_, extent)) = &time_opt {
         let (adjusted_bins, best_unit) = extent.best_discrete_granularity(max_bins)?.unwrap();
@@ -1372,6 +1399,31 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     .min()
                     .unwrap()
             });
+        }
+
+        let mut budget_cols = cols_for_sparkline;
+        let granularity = granularity_opt.unwrap();
+
+        let min_label = extent
+            .earliest()
+            .unwrap()
+            .to_lower_bound_timestamp(TimeZone::system())?
+            .to_zoned(TimeZone::system())
+            .to_string_wrt_unit(granularity);
+
+        let max_label = extent
+            .latest()
+            .unwrap()
+            .to_lower_bound_timestamp(TimeZone::system())?
+            .to_zoned(TimeZone::system())
+            .to_string_wrt_unit(granularity);
+
+        budget_cols = budget_cols
+            .saturating_sub(min_label.width())
+            .saturating_sub(max_label.width());
+
+        if budget_cols > 0 {
+            temporal_ticks_opt = Some(vec![min_label, max_label]);
         }
     }
 
@@ -1480,7 +1532,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if !args.flag_hide_legend {
         writeln!(
             &mut out,
-            "\nDisplaying {} of {}{}, {} scale\n",
+            "\nDisplaying {}{} of {}{}{}\n",
             if args.flag_dist {
                 "distribution"
             } else if args.flag_along_rows {
@@ -1489,6 +1541,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 "time series"
             } else {
                 "column-wise series"
+            },
+            if let Some((_, extent)) = &time_opt {
+                let granularity = granularity_opt.unwrap();
+
+                format!(
+                    " (from {} to {}, by {})",
+                    extent.earliest().unwrap().to_string().cyan(),
+                    extent.latest().unwrap().to_string().cyan(),
+                    Granularity::new(granularity).to_string().green()
+                )
+            } else {
+                "".to_string()
             },
             if let Some(names) = selected_column_names {
                 if args.flag_along_rows {
@@ -1509,7 +1573,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             },
             if let Some(names) = group_column_names {
                 format!(
-                    ", grouped by {}",
+                    ", broken down by {}",
                     names
                         .into_iter()
                         .map(|n| n.green().to_string())
@@ -1519,7 +1583,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             } else {
                 "".to_string()
             },
-            args.flag_scale.to_string().cyan()
+            if args.flag_scale.is_linear() {
+                "".to_string()
+            } else {
+                format!(", {} scale", args.flag_scale.to_string().cyan())
+            }
         )?;
 
         // Categorical legend
@@ -1546,19 +1614,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                 writeln!(&mut out)?;
             }
-        }
-
-        // Temporal legend
-        if let Some((_, extent)) = &time_opt {
-            let granularity = granularity_opt.unwrap();
-
-            writeln!(
-                &mut out,
-                "{} to {} (granularity: {})\n",
-                extent.earliest().unwrap().to_string().cyan(),
-                extent.latest().unwrap().to_string().cyan(),
-                Granularity::new(granularity).to_string().green()
-            )?;
         }
     }
 
@@ -1626,7 +1681,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 if let Some(central_tendencies) = &distribution_infos_opt {
                     let info = central_tendencies.get(i).unwrap();
 
-                    sparkline_renderer.render_distribution_legend(name_padding.len(), &info);
+                    sparkline_renderer.render_distribution_legend(name_padding.len(), info);
                 }
 
                 if args.flag_show_percentages {
@@ -1642,6 +1697,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                     sparkline_renderer
                         .cram_names(name_padding.len(), color_map.iter().map(|(_, name)| name));
+                }
+
+                if let Some(ticks) = &temporal_ticks_opt {
+                    sparkline_renderer.render_temporal_axis(name_padding.len(), chunk.len(), ticks);
                 }
             }
 
