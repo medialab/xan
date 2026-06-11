@@ -2,16 +2,16 @@ use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::io;
 
-use rand::Rng;
+use rand::RngExt;
 use simd_csv::ByteRecord;
 
+use crate::CliError;
+use crate::CliResult;
 use crate::collections::ClusteredInsertHashmap;
 use crate::collections::HashMap;
 use crate::config::{Config, Delimiter};
 use crate::select::{SelectedColumns, Selection};
 use crate::util;
-use crate::CliError;
-use crate::CliResult;
 
 type GroupKey = Vec<Vec<u8>>;
 

@@ -12,7 +12,7 @@ use colored::{Color, ColoredString, Colorize, Styles};
 use docopt::Docopt;
 use lazy_static::lazy_static;
 use numfmt::{Formatter, Numeric, Precision};
-use rand::RngCore;
+use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use rand_seeder::Seeder;
 use regex::{Captures, Regex};
@@ -20,10 +20,10 @@ use serde::de::DeserializeOwned;
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
+use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
 use crate::temporal;
-use crate::CliResult;
 
 pub fn version() -> String {
     let (maj, min, pat, pre) = (
@@ -267,7 +267,7 @@ impl TryFrom<String> for FilenameTemplate {
     }
 }
 
-pub fn acquire_rng(seed: Option<usize>) -> Box<dyn RngCore> {
+pub fn acquire_rng(seed: Option<usize>) -> Box<dyn Rng> {
     match seed {
         None => Box::new(rand::rng()),
         Some(seed) => Box::new(Seeder::from(seed).into_rng::<ChaCha8Rng>()),
@@ -437,7 +437,7 @@ impl ColorOrStyles {
 pub fn colorizer_by_type(string: &str) -> ColorOrStyles {
     match string {
         "true" | "TRUE" | "True" | "false" | "FALSE" | "False" | "yes" | "no" => {
-            return ColorOrStyles::Color(Color::Cyan)
+            return ColorOrStyles::Color(Color::Cyan);
         }
         "NULL" | "null" | "na" | "NA" | "None" | "n/a" | "N/A" | "nan" | "NaN" | "<empty>"
         | "<rest>" | "." | "-" => return ColorOrStyles::Styles(Styles::Dimmed),
