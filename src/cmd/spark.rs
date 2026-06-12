@@ -1593,7 +1593,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if !args.flag_hide_legend {
         writeln!(
             &mut out,
-            "\nDisplaying {}{} of {}{}{}\n",
+            "\nDisplaying {}{} of {}{}{}",
             if args.flag_dist {
                 "distribution"
             } else if args.flag_along_rows {
@@ -1650,6 +1650,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 format!(", {} scale", args.flag_scale.to_string().cyan())
             }
         )?;
+
+        // y-axis legend
+        if args.flag_share_scale || pool.len() == 1 {
+            let y_extent = pool.first().unwrap().1.extent_builder.build().unwrap();
+
+            writeln!(
+                &mut out,
+                "Y axis ranging from {} to {}",
+                format_number(y_extent.min()).cyan(),
+                format_number(y_extent.max()).cyan()
+            )?;
+        }
+
+        writeln!(&mut out)?;
 
         // Categorical legend
         if !actually_cram {
