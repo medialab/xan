@@ -570,6 +570,7 @@ If you speak French, [here](https://ceres.sorbonne-universite.fr/test_outil_xan/
 
 *Documented use-cases*
 
+* [Dataviz from the comfort of your terminal](./docs/cookbook/dataviz.md)
 * [Merging frequency tables, three ways](./docs/cookbook/frequency_tables.md)
 * [Parsing and visualizing dates with xan](./docs/cookbook/dates.md)
 * [Joining files by URL prefixes](./docs/cookbook/urls.md)

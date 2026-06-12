@@ -41,6 +41,7 @@ I say "comfort" and I mean it ;). `xan` will have processed and rendered your da
 - [`xan heatmap` for heatmaps and conditional formatting](#xan-heatmap-for-heatmaps-and-conditional-formatting) (TODO)
 - [`xan spark` for sparklines and aggregated bar plots](#xan-spark-for-sparklines-and-aggregated-bar-plots) (TODO)
 - [`xan progress` for progress bars](#xan-progress-for-progress-bars)
+- [How to save the visualizations](#how-to-save-the-visualizations)
 
 ## Downloading the datasets used in this guide
 
@@ -414,7 +415,7 @@ xan freq -s category series.csv | xan hist
 ```
 
 <p align="center">
-    <img alt="hist-freq.png" src="./img/dataviz/hist-freq.png" width="40%" />
+    <img alt="hist-freq.png" src="./img/dataviz/hist-freq.png" width="50%" />
 </p>
 
 You can choose to have larger and more precise bars using the `-B/--bar-size` flag, but they will be less readable without color support (when copy pasting, for instance):
@@ -424,7 +425,7 @@ xan freq -s category series.csv | xan hist -B large
 ```
 
 <p align="center">
-    <img alt="hist-freq-large.png" src="./img/dataviz/hist-freq-large.png" width="40%" />
+    <img alt="hist-freq-large.png" src="./img/dataviz/hist-freq-large.png" width="50%" />
 </p>
 
 And as always, you can use the `-R/--rainbow` flag to add some welcome color to your bars:
@@ -434,7 +435,7 @@ xan freq -s category series.csv | xan hist -R
 ```
 
 <p align="center">
-    <img alt="hist-freq-rainbow.png" src="./img/dataviz/hist-freq-rainbow.png" width="40%" />
+    <img alt="hist-freq-rainbow.png" src="./img/dataviz/hist-freq-rainbow.png" width="50%" />
 </p>
 
 Finally, `xan hist` is perfectly able to print multiple bar plots at once. This is fortunate because `xan freq` can output multiple frequency tables in one pass like so:
@@ -444,7 +445,7 @@ xan freq -s category,format series.csv | xan hist
 ```
 
 <p align="center">
-    <img alt="hist-freq-multiple.png" src="./img/dataviz/hist-freq-multiple.png" width="40%" />
+    <img alt="hist-freq-multiple.png" src="./img/dataviz/hist-freq-multiple.png" width="50%" />
 </p>
 
 ### Distributions
@@ -623,3 +624,41 @@ xan parallel count data/**/ocr.csv.gz --progress
 <p align="center">
     <img alt="progress-parallel.gif" src="./img/dataviz/progress-parallel.gif" width="80%" />
 </p>
+
+<!-- TODO: troubleshooting with COLORTERM -->
+
+## How to save the visualizations
+
+*Copying them*
+
+The dataviz produced by `xan` remain drawn using characters. This means you can very well copy them as text and paste them elsewhere.
+
+Just keep in mind that they must be displayed somewhere with a monospace font (else the layout will be garbage), and that some characters, notably those used by `xan spark` (`▁▂▃▄▅▆▇`), might not render correctly everywhere. It really depends on the font used to draw them.
+
+You will also need to forfeit colors, of course, since only the terminal usually knows how to render ANSI escape codes. This means that some commands have a less portable output. `xan heatmap` relies heavily on background color, for instance, as well as some modes of `xan spark` & `xan plot`.
+
+*Manual screenshots*
+
+Doing manual screenshots of your terminal is a valid solution. It might not work very well however if the dataviz is higher than a single screen. In which case you should really check out the next solution.
+
+*ansi2png-rs*
+
+<!-- example of usage To pro
+
+https://github.com/Yomguithereal/ansi2png-rs
+
+--color=always or CLICOLOR_FORCE=1
+
+https://github.com/medialab/xan#regarding-color -->
+
+*The future*
+
+I might add a builtin way to save produced datavisualizations as PNG rasters in `xan` itself, using the library powering my fork of `ansi2png-rs`, but it might add too much cruft to the binary already weighing ~20MB (Rust executables are not easy to keep light as of yet, lol).
+
+---
+
+That's it for now :).
+
+Congrats for reaching the end!
+
+Signed: [xan](https://github.com/medialab/xan#readme), the CSV magician
