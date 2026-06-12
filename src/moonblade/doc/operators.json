@@ -116,6 +116,7 @@
   },
   {
     "title": "Logical operators",
+    "prelude": "Warning: x in y and x not in y use strict equality, matching both value and type. Cast operands explicitly when testing string-typed cells, e.g. int(b) not in [1, 2, 3].",
     "examples": [
       {
         "snippet": "x && y",
@@ -132,10 +133,12 @@
         "snippet": "x or y"
       },
       {
-        "snippet": "x in y"
+        "snippet": "x in y",
+        "help": "strict membership test"
       },
       {
-        "snippet": "x not in y"
+        "snippet": "x not in y",
+        "help": "negated strict membership test"
       }
     ]
   },
