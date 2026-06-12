@@ -4,7 +4,7 @@
 #   $ xan select -e 'Category as category, Format as format, col("year-date") as date, Units as units, col(-2) as revenues, col(-1) as adjusted_revenues' series.csv
 
 # Installing correct version of `ansi2png-rs`:
-#   $ cargo +nightly install --git https://github.com/yomguithereal/ansi2png-rs --locked --rev 9c3ccd6d
+#   $ cargo +nightly install --git https://github.com/yomguithereal/ansi2png-rs --locked --rev 70dbf53e
 
 export CLICOLOR_FORCE=1
 
@@ -12,9 +12,14 @@ RESOURCES_DIR="$(dirname $0)/../../resources"
 IMG_DIR="$(dirname $0)"
 SERIES="$RESOURCES_DIR/series.csv"
 SOTU="$RESOURCES_DIR/sotu.csv"
+MEDIAS="$RESOURCES_DIR/medias.csv"
 
 save() {
     ansi2png-rs -o "$IMG_DIR/$1.png"
+}
+
+save_with_width() {
+    ansi2png-rs -o "$IMG_DIR/$1.png" --png-width "$2"
 }
 
 # view
@@ -47,6 +52,38 @@ echo "xan flatten snapshots"
 
 xan f "$SERIES" -l 5 --cols 50 | \
 save "flatten"
+
+xan f "$SERIES" -R -l 5 --cols 50 | \
+save "flatten-rainbow"
+
+xan search -s president Obama "$SOTU" | \
+xan tokenize sentences transcript | \
+xan f -l 5 --cols 59 | \
+save_with_width "flatten-sotu" 1432
+
+xan search -s president Obama "$SOTU" | \
+xan tokenize sentences transcript | \
+xan f -c -l 5 --cols 59 | \
+save_with_width "flatten-sotu-condense" 1432
+
+xan search -s president Obama "$SOTU" | \
+xan tokenize sentences transcript | \
+xan f -w -l 5 --cols 59 | \
+save_with_width "flatten-sotu-wrap" 1432
+
+xan search -s president Obama "$SOTU" | \
+xan tokenize sentences transcript | \
+xan f -F -l 2 --cols 59 | \
+save_with_width "flatten-sotu-flatter" 1432
+
+xan tokenize sentences transcript "$SOTU" | \
+xan search -s sentence -i conspicuous | \
+xan f -F -l 3 --cols 59 -i -H conspicuous | \
+save_with_width "flatten-sotu-highlight" 1432
+
+xan tail -l 2 "$MEDIAS" | \
+xan f -N --split prefixes | \
+save "flatten-split"
 
 # stats -R
 echo "xan stats -R snapshots"

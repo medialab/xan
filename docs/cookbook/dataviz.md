@@ -20,6 +20,9 @@ I say "comfort" and I mean it ;). `xan` will have processed and rendered your da
     - [Grouping rows](#grouping-rows)
     - [Customizing the view](#customizing-the-view)
 - [`xan flatten` for close reading](#xan-flatten-for-close-reading)
+    - [Customizing the flattening](#customizing-the-flattening)
+    - [Highlighting](#highlighting)
+    - [Splitting multivalued cells](#splitting-multivalued-cells)
 - [`xan stats -R/--report` for automatic statistical reports](#xan-stats--r--report-for-automatic-statistical-reports)
 - [`xan hist` for detailed bar plots](#xan-hist-for-detailed-bar-plots)
 - [`xan plot` for scatter plots, line plots and time series](#xan-plot-for-scatter-plots-line-plots-and-time-series)
@@ -44,6 +47,14 @@ Retranscription of U.S. state of the union speeches across time (1790 to 2018):
 
 ```bash
 curl -L https://github.com/BrianWeinstein/state-of-the-union/raw/refs/heads/master/transcripts.csv > sotu.csv
+```
+
+*medias.csv*
+
+A curated corpus of French medias online.
+
+```bash
+curl -LO https://github.com/medialab/corpora/raw/master/polarisation/medias.csv
 ```
 
 *iris.csv*
@@ -218,7 +229,7 @@ Fortunately `xan` has another command catering to those use-cases, so you can ea
 
 ## `xan flatten` for close reading
 
-`xan flatten` is a command that lets you read full row data more comfortably than `xan view` by "flattening" the representation. That is to say we will let each column take at least a line so the full content of their cells can be read:
+`xan flatten` is a command that lets you read full row data more comfortably than `xan view` by "flattening" the representation. That is to say we will let each column take at least one line so the full content of their cells can be read:
 
 ```
 xan flatten series.csv
@@ -228,7 +239,110 @@ xan flatten series.csv
     <img alt="flatten.png" src="./img/dataviz/flatten.png" width="40%" />
 </p>
 
-<!-- TODO: wrap, condense, flatter, highlighting -->
+Notice how values are colored by type like when using `xan view`.
+
+You can also pick one color per column instead, using the `-R/--rainbow` flag. This can make it easier to scan values of a same columns across rows sometimes.
+
+```
+xan flatten -R series.csv
+```
+
+<p align="center">
+    <img alt="flatten-rainbow.png" src="./img/dataviz/flatten-rainbow.png" width="40%" />
+</p>
+
+### Customizing the flattening
+
+Now this is fine when your cell don't contain too much information, but sometimes they might contain long texts.
+
+Consider this example where we attempt to display sentences from president Obama speeches contained in `sotu.csv` (we are going to use `xan tokenize` to break the speeches into sentences):
+
+```bash
+xan search -s president Obama sotu.csv | \
+xan tokenize sentences transcript | \
+xan flatten
+```
+
+<p align="center">
+    <img alt="flatten-sotu.png" src="./img/dataviz/flatten-sotu.png" width="60%" />
+</p>
+
+This is fine, but you might want to tidy the way long texts are printed.
+
+The first thing you can do is to truncate any text longer than what your terminal can fit in a single line, using the `-c/--condense` flag:
+
+```bash
+xan search -s president Obama sotu.csv | \
+xan tokenize sentences transcript | \
+xan flatten -c
+```
+
+<p align="center">
+    <img alt="flatten-sotu-condense.png" src="./img/dataviz/flatten-sotu-condense.png" width="60%" />
+</p>
+
+Another thing you can do is to wrap long lines so that they keep to the right of the column nice harmoniously using the `-w/--wrap` flag:
+
+```bash
+xan search -s president Obama sotu.csv | \
+xan tokenize sentences transcript | \
+xan flatten -w
+```
+
+<p align="center">
+    <img alt="flatten-sotu-wrap.png" src="./img/dataviz/flatten-sotu-wrap.png" width="60%" />
+</p>
+
+Note that you will lose the ability to easily copy text such as long urls etc. when using the `-w/--wrap` flag, though.
+
+Finally, you can flatten the representation even more and have the column name take one line and the value subsquent lines after it with the `-F/--flatter` flag:
+
+```bash
+xan search -s president Obama sotu.csv | \
+xan tokenize sentences transcript | \
+xan flatten -F
+```
+
+<p align="center">
+    <img alt="flatten-sotu-flatter.png" src="./img/dataviz/flatten-sotu-flatter.png" width="60%" />
+</p>
+
+### Splitting multivalued cells
+
+If you check the `medias.csv` file, you will quickly notice that some columns contain multiple values, separated by a pipe (`|`) character, like `prefixes` or `start_pages`. This is a very common thing to do, and here is an example of what you might find in the `prefixes` column:
+
+```txt
+https://kulturegeek.fr/|http://kulturegeek.fr/|https://www.kulturegeek.fr/|http://www.kulturegeek.fr/|https://www.facebook.com/KultureGeek.fr|https://kulturegeek.fr|https://www.instagram.com/degeekageeks/
+```
+
+Now you might want to read a list of those values more comfortably and `xan flatten` offers a `-S/--split` flag taking a selection of columns to "split" further:
+
+```bash
+# I use `xan flatten -N/--non-empty` to avoid displaying empty columns
+xan flatten -N --split prefixes medias.csv
+```
+
+<p align="center">
+    <img alt="flatten-split.png" src="./img/dataviz/flatten-split.png" width="80%" />
+</p>
+
+By default, the command will split multivalued cells by `|` but you can always provide a custom separator to the `--sep` flag instead.
+
+### Highlighting
+
+Sometimes, it can be nice to highlight substrings matching some pattern. `xan flatten` lets you do so through a regex given to the `-H/--highlight` flag. Matches can also be case-insensitive if you give the `-i/--ignore-case` flag.
+
+Let's search for sentences containing the "conspicuous" word in our speeches:
+
+```bash
+xan tokenize sentences transcript sotu.csv | \
+xan search -s sentence -i conspicuous | \
+xan flatten -F -iH conspicuous
+```
+
+<p align="center">
+    <img alt="flatten-sotu-highlight.png" src="./img/dataviz/flatten-sotu-highlight.png" width="60%" />
+</p>
 
 ## `xan stats -R/--report` for automatic statistical reports
 
