@@ -4,7 +4,7 @@
 #   $ xan select -e 'Category as category, Format as format, col("year-date") as date, Units as units, col(-2) as revenues, col(-1) as adjusted_revenues' series.csv
 
 # Installing correct version of `ansi2png-rs`:
-#   $ cargo +nightly install --git https://github.com/yomguithereal/ansi2png-rs --locked --rev 71ae8a92
+#   $ cargo +nightly install --git https://github.com/yomguithereal/ansi2png-rs --locked --rev 9c3ccd6d
 
 export CLICOLOR_FORCE=1
 
@@ -38,6 +38,9 @@ save "view-custom"
 
 xan v "$SERIES" -l 10 -MI --name series.csv --repeat-headers never --theme borderless | \
 save "view-borderless"
+
+xan v "$SERIES" -l 10 -MI --name series.csv --repeat-headers never --theme striped | \
+save "view-striped"
 
 # flatten
 echo "xan flatten snapshots"

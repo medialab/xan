@@ -202,6 +202,16 @@ xan view -MI --theme borderless series.csv
     <img alt="view-borderless.png" src="./img/dataviz/view-borderless.png" width="80%" />
 </p>
 
+Or even:
+
+```bash
+xan view -MI --theme striped series.csv
+```
+
+<p align="center">
+    <img alt="view-striped.png" src="./img/dataviz/view-striped.png" width="80%" />
+</p>
+
 Now, the tabular view is a staple for a reason, but it becomes somewhat limited when your file has many columns or if cell values are very long, for instance if they contain full text.
 
 Fortunately `xan` has another command catering to those use-cases, so you can easily read the full contents of a CSV row: `flatten`.
