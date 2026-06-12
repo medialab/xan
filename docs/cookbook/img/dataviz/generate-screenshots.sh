@@ -51,7 +51,7 @@ save "flatten"
 # stats -R
 echo "xan stats -R snapshots"
 
-xan stats "$SERIES" | xan f -N --row-separator " " | \
+xan stats -s 0,2,3 "$SERIES" | xan f -N --row-separator " " | \
 save "stats-flat"
 
-xan stats -R "$SERIES" | save "stats-report"
+xan stats -s 0,2,3 -R "$SERIES" | save "stats-report"
