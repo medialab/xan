@@ -111,6 +111,9 @@ spark options:
     -P, --show-percentages
                         Show series numbers as a percentage under their respective bars. Only
                         useful when -W/--width is more than 1.
+    --repeat-x-axis <choice>
+                        Whether to repeat x-axis for each plot when using -T/--time. Can be
+                        "yes" or "no". [default: yes]
     --cols <num>        Number of terminal columns, i.e. characters, that we can
                         use for drawing labels, legends and sparklines.
                         Defaults to using all your terminal's width or 80 if

@@ -97,6 +97,12 @@ fn fill_discretization_gaps<T: Default + Copy, F>(
     }
 }
 
+#[derive(Deserialize, Debug)]
+enum RepeatMode {
+    Yes,
+    No,
+}
+
 pub static SPARKLINE_CHARS: [char; 7] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇'];
 pub const FULL_BAR: char = '█';
 
@@ -949,6 +955,9 @@ spark options:
     -P, --show-percentages
                         Show series numbers as a percentage under their respective bars. Only
                         useful when -W/--width is more than 1.
+    --repeat-x-axis <choice>
+                        Whether to repeat x-axis for each plot when using -T/--time. Can be
+                        "yes" or "no". [default: yes]
     --cols <num>        Number of terminal columns, i.e. characters, that we can
                         use for drawing labels, legends and sparklines.
                         Defaults to using all your terminal's width or 80 if
@@ -1042,6 +1051,7 @@ struct Args {
     flag_height: Option<String>,
     flag_cols: Option<String>,
     flag_color: ColorMode,
+    flag_repeat_x_axis: RepeatMode,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
 }
@@ -1693,12 +1703,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     // Rendering
-    for (i, (name, series)) in pool.into_iter().enumerate() {
+    for (i, (name, series)) in pool.iter().enumerate() {
         let mut name_opt = (!args.flag_hide_names).then(|| {
             format!(
                 "{:<width$} ",
                 util::unicode_aware_ellipsis(
-                    &util::sanitize_text_for_multi_line_printing(&name),
+                    &util::sanitize_text_for_multi_line_printing(name),
                     cols_for_series_name.saturating_sub(1),
                 ),
                 width = cols_for_series_name.saturating_sub(1)
@@ -1775,7 +1785,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
 
                 if let Some(ticks) = &temporal_ticks_opt {
-                    sparkline_renderer.render_temporal_axis(name_padding.len(), chunk.len(), ticks);
+                    if matches!(args.flag_repeat_x_axis, RepeatMode::Yes) || i == pool.len() - 1 {
+                        sparkline_renderer.render_temporal_axis(
+                            name_padding.len(),
+                            chunk.len(),
+                            ticks,
+                        );
+                    }
                 }
             }
 
