@@ -482,6 +482,10 @@ impl SparklineRenderer {
         buffer.set_string(0, 0, first, Style::default());
         buffer.set_string((width - last.width()) as u16, 0, last, Style::default());
 
+        for (i, tick) in ticks.iter().skip(1).take(ticks.len() - 2) {
+            buffer.set_string((i - tick.width() / 2) as u16, 0, tick, Style::default());
+        }
+
         self.pad_left(left_padding);
 
         for x in 0..(width as u16) {
@@ -682,9 +686,9 @@ impl Series {
 
         self.numbers = bins;
 
-        let mut categories_bins = Vec::with_capacity(count);
-
         if !self.categories.is_empty() {
+            let mut categories_bins = Vec::with_capacity(count);
+
             for chunk in self.categories.chunks_mut(chunk_size) {
                 chunk.sort();
                 let mode = chunk[0];
@@ -1442,17 +1446,38 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .to_zoned(TimeZone::system())
             .to_string_wrt_unit(granularity);
 
+        // TODO: this must actually be done AFTER discretization
         budget_cols = budget_cols
             .saturating_sub(min_label.width())
             .saturating_sub(max_label.width());
 
         if budget_cols > 0 {
-            // let baseline = min_label.width();
+            let baseline = min_label.width();
             let mut ticks = vec![(0, min_label)];
 
-            // let additional_ticks = budget_cols / (baseline + 2);
+            let additional_ticks =
+                budget_cols.saturating_sub(2).saturating_sub(baseline * 2) / (baseline + 2);
 
-            ticks.push((cols_for_sparkline, max_label));
+            if additional_ticks > 0 {
+                let seconds_extent = build_seconds_extent(extent, granularity)?;
+
+                fn lerp(min: f64, max: f64, t: f64) -> f64 {
+                    (1.0 - t) * min + t * max
+                }
+
+                let mut t = 0.0;
+                let fract = 1.0 / (additional_ticks + 1) as f64;
+
+                for _ in 0..additional_ticks {
+                    t += fract;
+                    let i = lerp(0.0, cols_for_sparkline as f64, t) as usize;
+                    // let x = lerp(seconds_extent.min(), seconds_extent.max() as f64, t);
+
+                    ticks.push((i, "todo".to_string()));
+                }
+            }
+
+            ticks.push((cols_for_sparkline - 1, max_label));
 
             temporal_ticks_opt = Some(ticks);
         }
@@ -1462,6 +1487,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if !args.flag_wrap {
         for (_, series) in pool.iter_mut() {
             if series.len() > max_bins {
+                dbg!(max_bins, cols_for_sparkline);
                 series.discretize(max_bins);
             }
         }
