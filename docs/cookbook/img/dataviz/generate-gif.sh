@@ -7,6 +7,7 @@ FILES=(
     "$IMG_DIR/flatten.png"
     "$IMG_DIR/hist-categorical1.png"
     "$IMG_DIR/stats-report.png"
+    "$IMG_DIR/plot-scatter.png"
     "$IMG_DIR/hist-freq-multiple.png"
 )
 
@@ -29,7 +30,7 @@ mkdir -p /tmp/xan-gif
 convert "${FILES[@]}" \
   -resize "${MAX_W}x${MAX_H}" \
   -background '#171421' \
-  -gravity North \
+  -gravity Center \
   -extent "${MAX_W}x${MAX_H}" \
   -set delay 80 \
   -loop 0 \

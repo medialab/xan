@@ -13,6 +13,7 @@ IMG_DIR="$(dirname $0)"
 SERIES="$RESOURCES_DIR/series.csv"
 SOTU="$RESOURCES_DIR/sotu.csv"
 MEDIAS="$RESOURCES_DIR/medias.csv"
+IRIS="$RESOURCES_DIR/iris.csv"
 
 save() {
     ansi2png-rs -o "$IMG_DIR/$1.png"
@@ -130,6 +131,15 @@ xan freq -AN -s foundation_year "$MEDIAS" | \
 xan filter 'value >= 1910 && value <= 1960' | \
 xan hist -D -G 2 | \
 save "hist-gaps"
+
+# plot
+echo "xan plot snapshots"
+
+xan plot sepal_length petal_width "$IRIS" -M dot | \
+save "plot-scatter"
+
+xan plot sepal_length petal_width "$IRIS" -GM dot | \
+save "plot-scatter-grid"
 
 # progress
 

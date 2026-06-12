@@ -35,6 +35,9 @@ I say "comfort" and I mean it ;). `xan` will have processed and rendered your da
     - [Working with arbitrary inputs](#working-with-arbitrary-inputs)
     - [Working with dates](#working-with-dates)
 - [`xan plot` for scatter plots, line plots and time series](#xan-plot-for-scatter-plots-line-plots-and-time-series) (TODO)
+    - [Scatter plots](#scatter-plots)
+    - [Line plots & time series](#line-plots--time-series)
+    - [Density gradients](#density-gradients)
 - [`xan heatmap` for heatmaps and conditional formatting](#xan-heatmap-for-heatmaps-and-conditional-formatting) (TODO)
 - [`xan spark` for sparklines and aggregated bar plots](#xan-spark-for-sparklines-and-aggregated-bar-plots) (TODO)
 - [`xan progress` for progress bars](#xan-progress-for-progress-bars)
@@ -514,6 +517,43 @@ This is it for `xan hist`. Now if you want to have vertical bar plots, you have 
 2. check out the section about [`xan spark`](#xan-spark-for-sparklines-and-aggregated-bar-plots)
 
 ## `xan plot` for scatter plots, line plots and time series
+
+`xan plot` can be used for detailed 2 dimensional plotting: scatter plots, line plots & time series.
+
+### Scatter plots
+
+To display a scatter plot, you just need to pass two numerical columns as `<x>` and `<y>` to the command.
+
+```bash
+# Here I am using the dot marker instead of default braille because
+# we have enough terminal real estate in this case
+xan plot sepal_length petal_width --marker dot iris.csv
+```
+
+<p align="center">
+    <img alt="plot-scatter.png" src="./img/dataviz/plot-scatter.png" width="80%" />
+</p>
+
+You can draw a grid aligned with x & y axis ticks if needed using the `-G/--grid` flag:
+
+```bash
+xan plot sepal_length petal_width --marker dot -G iris.csv
+```
+
+<p align="center">
+    <img alt="plot-scatter-grid.png" src="./img/dataviz/plot-scatter-grid.png" width="80%" />
+</p>
+
+
+<!-- TODO: ys, -c, small multiples, correlation and -R with tokenize -->
+
+### Line plots & time series
+
+<!-- TODO: --count, small multiples, different arrangements -->
+
+### Density gradients
+
+<!-- TODO -->
 
 ## `xan heatmap` for heatmaps and conditional formatting
 
