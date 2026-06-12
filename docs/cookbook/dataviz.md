@@ -1,13 +1,17 @@
 # Dataviz from the comfort of your terminal
 
+<p align="center">
+    <img alt="dataviz.gif" src="./img/dataviz/dataviz.gif" width="70%" />
+</p>
+
 This document is a showcase & guide to data visualisation in the terminal using the [`xan`](https://github.com/medialab/xan) command line tool.
 
 It is often overlooked because `xan` is first and foremost a very performant tabular data processing tool, but it can also render a large variety of typical data visualizations directly in your terminal. This ultimately means you never have to leave it to explore the data you mangle.
 
 I say "comfort" and I mean it ;). `xan` will have processed and rendered your data in the terminal long before you are able to spin up your Jupyter instance and import `pandas` & `matplotlib`. No cruft. No distraction. Just raw insights. Like it's still 1970 and all you have is ASCII art, but with ✨colors✨ and Unicode ([braille](https://en.wikipedia.org/wiki/Braille_ASCII) characters are a godsend).
 
-<!-- TODO: grid view, automagic using imagemacick convert, or gif? -->
 <!-- TODO: how to save -->
+<!-- TODO: finish gif -->
 <!-- TODO: layout gif -->
 <!-- TODO: mention you can always zoom out -->
 
