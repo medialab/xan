@@ -92,3 +92,20 @@ xan stats -s 0,2,3 "$SERIES" | xan f -N --row-separator " " | \
 save "stats-flat"
 
 xan stats -s 0,2,3 -R "$SERIES" | save "stats-report"
+
+# progress
+
+# asciinema rec -c 'xan progress sample.csv > /dev/null' progress.cast --overwrite
+# agg --rows 1 progress.cast progress.gif
+
+# asciinema rec -c 'xan progress sample.csv --total 10000000 > /dev/null' progress.cast --overwrite
+# agg --rows 1 progress.cast progress-total.gif
+
+# asciinema rec -c 'xan progress sample.csv --title "Processing tweets" > /dev/null' progress.cast --overwrite
+# agg --rows 1 progress.cast progress-title.gif
+
+# asciinema rec -c 'xan progress sample.csv -B > /dev/null' progress.cast --overwrite
+# agg --rows 1 progress.cast progress-bytes.gif
+
+# asciinema rec -c 'xan p count mathilde/**/ocr.csv.gz -P "slice -l 1000000" --progress > /dev/null' progress.cast --overwrite
+# agg progress.cast progress-parallel.gif

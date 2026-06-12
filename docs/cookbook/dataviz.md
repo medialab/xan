@@ -34,7 +34,6 @@ I say "comfort" and I mean it ;). `xan` will have processed and rendered your da
 - [`xan spark` for sparklines and aggregated bar plots](#xan-spark-for-sparklines-and-aggregated-bar-plots)
 - [`xan progress` for progress bars](#xan-progress-for-progress-bars)
 
-
 ## Downloading the datasets used in this guide
 
 *series.csv*
@@ -388,4 +387,63 @@ xan stats -R series.csv
 
 ## `xan progress` for progress bars
 
-<!-- TODO: asciinema gif -->
+When performing heavy processing, it can be nice to have a progress bar. Fortunately this is what `xan progress` proposes. It reads a CSV stream, prints a progress bar in stderr, and forward CSV data to stdout so you can pipe it into something else. This means it can be placed anywhere in a pipeline (even if it is usually better to place it at the beginning, rather than at the end), and works thanks to the magic of unix pipes backpressure.
+
+For instance, let's say you need to read files whose paths are contained in a CSV file, to make sure they contain the occurrence of some keyword. This might take a while, so first wrap beforementioed CSV file using `xan progress` like so:
+
+```bash
+xan progress paths.csv | \
+xan filter '"authenticated" not in read(path)' > errors.csv
+```
+
+Here is how it could look like:
+
+<p align="center">
+    <img alt="progress.gif" src="./img/dataviz/progress.gif" width="80%" />
+</p>
+
+You can add a title to the progress bar using the `--title` flag:
+
+```bash
+xan progress --title "Processing tweets" tweets.csv
+```
+
+<p align="center">
+    <img alt="progress-title.gif" src="./img/dataviz/progress-title.gif" width="80%" />
+</p>
+
+
+Now, unless the input file is very small, `xan progress` cannot know its number of rows beforehand because it would either need to read the file twice or buffer it in memory which is against the philosophy of a stream-oriented tool.
+
+This said, if you happen to know the total number of rows beforehand (you can always use `xan count` for this, by the way), you can give it to the command using the `--total` flag and have a more helpful progress bar:
+
+```bash
+xan progress --total 1000000 tweets.csv
+```
+
+<p align="center">
+    <img alt="progress-total.gif" src="./img/dataviz/progress-total.gif" width="80%" />
+</p>
+
+Another solution is also to have the progress bar work on the number of parallel read from input file instead of CSV rows, using the `-B/--bytes`. What's more, it is usually faster because we don't have to parse CSV rows to do so:
+
+
+```bash
+xan progress -B tweets.csv
+```
+
+<p align="center">
+    <img alt="progress-bytes.gif" src="./img/dataviz/progress-bytes.gif" width="80%" />
+</p>
+
+Finally, know that some other commands might expose a `--progress` flag when they need to print more granular information than what the `xan progress` command is able to provide.
+
+This is for instance the case of the `xan parallel` command, working on multiple files of file chunks in parallel:
+
+```bash
+xan parallel count data/**/ocr.csv.gz --progress
+```
+
+<p align="center">
+    <img alt="progress-parallel.gif" src="./img/dataviz/progress-parallel.gif" width="80%" />
+</p>
