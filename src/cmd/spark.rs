@@ -460,44 +460,43 @@ impl SparklineRenderer {
         ticks: &[(usize, String)],
     ) {
         self.draw_buffer.push('\n');
-        self.pad_left(left_padding);
-
-        writeln!(
-            &mut self.draw_buffer,
-            "└{}┘",
-            "─".repeat(width.saturating_sub(2))
-        )
-        .unwrap();
 
         let mut buffer = Buffer::empty(Rect {
             x: 0,
             y: 0,
             width: width as u16,
-            height: 1,
+            height: 2,
         });
+
+        buffer.set_string(0, 0, "┌", Style::default());
+        buffer.set_string(1, 0, "─".repeat(width - 2), Style::default());
+        buffer.set_string((width - 1) as u16, 0, "┐", Style::default());
 
         let first = &ticks.first().unwrap().1;
         let last = &ticks.last().unwrap().1;
 
-        buffer.set_string(0, 0, first, Style::default());
-        buffer.set_string((width - last.width()) as u16, 0, last, Style::default());
+        buffer.set_string(0, 1, first, Style::default());
+        buffer.set_string((width - last.width()) as u16, 1, last, Style::default());
 
         for (i, tick) in ticks.iter().skip(1).take(ticks.len() - 2) {
-            buffer.set_string((i - tick.width() / 2) as u16, 0, tick, Style::default());
+            buffer.set_string(*i as u16, 0, "┬", Style::default());
+            buffer.set_string((i - tick.width() / 2) as u16, 1, tick, Style::default());
         }
 
-        self.pad_left(left_padding);
+        for y in 0..=1 {
+            self.pad_left(left_padding);
 
-        for x in 0..(width as u16) {
-            write!(
-                &mut self.draw_buffer,
-                "{}",
-                buffer.cell((x, 0)).unwrap().symbol()
-            )
-            .unwrap();
+            for x in 0..(width as u16) {
+                write!(
+                    &mut self.draw_buffer,
+                    "{}",
+                    buffer.cell((x, y)).unwrap().symbol()
+                )
+                .unwrap();
+            }
+
+            self.draw_buffer.push('\n');
         }
-
-        writeln!(&mut self.draw_buffer).unwrap();
     }
 }
 
@@ -1402,7 +1401,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     // Temporal discretization
     let mut granularity_opt = None;
-    let mut temporal_ticks_opt = None;
 
     if let Some((_, extent)) = &time_opt {
         let (adjusted_bins, best_unit) = extent.best_discrete_granularity(max_bins)?.unwrap();
@@ -1428,8 +1426,22 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     .unwrap()
             });
         }
+    }
 
-        let mut budget_cols = cols_for_sparkline;
+    // Layout discretization
+    if !args.flag_wrap {
+        for (_, series) in pool.iter_mut() {
+            if series.len() > max_bins {
+                series.discretize(max_bins);
+            }
+        }
+    }
+
+    // Temporal x-axis
+    let mut temporal_ticks_opt = None;
+
+    if let Some((_, extent)) = &time_opt {
+        let discretized_series_len = pool.first().unwrap().1.len();
         let granularity = granularity_opt.unwrap();
 
         let min_label = extent
@@ -1446,8 +1458,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .to_zoned(TimeZone::system())
             .to_string_wrt_unit(granularity);
 
-        // TODO: this must actually be done AFTER discretization
-        budget_cols = budget_cols
+        let budget_cols = discretized_series_len
             .saturating_sub(min_label.width())
             .saturating_sub(max_label.width());
 
@@ -1470,26 +1481,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                 for _ in 0..additional_ticks {
                     t += fract;
-                    let i = lerp(0.0, cols_for_sparkline as f64, t) as usize;
-                    // let x = lerp(seconds_extent.min(), seconds_extent.max() as f64, t);
+                    let i = lerp(0.0, discretized_series_len as f64, t) as usize;
+                    let seconds = lerp(seconds_extent.min(), seconds_extent.max(), t);
+                    let tick = Timestamp::from_secs_f64(seconds)?
+                        .to_zoned(TimeZone::system())
+                        .to_string_wrt_unit(granularity);
 
-                    ticks.push((i, "todo".to_string()));
+                    ticks.push((i, tick));
                 }
             }
 
-            ticks.push((cols_for_sparkline - 1, max_label));
+            ticks.push((discretized_series_len - 1, max_label));
 
             temporal_ticks_opt = Some(ticks);
-        }
-    }
-
-    // Layout discretization
-    if !args.flag_wrap {
-        for (_, series) in pool.iter_mut() {
-            if series.len() > max_bins {
-                dbg!(max_bins, cols_for_sparkline);
-                series.discretize(max_bins);
-            }
         }
     }
 

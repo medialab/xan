@@ -31,7 +31,7 @@
 
 *Quality of Life*
 
-* Better legends for `xan spark`.
+* Better legends & axis for `xan spark`.
 
 ## 0.58.0
 
