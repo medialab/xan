@@ -57,7 +57,7 @@ Print categorical bar chart by group:
 Print the very literal Joy Division plot from the "Unknown Pleasures" album cover:
 
     $ curl https://gist.githubusercontent.com/borgar/31c1e476b8e92a11d7e9/raw/0fae97dab6830ecee185a63c1cee0008f6778ff6/pulsar.csv | \
-    $ xan spark --along-rows '*' --hide-names
+    $ xan spark --along-rows '*' --hide-all
 
 Unzoom your terminal for better effect ;)
 
