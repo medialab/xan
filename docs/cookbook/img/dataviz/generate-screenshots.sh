@@ -93,6 +93,44 @@ save "stats-flat"
 
 xan stats -s 0,2,3 -R "$SERIES" | save "stats-report"
 
+# hist
+echo "xan hist snapshots"
+
+xan freq -s category "$SERIES" | \
+xan hist --cols 60 | \
+save "hist-freq"
+
+xan freq -s category "$SERIES" | \
+xan hist --cols 60 -B large | \
+save "hist-freq-large"
+
+xan freq -s category "$SERIES" | \
+xan hist --cols 60 -R | \
+save "hist-freq-rainbow"
+
+xan freq -s category,format "$SERIES" | \
+xan hist --cols 60 | \
+save "hist-freq-multiple"
+
+xan freq -N -g edito -s wheel_category "$MEDIAS" | \
+xan sort -s value | \
+xan hist --cols 60 -c edito | \
+save "hist-categorical1"
+
+xan freq -N -g edito -s wheel_category "$MEDIAS" | \
+xan hist --cols 60 -c edito | \
+save "hist-categorical2"
+
+xan freq -AN -s foundation_year "$MEDIAS" | \
+xan filter 'value > 1980' | \
+xan hist -D | \
+save "hist-date"
+
+xan freq -AN -s foundation_year "$MEDIAS" | \
+xan filter 'value >= 1910 && value <= 1960' | \
+xan hist -D -G 2 | \
+save "hist-gaps"
+
 # progress
 
 # asciinema rec -c 'xan progress sample.csv > /dev/null' progress.cast --overwrite

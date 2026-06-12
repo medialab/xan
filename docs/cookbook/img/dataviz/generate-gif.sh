@@ -5,7 +5,9 @@ FILES=(
     "$IMG_DIR/view.png"
     "$IMG_DIR/view-grouped.png"
     "$IMG_DIR/flatten.png"
+    "$IMG_DIR/hist-categorical1.png"
     "$IMG_DIR/stats-report.png"
+    "$IMG_DIR/hist-freq-multiple.png"
 )
 
 read MAX_W MAX_H < <(

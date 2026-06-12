@@ -28,10 +28,15 @@ I say "comfort" and I mean it ;). `xan` will have processed and rendered your da
     - [Highlighting](#highlighting)
     - [Splitting multivalued cells](#splitting-multivalued-cells)
 - [`xan stats -R/--report` for automatic statistical reports](#xan-stats--r--report-for-automatic-statistical-reports)
-- [`xan hist` for detailed bar plots](#xan-hist-for-detailed-bar-plots)
-- [`xan plot` for scatter plots, line plots and time series](#xan-plot-for-scatter-plots-line-plots-and-time-series)
-- [`xan heatmap` for heatmaps and conditional formatting](#xan-heatmap-for-heatmaps-and-conditional-formatting)
-- [`xan spark` for sparklines and aggregated bar plots](#xan-spark-for-sparklines-and-aggregated-bar-plots)
+- [`xan hist` for detailed bar plots](#xan-hist-for-detailed-bar-plots) (TODO)
+    - [Frequency tables](#frequency-tables)
+    - [Distributions](#distributions)
+    - [Categorical bar plots](#categorical-bar-plots)
+    - [Working with arbitrary inputs](#working-with-arbitrary-inputs)
+    - [Working with dates](#working-with-dates)
+- [`xan plot` for scatter plots, line plots and time series](#xan-plot-for-scatter-plots-line-plots-and-time-series) (TODO)
+- [`xan heatmap` for heatmaps and conditional formatting](#xan-heatmap-for-heatmaps-and-conditional-formatting) (TODO)
+- [`xan spark` for sparklines and aggregated bar plots](#xan-spark-for-sparklines-and-aggregated-bar-plots) (TODO)
 - [`xan progress` for progress bars](#xan-progress-for-progress-bars)
 
 ## Downloading the datasets used in this guide
@@ -375,7 +380,138 @@ xan stats -R series.csv
 
 ## `xan hist` for detailed bar plots
 
-<!-- TODO: freq, -c, bins -->
+`xan hist` is a command able to print "detailed" bar plots. I say "detailed" as opposed to [`xan spark`](#xan-spark-for-sparklines-and-aggregated-bar-plots), that can print less detailed bar plots, but more suitable for facet grids & small multiples.
+
+One other difference is that `xan hist` prints horizontal bar plots while `xan spark` prints vertical ones.
+
+### Frequency tables
+
+The first use-case of `xan hist` people usually learn is to pretty-print the result of a `xan freq` call.
+
+Indeed, being a CSV table itself, the output of `xan freq` is not very readable as-is:
+
+```bash
+xan freq -s category series.csv
+```
+
+```txt
+field,value,count
+category,Vinyl,94
+category,Disc,85
+category,Other,75
+category,Download,66
+category,Tape,64
+category,Streaming,48
+```
+
+You can always pipe it to `xan view` to read it, but there is a better way:
+
+```bash
+xan freq -s category series.csv | xan hist
+```
+
+<p align="center">
+    <img alt="hist-freq.png" src="./img/dataviz/hist-freq.png" width="40%" />
+</p>
+
+You can choose to have larger and more precise bars using the `-B/--bar-size` flag, but they will be less readable without color support (when copy pasting, for instance):
+
+```bash
+xan freq -s category series.csv | xan hist -B large
+```
+
+<p align="center">
+    <img alt="hist-freq-large.png" src="./img/dataviz/hist-freq-large.png" width="40%" />
+</p>
+
+And as always, you can use the `-R/--rainbow` flag to add some welcome color to your bars:
+
+```bash
+xan freq -s category series.csv | xan hist -R
+```
+
+<p align="center">
+    <img alt="hist-freq-rainbow.png" src="./img/dataviz/hist-freq-rainbow.png" width="40%" />
+</p>
+
+Finally, `xan hist` is perfectly able to print multiple bar plots at once. This is fortunate because `xan freq` can output multiple frequency tables in one pass like so:
+
+```bash
+xan freq -s category,format series.csv | xan hist
+```
+
+<p align="center">
+    <img alt="hist-freq-multiple.png" src="./img/dataviz/hist-freq-multiple.png" width="40%" />
+</p>
+
+### Distributions
+
+<!-- TODO: bins, --scale, mention xan spark -D & xan stats -R -->
+
+### Categorical bar plots
+
+`xan hist` is also able to print "categorical" bar plots using the `-c/--category` flag. Here is an example where I print a bar plot of the frequency of values found in the "wheel_category" column of the `medias.csv` file, broken down by the values of the "edito" column:
+
+```bash
+xan freq -N -g edito -s wheel_category medias.csv | \
+xan hist -c edito
+```
+
+<p align="center">
+    <img alt="hist-categorical2.png" src="./img/dataviz/hist-categorical2.png" width="50%" />
+</p>
+
+A color was picked for each value of the "edito" column so we can color the related bars accordingly.
+
+You can also sort the output of `xan freq` differently to reorder the bars on screen:
+
+```bash
+xan freq -N -g edito -s wheel_category medias.csv | \
+xan sort -s value | \
+xan hist -c edito
+```
+
+<p align="center">
+    <img alt="hist-categorical1.png" src="./img/dataviz/hist-categorical1.png" width="50%" />
+</p>
+
+See how consecutive bars with a same label were reduced to a single label for better readability.
+
+### Working with arbitrary inputs
+
+<!-- TODO -->
+
+### Working with dates
+
+Sometimes you might want to print a temporal bar plot, aligned on dates. For instance, given the `medias.csv` file that has a `foundation_year` column, you could use the `-D/--dates` flag so that the command automatically sort the values chronologically and completes the data by adding missing years:
+
+```bash
+# -A to output all values, not just top 10, and -N to avoid counting empty cells
+xan freq -AN -s foundation_year medias.csv | xan hist -D
+```
+
+<p align="center">
+    <img alt="hist-date.png" src="./img/dataviz/hist-date.png" width="80%" />
+</p>
+
+See here how the 1983 year was added even so it is never found in the original data?
+
+Also, note that the fact that the `-D/--dates` flag will complete missing values for you might introduce a number of large gaps in the representation. If you want to avoid scrolling too much, you can also ask the command to compress gaps as soon as they span a number of bars given to the `-G/--compress-gaps` flag:
+
+```bash
+xan freq -AN -s foundation_year medias.csv | xan hist -D -G 2
+```
+
+<p align="center">
+    <img alt="hist-gaps.png" src="./img/dataviz/hist-gaps.png" width="80%" />
+</p>
+
+Note that both my screenshots show a filtered version of the data so I can get my point across. You will have different results if you run the commands as-is.
+
+This is it for `xan hist`. Now if you want to have vertical bar plots, you have 2 solutions:
+
+1. rotate your screen ;)
+2. check out the section about [`xan spark`](#xan-spark-for-sparklines-and-aggregated-bar-plots)
 
 ## `xan plot` for scatter plots, line plots and time series
 
