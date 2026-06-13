@@ -1268,3 +1268,25 @@ fn complete_check_sorted_dates_min_max() {
     let expected = vec![svec!["file is complete!"]];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn complete_duplicates() {
+    let wrk = Workdir::new("complete_duplicates");
+    wrk.create(
+        "data.csv",
+        vec![svec!["n"], svec!["0"], svec!["1"], svec!["1"]],
+    );
+
+    let mut cmd = wrk.command("complete");
+    cmd.arg("--sorted")
+        .arg("n")
+        .arg("data.csv")
+        .arg("-m")
+        .arg("-2")
+        .arg("-M")
+        .arg("3");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![["n"], ["-2"], ["-1"], ["0"], ["1"], ["1"], ["2"], ["3"]];
+    assert_eq!(got, expected);
+}

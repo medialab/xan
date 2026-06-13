@@ -337,7 +337,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let max = max.or_else(|| extent.as_ref().map(|e| e.max()));
 
     // Can be None if min is None when not using --reverse or max is None when
-    //using --reverse (with -S/--sorted), meaning we start completing
+    // using --reverse (with -S/--sorted), meaning we start completing
     // from the first value in the input
     let current_value: Option<Value> = if args.flag_reverse { max } else { min };
 
@@ -348,6 +348,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                                         group_key: &ByteRecord|
      -> CliResult<()> {
         let mut local_current_value: Option<Value> = current_value;
+        let mut prev_input_value: Option<Value> = None;
 
         for record in records {
             let record = record?;
@@ -373,30 +374,34 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
             }
 
+            let is_duplicate = prev_input_value == Some(value);
+
             if local_current_value.is_some() {
                 // writing missing values
                 if let Some(wtr) = wtr_opt.as_mut() {
-                    // until we reach the input value, complete missing values
-                    while match (args.flag_reverse, local_current_value) {
-                        (true, Some(cv)) => cv > value,
-                        (false, Some(cv)) => cv < value,
-                        _ => false,
-                    } {
-                        mutate_record_to_emit(
-                            &mut output_record,
-                            headers.len(),
-                            (
-                                column_to_complete_index,
-                                &local_current_value.unwrap().to_bytes(),
-                            ),
-                            groupby_mask_opt.as_ref(),
-                            Some(group_key),
-                        );
+                    if !is_duplicate {
+                        // until we reach the input value, complete missing values
+                        while match (args.flag_reverse, local_current_value) {
+                            (true, Some(cv)) => cv > value,
+                            (false, Some(cv)) => cv < value,
+                            _ => false,
+                        } {
+                            mutate_record_to_emit(
+                                &mut output_record,
+                                headers.len(),
+                                (
+                                    column_to_complete_index,
+                                    &local_current_value.unwrap().to_bytes(),
+                                ),
+                                groupby_mask_opt.as_ref(),
+                                Some(group_key),
+                            );
 
-                        wtr.write_byte_record(&output_record)?;
+                            wtr.write_byte_record(&output_record)?;
 
-                        local_current_value =
-                            local_current_value.map(|v| v.advance(args.flag_reverse));
+                            local_current_value =
+                                local_current_value.map(|v| v.advance(args.flag_reverse));
+                        }
                     }
                 // checking for completeness
                 } else if value != local_current_value.unwrap() {
@@ -406,11 +411,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     if match (args.flag_reverse, local_current_value) {
                         // If using max flag, this condition being true means
                         // the current value is out of range, ignoring it.
-                        // else if conditon is true, means there are repeated values in the input
+                        // else if condition is true, means there are repeated values in the input
                         (true, Some(cv)) => cv < value,
                         // if using min flag, this condition being true means
                         // the current value is out of range, ignoring it
-                        // else if conditon is true, means there are repeated values in the input
+                        // else if condition is true, means there are repeated values in the input
                         (false, Some(cv)) => cv > value,
                         _ => false,
                     } {
@@ -426,7 +431,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 local_current_value = Some(value);
             }
 
-            local_current_value = local_current_value.map(|v| v.advance(args.flag_reverse));
+            if !is_duplicate {
+                local_current_value = local_current_value.map(|v| v.advance(args.flag_reverse));
+            }
+
+            prev_input_value = Some(value);
 
             if let Some(wtr) = wtr_opt.as_mut() {
                 wtr.write_byte_record(&record)?;
