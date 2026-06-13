@@ -9,8 +9,10 @@ FILES=(
     "$IMG_DIR/stats-report.png"
     "$IMG_DIR/plot-scatter.png"
     "$IMG_DIR/hist-freq-multiple.png"
+    "$IMG_DIR/flatten-sotu-highlight.png"
 )
 
+# NOTE: current is 2800x2240
 read MAX_W MAX_H < <(
   identify -format "%w %h\n" "${FILES[@]}" | awk '
   {

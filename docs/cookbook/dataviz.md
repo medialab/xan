@@ -27,7 +27,7 @@ I say "comfort" and I mean it ;). `xan` will have processed and rendered your da
     - [Highlighting](#highlighting)
     - [Splitting multivalued cells](#splitting-multivalued-cells)
 - [`xan stats -R/--report` for automatic statistical reports](#xan-stats--r--report-for-automatic-statistical-reports)
-- [`xan hist` for detailed bar plots](#xan-hist-for-detailed-bar-plots) (TODO)
+- [`xan hist` for detailed bar plots](#xan-hist-for-detailed-bar-plots)
     - [Frequency tables](#frequency-tables)
     - [Distributions](#distributions)
     - [Categorical bar plots](#categorical-bar-plots)
@@ -39,6 +39,7 @@ I say "comfort" and I mean it ;). `xan` will have processed and rendered your da
     - [Density gradients](#density-gradients)
 - [`xan heatmap` for heatmaps and conditional formatting](#xan-heatmap-for-heatmaps-and-conditional-formatting) (TODO)
 - [`xan spark` for sparklines and aggregated bar plots](#xan-spark-for-sparklines-and-aggregated-bar-plots) (TODO)
+    - [Distributions](#distributions-1)
 - [`xan progress` for progress bars](#xan-progress-for-progress-bars)
 - [Troubleshooting](#troubleshooting)
     - [Color gradients are not rendered properly](#color-gradients-are-not-rendered-properly)
@@ -451,7 +452,27 @@ xan freq -s category,format series.csv | xan hist
 
 ### Distributions
 
-<!-- TODO: bins, --scale, mention xan spark -D & xan stats -R -->
+`xan hist` can also be used with `xan bins` to display detailed distribution plots:
+
+```bash
+xan bins -s revenues series.csv | xan hist
+```
+
+<p align="center">
+    <img alt="hist-bins.png" src="./img/dataviz/hist-bins.png" width="50%" />
+</p>
+
+Now of course you should probably prefer a log scale in this case. `xan hist` can do so with the `--log` flag or the `--scale` flag if you want to use a specific scale instead:
+
+```bash
+xan bins -s revenues series.csv | xan hist --log
+```
+
+<p align="center">
+    <img alt="hist-bins-log.png" src="./img/dataviz/hist-bins-log.png" width="50%" />
+</p>
+
+This said, [`xan spark -D/--distribution`](#distributions-1) or [`xan stats -R/--report`](#xan-stats--r--report-for-automatic-statistical-reports) are sometimes better suited to the particular use-case of printing distribution histograms.
 
 ### Categorical bar plots
 
@@ -484,7 +505,37 @@ See how consecutive bars with a same label were reduced to a single label for be
 
 ### Working with arbitrary inputs
 
-<!-- TODO -->
+`xan hist` has been tailored to work easily with `xan freq` & `xan hist`. But it does not mean you cannot use it with custom inputs.
+
+`xan hist` needs to be given a CSV file with one column representing a bar's label and another one representing a bar's value. You can pass them using the `-l/--label` & `-v/--value` flags respectively.
+
+`xan hist` can also optionally take a column representing a group of bars or a "field" if you will, that can be given to the `-f/--field` flag, to print multiple plots at once.
+
+A `--name` flag also lets you give an arbitrary name to your plot.
+
+```bash
+xan groupby category 'sum(revenues) as total' series.csv | \
+xan hist --name 'total revenues by category' --label category --value total
+```
+
+<p align="center">
+    <img alt="hist-custom.png" src="./img/dataviz/hist-custom.png" width="50%" />
+</p>
+
+The mental model of one row of the CSV input becomes one bar in the plot is very useful to envision what to achieve in this context.
+
+This naturally means that if you want to sort the bars differently in the plot, you just need to sort the CSV input given to `xan hist` beforehand:
+
+```bash
+# Bar sorted by ascending value & rainbow colors
+xan groupby category 'sum(revenues) as total' series.csv | \
+xan sort -s total -N | \
+xan hist -R --name 'total revenues by category' --label category --value total
+```
+
+<p align="center">
+    <img alt="hist-custom-sorted.png" src="./img/dataviz/hist-custom-sorted.png" width="50%" />
+</p>
 
 ### Working with dates
 
@@ -560,6 +611,8 @@ xan plot sepal_length petal_width --marker dot -G iris.csv
 ## `xan heatmap` for heatmaps and conditional formatting
 
 ## `xan spark` for sparklines and aggregated bar plots
+
+### Distributions
 
 <!-- TODO: joydiv -->
 
@@ -668,7 +721,7 @@ You can install it likewise for the time being:
 cargo install --git https://github.com/yomguithereal/ansi2png-rs --locked --branch more
 ```
 
-I used it to render most of this guide's screenshots. You can use it thusly:
+I used it to render most of this guide's screenshots (you can read my script over [there](./img/dataviz/generate-screenshots.sh)). You can use it thusly:
 
 ```bash
 xan plot x y layout.csv.gz --color=always | ansi2png-rs -o screen.png

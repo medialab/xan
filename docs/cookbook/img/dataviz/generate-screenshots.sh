@@ -80,7 +80,7 @@ save_with_width "flatten-sotu-flatter" 1432
 
 xan tokenize sentences transcript "$SOTU" | \
 xan search -s sentence -i conspicuous | \
-xan f -F -l 3 --cols 59 -i -H conspicuous | \
+xan f -F -l 2 --cols 59 -i -H conspicuous | \
 save_with_width "flatten-sotu-highlight" 1432
 
 xan tail -l 2 "$MEDIAS" | \
@@ -114,6 +114,14 @@ xan freq -s category,format "$SERIES" | \
 xan hist --cols 60 | \
 save "hist-freq-multiple"
 
+xan bins -s revenues "$SERIES" | \
+xan hist --cols 60 | \
+save "hist-bins"
+
+xan bins -s revenues "$SERIES" | \
+xan hist --cols 60 --log | \
+save "hist-bins-log"
+
 xan freq -N -g edito -s wheel_category "$MEDIAS" | \
 xan sort -s value | \
 xan hist --cols 60 -c edito | \
@@ -132,6 +140,15 @@ xan freq -AN -s foundation_year "$MEDIAS" | \
 xan filter 'value >= 1910 && value <= 1960' | \
 xan hist -D -G 2 | \
 save "hist-gaps"
+
+xan groupby category 'sum(floor(revenues)) as total' "$SERIES" | \
+xan hist --name 'total revenues by category' --label category --value total --cols 60 | \
+save "hist-custom"
+
+xan groupby category 'sum(floor(revenues)) as total' "$SERIES" | \
+xan sort -s total -N | \
+xan hist -R --name 'total revenues by category' --label category --value total --cols 60 | \
+save "hist-custom-sorted"
 
 # plot
 echo "xan plot snapshots"
