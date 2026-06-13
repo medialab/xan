@@ -14,6 +14,7 @@ SERIES="$RESOURCES_DIR/series.csv"
 SOTU="$RESOURCES_DIR/sotu.csv"
 MEDIAS="$RESOURCES_DIR/medias.csv"
 IRIS="$RESOURCES_DIR/iris.csv"
+LAYOUT="$RESOURCES_DIR/layout.csv.gz"
 
 save() {
     ansi2png-rs -o "$IMG_DIR/$1.png"
@@ -157,3 +158,10 @@ save "plot-scatter-grid"
 
 # asciinema rec -c 'xan p count mathilde/**/ocr.csv.gz -P "slice -l 1000000" --progress > /dev/null' progress.cast --overwrite
 # agg progress.cast progress-parallel.gif
+
+# misc
+echo "misc"
+
+COLORTERM="" xan plot x y -Q --hide-all -D or_rd "$LAYOUT" --density-scale log | \
+save "layout-bad-colors"
+

@@ -1,16 +1,15 @@
-# Dataviz from the comfort of your terminal
+# Data visualization from the comfort of your terminal
 
 <p align="center">
     <img alt="dataviz.gif" src="./img/dataviz/dataviz.gif" width="70%" />
 </p>
 
-This document is a showcase & guide to data visualisation in the terminal using the [`xan`](https://github.com/medialab/xan) command line tool.
+This document is a showcase & guide to data visualization in the terminal using the [`xan`](https://github.com/medialab/xan) command line tool.
 
-It is often overlooked because `xan` is first and foremost a very performant tabular data processing tool, but it can also render a large variety of typical data visualizations directly in your terminal. This ultimately means you never have to leave it to explore the data you mangle.
+This aspect of the tool is often overlooked because `xan` is first and foremost a very performant tabular data processing utility, but it can also render a large variety of typical data visualizations directly in your terminal. This ultimately means you never have to leave it to explore the data you mangle.
 
 I say "comfort" and I mean it ;). `xan` will have processed and rendered your data in the terminal long before you are able to spin up your Jupyter instance and import `pandas` & `matplotlib`. No cruft. No distraction. Just raw insights, like it's still 1970 and all you have is ASCII art, but with (true) ✨colors✨ and Unicode ([braille](https://en.wikipedia.org/wiki/Braille_ASCII) characters are a godsend).
 
-<!-- TODO: how to save -->
 <!-- TODO: finish gif -->
 <!-- TODO: layout gif -->
 <!-- TODO: mention you can always zoom out -->
@@ -41,6 +40,8 @@ I say "comfort" and I mean it ;). `xan` will have processed and rendered your da
 - [`xan heatmap` for heatmaps and conditional formatting](#xan-heatmap-for-heatmaps-and-conditional-formatting) (TODO)
 - [`xan spark` for sparklines and aggregated bar plots](#xan-spark-for-sparklines-and-aggregated-bar-plots) (TODO)
 - [`xan progress` for progress bars](#xan-progress-for-progress-bars)
+- [Troubleshooting](#troubleshooting)
+    - [Color gradients are not rendered properly](#color-gradients-are-not-rendered-properly)
 - [How to save the visualizations](#how-to-save-the-visualizations)
 
 ## Downloading the datasets used in this guide
@@ -625,17 +626,33 @@ xan parallel count data/**/ocr.csv.gz --progress
     <img alt="progress-parallel.gif" src="./img/dataviz/progress-parallel.gif" width="80%" />
 </p>
 
-<!-- TODO: troubleshooting with COLORTERM -->
+## Troubleshooting
+
+### Color gradients are not rendered properly
+
+Some commands, notably `xan heatmaps` and some modes of `xan spark` & `xan plot` require a terminal with true color support (24bits).
+
+But sometimes, even if your terminal supports them, you might be using something tampering with true color support detection. This detection usually works by reading the `COLORTERM` env variable that must be set to `truecolor` or `24bit`.
+
+So if you stumble upon something like this:
+
+<p align="center">
+    <img alt="layout-bad-colors.png" src="./img/dataviz/layout-bad-colors.png" width="80%" />
+</p>
+
+Just set your `COLORTERM` env variable to match the capabilities of your terminal.
+
+This usually happens over `ssh` or when using `screen` or `tmux`.
 
 ## How to save the visualizations
 
-*Copying them*
+*Copying them as text*
 
-The dataviz produced by `xan` remain drawn using characters. This means you can very well copy them as text and paste them elsewhere.
+The visualizations produced by `xan` remain drawn using characters. This means you can very well copy them as text and paste them elsewhere.
 
-Just keep in mind that they must be displayed somewhere with a monospace font (else the layout will be garbage), and that some characters, notably those used by `xan spark` (`▁▂▃▄▅▆▇`), might not render correctly everywhere. It really depends on the font used to draw them.
+Just keep in mind that they must be displayed with a monospace font (else the layout will be garbage), and that some characters, notably those used by `xan spark` (`▁▂▃▄▅▆▇`), might not render correctly everywhere. It really depends on the font used to draw them (macOS builtin terminal's default font is notoriously bad at this, for instance).
 
-You will also need to forfeit colors, of course, since only the terminal usually knows how to render ANSI escape codes. This means that some commands have a less portable output. `xan heatmap` relies heavily on background color, for instance, as well as some modes of `xan spark` & `xan plot`.
+You will also need to forfeit colors since only terminals usually know how to render ANSI escape codes. This means that some commands have a less portable output. `xan heatmap` relies heavily on background color, for instance, as well as some modes of `xan spark` & `xan plot`.
 
 *Manual screenshots*
 
@@ -643,17 +660,25 @@ Doing manual screenshots of your terminal is a valid solution. It might not work
 
 *ansi2png-rs*
 
-<!-- example of usage To pro
+I maintain a [fork](https://github.com/Yomguithereal/ansi2png-rs) of a nifty CLI tool made by [@AlexanderThaller](https://github.com/AlexanderThaller) and named [`ansi2png-rs`](https://github.com/AlexanderThaller/ansi2png-rs).
 
-https://github.com/Yomguithereal/ansi2png-rs
+You can install it likewise for the time being:
 
---color=always or CLICOLOR_FORCE=1
+```bash
+cargo install --git https://github.com/yomguithereal/ansi2png-rs --locked --branch more
+```
 
-https://github.com/medialab/xan#regarding-color -->
+I used it to render most of this guide's screenshots. You can use it thusly:
+
+```bash
+xan plot x y layout.csv.gz --color=always | ansi2png-rs -o screen.png
+```
+
+Don't forget to use `--color=always` to force the output to have ANSI colors (they are usually disabled when piping, by default), or to use the relevant env variables like `CLICOLOR_FORCE=1`. More details about this can be found [here](https://github.com/medialab/xan#regarding-color).
 
 *The future*
 
-I might add a builtin way to save produced datavisualizations as PNG rasters in `xan` itself, using the library powering my fork of `ansi2png-rs`, but it might add too much cruft to the binary already weighing ~20MB (Rust executables are not easy to keep light as of yet, lol).
+I might add a builtin way to save produced datavisualizations as PNG rasters, in `xan` itself, using the library powering my fork of `ansi2png-rs`, but it might add too much cruft to the binary already weighing ~20MB (Rust executables are not easy to keep light as of yet, lol). So stay tuned.
 
 ---
 
