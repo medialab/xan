@@ -606,7 +606,35 @@ xan plot sepal_length petal_width --marker dot -G iris.csv
 
 ### Density gradients
 
-<!-- TODO -->
+Two-dimensional plots can be useful for more than scatter plots and line plots.
+
+For instance I personally use `xan plot` to draw simplified node-link diagrams of very large graphs in the terminal.
+
+The `layout.csv.gz` file (as described [here](#downloading-the-datasets-used-in-this-guide)) contains a sample of the x & y positions assigned to each page of a now defunct French social network by the [ForceAtlas2](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0098679) layout algorithm.
+
+People usually rely on [Gephi](https://gephi.org/) or [sigma.js](sigmajs.org/) to interactively explore this kind of graphs.
+
+But what if your graph is very large (tens of millions of nodes), and you just want a quick glance to make sure everything is where it should be?
+
+For small graphs, `xan plot` is useless, since you cannot draw edges nor labels, even at that scale, to have a proper node-link diagram. But when you have million of nodes, you are less interested in the specificities of each node's position than the overall geography of the network.
+
+In this context, it can be good to know that `xan plot` has the following flags:
+
+- `-Q/--square` tries to keep the aspect ratio of the plot as square as possible
+- `--hide-x-axis` & `--hide-y-axis` can be used to hide axis and their respective ticks, which are useless when representing an isotropic space such as the one created by a force-directed layout. What's more, axis are usually smoothed so that displayed ticks are more human-friendly and can widen the represented space a bit, thus reducing available space for our points. If we hide them, we make sure to use most of the available space of the terminal.
+
+Now let's print our graph:
+
+```bash
+# --hide-all is a shorthand for --hide-x-axis & --hide-y-axis
+xan plot x y -Q --hide-all layout.csv.gz
+```
+
+<p align="center">
+    <img alt="plot-layout.png" src="./img/dataviz/plot-layout.png" width="80%" />
+</p>
+
+<!-- TODO: density scale unzoom, gif with loop, clusters -->
 
 ## `xan heatmap` for heatmaps and conditional formatting
 

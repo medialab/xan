@@ -159,6 +159,11 @@ save "plot-scatter"
 xan plot sepal_length petal_width "$IRIS" -GM dot | \
 save "plot-scatter-grid"
 
+# ---
+
+xan plot x y -Q --hide-all "$LAYOUT" | \
+save "plot-layout"
+
 # progress
 
 # asciinema rec -c 'xan progress sample.csv > /dev/null' progress.cast --overwrite
