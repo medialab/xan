@@ -36,7 +36,7 @@ I say "comfort" and I mean it ;). `xan` will have processed and rendered your da
 - [`xan plot` for scatter plots, line plots and time series](#xan-plot-for-scatter-plots-line-plots-and-time-series) (TODO)
     - [Scatter plots](#scatter-plots)
     - [Line plots & time series](#line-plots--time-series)
-    - [Density gradients](#density-gradients)
+    - [Custom 2D plots & density gradients](#custom-2d-plots--density-gradients)
 - [`xan heatmap` for heatmaps and conditional formatting](#xan-heatmap-for-heatmaps-and-conditional-formatting) (TODO)
 - [`xan spark` for sparklines and aggregated bar plots](#xan-spark-for-sparklines-and-aggregated-bar-plots) (TODO)
     - [Distributions](#distributions-1)
@@ -89,6 +89,14 @@ famously used on the cover of Joy Division's "Unknown Pleasures" album.
 
 ```bash
 curl -LO https://gist.githubusercontent.com/borgar/31c1e476b8e92a11d7e9/raw/0fae97dab6830ecee185a63c1cee0008f6778ff6/pulsar.csv
+```
+
+*clusters.csv.gz*
+
+x and y positions of nodes in a graph containing 5 well-defined clusters, as inferred by the ForceAtlas2 layout algorithm.
+
+```bash
+curl -LO https://github.com/medialab/xan/raw/refs/heads/master/docs/cookbook/resources/clusters.csv.gz
 ```
 
 *layout.csv.gz*
@@ -604,9 +612,9 @@ xan plot sepal_length petal_width --marker dot -G iris.csv
 
 <!-- TODO: --count, small multiples, different arrangements -->
 
-### Density gradients
+### Custom 2D plots & density gradients
 
-Two-dimensional plots can be useful for more than scatter plots and line plots.
+2D plots can be useful for more than scatter plots and line plots.
 
 For instance I personally use `xan plot` to draw simplified node-link diagrams of very large graphs in the terminal.
 
