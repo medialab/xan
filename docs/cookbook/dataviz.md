@@ -642,7 +642,33 @@ xan plot x y -Q --hide-all layout.csv.gz
     <img alt="plot-layout.png" src="./img/dataviz/plot-layout.png" width="80%" />
 </p>
 
-<!-- TODO: density scale unzoom, gif with loop, clusters -->
+Here is another example using the similar `clusters.csv.gz` file that contains a graph with 5 distinct & well-connected communities:
+
+```bash
+xan plot x y -Q --hide-all clusters.csv.gz
+```
+
+<p align="center">
+    <img alt="plot-layout-clusters.png" src="./img/dataviz/plot-layout-clusters.png" width="80%" />
+</p>
+
+With both graphs we can start distinguishing a geography. But admittedly this remains hard to read and we should be able to do better by using some color.
+
+For `clusters.csv.gz` this is easy because we have a `cluster` column containing the id of the cluster for each node, so we can pass it to the `-c/--category` flag:
+
+```bash
+xan plot x y -c cluster -Q --hide-all clusters.csv.gz
+```
+
+<p align="center">
+    <img alt="plot-layout-clusters-colors.png" src="./img/dataviz/plot-layout-clusters-colors.png" width="80%" />
+</p>
+
+The colors match the geography of the layout, everything is fine here.
+
+Now for our social network we don't have information about communities nor clusters. What's more we may have too much nodes and colors might get muddled because even if we are using braille characters to increase the "resolution" of our plot, a character can only have a single color.
+
+<!-- TODO: density scale unzoom, gif with loop -->
 
 ## `xan heatmap` for heatmaps and conditional formatting
 

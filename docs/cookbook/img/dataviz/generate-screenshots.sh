@@ -15,6 +15,7 @@ SOTU="$RESOURCES_DIR/sotu.csv"
 MEDIAS="$RESOURCES_DIR/medias.csv"
 IRIS="$RESOURCES_DIR/iris.csv"
 LAYOUT="$RESOURCES_DIR/layout.csv.gz"
+CLUSTERS="$RESOURCES_DIR/clusters.csv.gz"
 
 save() {
     ansi2png-rs -o "$IMG_DIR/$1.png"
@@ -163,6 +164,12 @@ save "plot-scatter-grid"
 
 xan plot x y -Q --hide-all "$LAYOUT" | \
 save "plot-layout"
+
+xan plot x y -Q --hide-all "$CLUSTERS" | \
+save "plot-layout-clusters"
+
+xan plot x y -Q --hide-all "$CLUSTERS" -c cluster | \
+save "plot-layout-clusters-colors"
 
 # progress
 

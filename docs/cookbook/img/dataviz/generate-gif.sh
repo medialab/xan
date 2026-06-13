@@ -10,6 +10,7 @@ FILES=(
     "$IMG_DIR/plot-scatter.png"
     "$IMG_DIR/hist-freq-multiple.png"
     "$IMG_DIR/flatten-sotu-highlight.png"
+    "$IMG_DIR/plot-layout-clusters-colors.png"
 )
 
 # NOTE: current is 2800x2240
