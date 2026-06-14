@@ -12,7 +12,6 @@ I say "comfort" and I mean it ;). `xan` will have processed and rendered your da
 
 <!-- TODO: finish gif -->
 <!-- TODO: layout gif -->
-<!-- TODO: mention you can always zoom out -->
 
 ## Summary
 
@@ -36,6 +35,7 @@ I say "comfort" and I mean it ;). `xan` will have processed and rendered your da
 - [`xan plot` for scatter plots, line plots and time series](#xan-plot-for-scatter-plots-line-plots-and-time-series) (TODO)
     - [Scatter plots](#scatter-plots)
     - [Line plots & time series](#line-plots--time-series)
+    - [Regression line & scales](#regression-line--scales)
     - [Custom 2D plots & density gradients](#custom-2d-plots--density-gradients)
 - [`xan heatmap` for heatmaps and conditional formatting](#xan-heatmap-for-heatmaps-and-conditional-formatting) (TODO)
 - [`xan spark` for sparklines and aggregated bar plots](#xan-spark-for-sparklines-and-aggregated-bar-plots) (TODO)
@@ -605,12 +605,136 @@ xan plot sepal_length petal_width --marker dot -G iris.csv
     <img alt="plot-scatter-grid.png" src="./img/dataviz/plot-scatter-grid.png" width="80%" />
 </p>
 
+Then you don't have to limit yourself to a single series. `xan plot` can only take a single column as its x-axis, but it is able to take multiple ones for the y-axis, so you can draw multiple series at once:
 
-<!-- TODO: ys, -c, small multiples, correlation and -R with tokenize -->
+```bash
+xan plot sepal_length sepal_width,petal_length,petal_width --marker dot iris.csv
+```
+
+<p align="center">
+    <img alt="plot-scatter-ys.png" src="./img/dataviz/plot-scatter-ys.png" width="80%" />
+</p>
+
+Instead of having multiple columns for the y-axis, you can also decide to use a column as a "category", in which case the command will draw one series per distinct value in given column. Here is an example where we draw a distinct series per iris species:
+
+```bash
+xan plot sepal_length petal_width -c species --marker dot iris.csv
+```
+
+<p align="center">
+    <img alt="plot-scatter-categorical.png" src="./img/dataviz/plot-scatter-categorical.png" width="80%" />
+</p>
+
+Finally, you can choose to draw one plot per series, instead of drawing them all in the same plot. This practice is sometimes called "small multiples" or "facet grids".
+
+To do so, you need to give a maximum number of plots you want to draw on a single row of the resulting plot grid to the `-S/--small-multiples` flag.
+
+Here is an example where we arrange all iris species horizontally:
+
+```bash
+# With a grid (-G)
+xan plot sepal_length petal_width -c species --marker dot -G -S 3 iris.csv
+```
+
+<p align="center">
+    <img alt="plot-scatter-small-multiples-horizontal.png" src="./img/dataviz/plot-scatter-small-multiples-horizontal.png" width="80%" />
+</p>
+
+Here is another example where we arrange the same species vertically:
+
+```bash
+# Without grid
+xan plot sepal_length petal_width -c species --marker dot -S 1 iris.csv
+```
+
+<p align="center">
+    <img alt="plot-scatter-small-multiples-vertical.png" src="./img/dataviz/plot-scatter-small-multiples-vertical.png" width="80%" />
+</p>
+
+Notice that, by default, all plots will share the same x & y axis to ease comparisons. But you can very well disable this behaviour with `--share-x-scale=no` & `--share-y-scale=no`:
+
+```bash
+# -S 2, this time ;)
+xan plot sepal_length petal_width -c species --marker dot -S 2 --share-x-scale no --share-y-scale no iris.csv
+```
+
+<p align="center">
+    <img alt="plot-scatter-small-multiples-unshared.png" src="./img/dataviz/plot-scatter-small-multiples-unshared.png" width="80%" />
+</p>
 
 ### Line plots & time series
 
-<!-- TODO: --count, small multiples, different arrangements -->
+Scatter plots are nice, but sometimes you might want to join your points by a line. And a popular application of this is generally to draw time series.
+
+To this end, `xan plot` has a `-L/--line` that can be used for line plots, and a `-T/--time` flag, telling the command to interpret the x-axis values as temporal, rather than numerical.
+
+The command knows how to deal with a large variety of temporal values such as dates, datetimes, timestamps etc.
+
+```bash
+# No values for the y axis? No problem.
+# Just use --count instead to tally rows per time unit
+xan plot -LT date --count series.csv
+```
+
+<p align="center">
+    <img alt="plot-time.png" src="./img/dataviz/plot-time.png" width="80%" />
+</p>
+
+See how the command chose to represent a plot by year automagically while our data contains full dates:
+
+```bash
+xan select date series.csv | xan slice -l 5
+```
+
+```txt
+date
+1973-01-01
+1974-01-01
+1975-01-01
+1976-01-01
+1977-01-01
+```
+
+The command is usually right but you can always force it to use the granularity you want using the `-g/--granularity` flag if required.
+
+Now let's see an example where we map a numerical column onto the y axis:
+
+```bash
+xan plot -LT date revenues series.csv
+```
+
+<p align="center">
+    <img alt="plot-time-y.png" src="./img/dataviz/plot-time-y.png" width="80%" />
+</p>
+
+This tells a different picture.
+
+And like with scatter plots, you can very well draw multiples series. Here is an example where we draw one time series per category:
+
+```bash
+xan plot -LT date revenues -c category series.csv
+```
+
+<p align="center">
+    <img alt="plot-time-categorical.png" src="./img/dataviz/plot-time-categorical.png" width="80%" />
+</p>
+
+The same but using "small multiples" (or "facet grid", if you prefer):
+
+```bash
+xan plot -LT date revenues -c category -S 3 -G series.csv
+```
+
+<p align="center">
+    <img alt="plot-time-small-multiples.png" src="./img/dataviz/plot-time-small-multiples.png" width="80%" />
+</p>
+
+### Regression line & scales
+
+<!-- https://en.wikipedia.org/wiki/Zipf%27s_law -->
+<!-- xan tokenize words transcript docs/cookbook/resources/sotu.csv -k word | xan vocab token | xan sort -s gf -RN | xan enum -c rank -S 1 | xan plot rank gf --y-scale log10 --x-scale log10 -->
+
+<!-- TODO: --scale, correlation and -R with tokenize -->
 
 ### Custom 2D plots & density gradients
 
@@ -668,7 +792,44 @@ The colors match the geography of the layout, everything is fine here.
 
 Now for our social network we don't have information about communities nor clusters. What's more we may have too much nodes and colors might get muddled because even if we are using braille characters to increase the "resolution" of our plot, a character can only have a single color.
 
-<!-- TODO: density scale unzoom, gif with loop -->
+But we can try something else: a density gradient. This means we are going to assign a color to each braille character based on the number of points it actually represents.
+
+This can be done through the `-D/--density-gradient` flag that takes a gradient name (you can list them with `xan help gradients`) that will be used to represent density in the resulting plot.
+
+In this example I will use the `or_rd` gradient that will continuously map from orange for low density to red for high density. The default scale used for density is `log`, but you can tweak it with `--density-scale` if required:
+
+```bash
+xan plot x y -D or_rd -Q --hide-all layout.csv.gz
+```
+
+<p align="center">
+    <img alt="plot-layout-gradient.png" src="./img/dataviz/plot-layout-gradient.png" width="80%" />
+</p>
+
+And now we have a better view of the dense parts of the network.
+
+What's more, there is no rule saying we cannot unzoom our terminal to get a better "resolution" (this is usually done with `Ctrl` + `-`):
+
+<p align="center">
+    <img alt="plot-layout-gradient-unzoomed.png" src="./img/dataviz/plot-layout-gradient-unzoomed.png" width="80%" />
+</p>
+
+Finally, note that since layout algorithms are iterative and don't have a well-defined stop condition, people like to see them as an animation of node positions to make sure everything is working correctly.
+
+When I ran the layout algorithm on my network (I ran something like ~20k iterations), I was careful to dump node positions every 100 iterations in a `dump` folder.
+
+This means that you can very well use `xan plot` in a loop to get a coarse animation of the layout algorithm running, like so:
+
+```bash
+ls dump/*.csv | sort | while read positions;
+do
+    xan plot x y -Q --hide-all -D or_rd $positions
+done
+```
+
+<p align="center">
+    <img alt="layout.gif" src="./img/dataviz/layout.gif" width="80%" />
+</p>
 
 ## `xan heatmap` for heatmaps and conditional formatting
 

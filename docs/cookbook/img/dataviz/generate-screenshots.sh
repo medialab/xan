@@ -160,10 +160,41 @@ save "plot-scatter"
 xan plot sepal_length petal_width "$IRIS" -GM dot | \
 save "plot-scatter-grid"
 
-# ---
+xan plot 0 1,2,3 "$IRIS" -M dot | \
+save "plot-scatter-ys"
+
+xan plot sepal_length petal_width -c species "$IRIS" -M dot | \
+save "plot-scatter-categorical"
+
+xan plot sepal_length petal_width -c species "$IRIS" -M dot -S 1 | \
+save "plot-scatter-small-multiples-vertical"
+
+xan plot sepal_length petal_width -c species "$IRIS" -M dot -S 3 -G | \
+save "plot-scatter-small-multiples-horizontal"
+
+xan plot sepal_length petal_width -c species "$IRIS" -M dot -S 2 --share-x-scale no --share-y-scale no | \
+save "plot-scatter-small-multiples-unshared"
+
+xan plot -LT date --count "$SERIES" | \
+save "plot-time"
+
+xan plot -LT date revenues "$SERIES" | \
+save "plot-time-y"
+
+xan plot -LT date revenues -c category "$SERIES" | \
+save "plot-time-categorical"
+
+xan plot -LT date revenues -c category -S 3 -G "$SERIES" | \
+save "plot-time-small-multiples"
 
 xan plot x y -Q --hide-all "$LAYOUT" | \
 save "plot-layout"
+
+xan plot x y -D or_rd --density-scale log -Q --hide-all "$LAYOUT" | \
+save "plot-layout-gradient"
+
+xan plot x y -D or_rd --density-scale log -Q --hide-all "$LAYOUT" --cols 204 --rows 55 | \
+save "plot-layout-gradient-unzoomed"
 
 xan plot x y -Q --hide-all "$CLUSTERS" | \
 save "plot-layout-clusters"
@@ -189,7 +220,7 @@ save "plot-layout-clusters-colors"
 # agg progress.cast progress-parallel.gif
 
 # misc
-echo "misc"
+echo "misc snapshots"
 
 COLORTERM="" xan plot x y -Q --hide-all -D or_rd "$LAYOUT" --density-scale log | \
 save "layout-bad-colors"
