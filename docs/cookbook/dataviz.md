@@ -1083,7 +1083,7 @@ And here is an example where I print one sparkline over a column of `series.csv`
 
 ```bash
 xan spark revenues series.csv && \
-echo "\noriginal order ↑ --- sorted ↓" && \
+printf "\noriginal order ↑ --- sorted ↓" && \
 xan sort -s revenues -RN series.csv | \
 xan spark revenues
 ```
@@ -1094,21 +1094,213 @@ xan spark revenues
 
 The y-axis min,max discrepancy across both sparkline happens because of the way both series are discretized to fit in the horizontal space of the terminal.
 
-<!-- use a sorted column, use the categorical repr, scales etc. -->
+Now `xan spark`, like `xan plot`, has a `-c/--category` flag that can be used to map a color palette to each value taken by the given column.
+
+You can use this to see how categories are distributed in a file.
+
+Here is an example where I print a categorical sparkline over the x & y columns of `clusters.csv.gz` and another one after having shuffled the file:
+
+```bash
+# I use --hide-legend here because the ids of the clusters are irrelevant
+xan spark x,y -c cluster clusters.csv.gz --hide-legend && \
+printf "\noriginal order ↑ --- shuffled ↓\n\n" && \
+xan shuffle --seed 1 clusters.csv.gz | \
+xan spark x,y -c cluster --hide-legend
+```
+
+<p align="center">
+    <img alt="spark-minimap-categorical.png" src="./img/dataviz/spark-minimap-categorical.png" width="80%" />
+</p>
+
+See how the original file is clearly sorted on clusters (we can also see, at a glance, that they occupy different quadrants of the 2d space represented by x & y columns)?
 
 ### Time series
 
-<!-- height -->
+But of course `xan spark` can be used for more typical application such as representing time series. It is quite similar in this regard to `xan plot`, but is more suited for displaying large amount of series as small multiples.
+
+To show a time series with `xan spark`, you need to feed a temporal column to its `-T/--time` flag. They you are free to provide a numerical column as y, or you can use the `--count` flag to count rows per time unit instead:
+
+```bash
+xan spark -T date revenues series.csv
+```
+
+<p align="center">
+    <img alt="spark-time.png" src="./img/dataviz/spark-time.png" width="80%" />
+</p>
+
+This is well and good, but in this case we might be able to use more vertical space, so let's indicate it with the `-H/--height` flag. It is able to take a number of terminal rows, or a ratio/percentage of available terminal screen like `0.5` or `60%`.
+
+And since we are at it, let's dim the color of alternating bars of the sparkline so it is easier on the eye, using the `-z/--striped` flag:
+
+```bash
+xan spark -T date revenues -H 50% -z series.csv
+```
+
+<p align="center">
+    <img alt="spark-time-height.png" src="./img/dataviz/spark-time-height.png" width="80%" />
+</p>
+
+Isn't this better?
+
+Now `xan spark` really shines when you want to display multiple series at once.
+
+To print multiple series, you can pass multiple columns for the y axis. I will also use the `-R/--rainbow` flag to give alternating color to the series to better distinguish them:
+
+```bash
+xan spark -T date revenues,adjusted_revenues -H 2 -Rz series.csv
+```
+
+<p align="center">
+    <img alt="spark-time-ys.png" src="./img/dataviz/spark-time-ys.png" width="80%" />
+</p>
+
+You can also draw one series per distinct value found in the column given to the `-g/--groupby` flag:
+
+```bash
+# Here I am using --repeat-x-axis no to show years only once at the bottom
+xan spark -T date revenues -g category -H 2 -Rz --repeat-x-axis no series.csv
+```
+
+<p align="center">
+    <img alt="spark-time-groupby.png" src="./img/dataviz/spark-time-groupby.png" width="80%" />
+</p>
+
+And like with `xan plot`, you can choose to arrange your series in small multiples, or facet grid, using the `-S/--small-multiples` flag:
+
+```bash
+xan spark -T date revenues -g category -H 2 -Rz -S 2 no series.csv
+```
+
+<p align="center">
+    <img alt="spark-time-small-multiples.png" src="./img/dataviz/spark-time-small-multiples.png" width="80%" />
+</p>
 
 ### Distributions
 
+Using the `-D/--distribution` scale, `xan spark` is also able to display target series distribution, along with useful information such as the mean, the median etc.
+
+Like other commands, it also knows how to change the scale used to represent the values. Here I am going to use the `--log` flag, which is a shorthand for `--scale log`, to display the distribution of two columns from the `series.csv` file:
+
+```bash
+xan spark -D revenues,adjusted_revenues -H 5 -z --log series.csv
+```
+
+<p align="center">
+    <img alt="spark-distribution.png" src="./img/dataviz/spark-distribution.png" width="60%" />
+</p>
+
+And you can of course do so per value of some column using the `-g/--groupby` flag:
+
+```bash
+xan spark -D revenues -g category -H 5 -z --log series.csv
+```
+
+<p align="center">
+    <img alt="spark-distribution-groupby.png" src="./img/dataviz/spark-distribution-groupby.png" width="50%" />
+</p>
+
 ### Vertical bar plots
+
+Through the `-c/--category` flag of `xan spark` you can achieve what the `xan hist` command never could: vertical bar plots.
+
+```bash
+xan freq -s category series.csv | \
+# -P means we want to show the share of a bar as a percentage
+# -N means we want to display the value of a bar
+xan spark -c value count -H .6 -W 10 -PN --min 0 --hide-names
+```
+
+<p align="center">
+    <img alt="spark-vertical-hist.png" src="./img/dataviz/spark-vertical-hist.png" width="60%" />
+</p>
+
+And of course `-c/--category` perfectly works with multiple series.
+
+In this example I show one bar plot per lustrum (a span of 5 years, half a decade if you will) of `series.csv`:
+
+```bash
+xan map 'date.year().round(5) as lustrum' series.csv | \
+xan groupby lustrum,category 'sum(revenues) as total' | \
+xan sort -s lustrum | \
+xan spark total -c category -g lustrum -H 2 -W 4
+```
+
+<p align="center">
+    <img alt="spark-lustrum.png" src="./img/dataviz/spark-lustrum.png" width="70%" />
+</p>
 
 ### Synthwave plots
 
+Now that we know how to use `xan spark` productively, let's go wild with color and make art.
+
+We know how to make rainbows using the `-R/--raibow` flag, but what about using all the gradients supported by `xan heatmap` to draw fancy charts?
+
+First of all, the `-G/--gradient` will take such a gradient (see full list with `xan help gradients`) and map the color of the bar on its height:
+
+```bash
+xan spark -T date revenues -g category series.csv -H5 --repeat-x-axis no -G plasma
+```
+
+<p align="center">
+    <img alt="spark-gradient.png" src="./img/dataviz/spark-gradient.png" width="80%" />
+</p>
+
+Or you can use the `-B/--background-gradient` flag to forego drawing a bar altogether and color the space it used to be with the gradient. This produces a kind of heatmap:
+
+```bash
+xan spark -T date revenues -g format series.csv --repeat-x-axis no -B magma
+```
+
+<p align="center">
+    <img alt="spark-background-gradient.png" src="./img/dataviz/spark-background-gradient.png" width="80%" />
+</p>
+
+Finally, you can use the `-V/--vertical-gradient` flag to paint the bars with the gradient spanning from the bottom to the top of the bar. This will only work if `--height` is more than 1. Else you will just have a solid color.
+
+```bash
+xan spark -T date revenues,adjusted_revenues series.csv -V plasma -H 10
+```
+
+<p align="center">
+    <img alt="spark-vertical-gradient.png" src="./img/dataviz/spark-vertical-gradient.png" width="80%" />
+</p>
+
 ### Joy division plots
 
-<!-- TODO: joydiv, ridgeplot-like could be useful for embeddings etc. (check `xan from -f npy`) -->
+The "Unknown Pleasures" album of the band Joy Division is important to the dataviz community because it reminds us of the existence of a kind of plot that used to be called a "ridge plot" and that is now called, cheekily, the joy division plot.
+
+Here is the very famous cover of this album
+
+<p align="center">
+    <img alt="unknown-pleasures.jpeg" src="./img/dataviz/unknown-pleasures.jpeg" width="40%" />
+</p>
+
+But the plot was not drawn for the cover, but comes from a paper in astronomy studying pulsars, published in 1970 in:
+
+> Radio Observations of the Pulse Profiles and Dispersion Measures of Twelve Pulsars by Harold D. Carft, Jr. 1970
+
+<p align="center">
+    <img alt="pulsars.jpg" src="./img/dataviz/pulsars.jpg" width="50%" />
+</p>
+
+The data used to draw the plot originally can be found online (see the [downloading](#downloading-the-datasets-used-in-this-guide) section of this guide and search for `pulsars.csv`).
+
+Fortunately, `xan spark` also knows how to draw one series per row in input. You just need to give a selection of columns to display per row using the `--along-rows` flag:
+
+```bash
+# I am using --hide-all to hamper the less-artistic endeavors of the command
+xan spark --along-rows '*' pulsar.csv --hide-all
+```
+
+<p align="center">
+    <img alt="spark-joydiv.png" src="./img/dataviz/spark-joydiv.png" width="50%" />
+</p>
+
+Unzoom your terminal and squint a little for better effect.
+
+Now admittedly this example is a bit of a joke, but you could nevertheless use `--along-rows` more productively. It can be very useful to check embeddings, to make sure they look fine and don't exhibit concerning patterns, such as sorted or low-variance dimensions. Check out `xan from -f npy` to load numpy embedding for this very purpose.
+
+<!-- TODO: test embedding -->
 
 ## `xan progress` for progress bars
 

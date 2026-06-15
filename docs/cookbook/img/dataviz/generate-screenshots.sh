@@ -17,6 +17,7 @@ IRIS="$RESOURCES_DIR/iris.csv"
 MISERABLES="$RESOURCES_DIR/les-miserables.csv"
 LAYOUT="$RESOURCES_DIR/layout.csv.gz"
 CLUSTERS="$RESOURCES_DIR/clusters.csv.gz"
+PULSAR="$RESOURCES_DIR/pulsar.csv"
 
 save() {
     ansi2png-rs -o "$IMG_DIR/$1.png"
@@ -260,11 +261,62 @@ echo "xan spark snaphots"
 
 {
     xan spark revenues "$SERIES" && \
-    echo "\noriginal order ↑ --- sorted ↓" && \
+    printf "\noriginal order ↑ --- sorted ↓\n" && \
     xan sort -s revenues -RN "$SERIES" | \
     xan spark revenues;
 } | \
 save "spark-minimap"
+
+{
+    xan spark x,y -c cluster "$CLUSTERS" --hide-legend && \
+    printf "\noriginal order ↑ --- shuffled ↓\n\n" && \
+    xan shuffle --seed 1 "$CLUSTERS" | \
+    xan spark x,y -c cluster --hide-legend;
+} | \
+save "spark-minimap-categorical"
+
+xan spark -T date revenues "$SERIES" | \
+save "spark-time"
+
+xan spark -T date revenues -H 50% -z "$SERIES" | \
+save "spark-time-height"
+
+xan spark -T date revenues,adjusted_revenues -H 2 -Rz "$SERIES" | \
+save "spark-time-ys"
+
+xan spark -T date revenues -g category -H 2 -Rz --repeat-x-axis no "$SERIES" | \
+save "spark-time-groupby"
+
+xan spark -T date revenues -g category -H 2 -Rz -S 2 "$SERIES" | \
+save "spark-time-small-multiples"
+
+xan spark -D revenues,adjusted_revenues -H 5 -z --log "$SERIES" | \
+save "spark-distribution"
+
+xan spark -D revenues -g category -H 3 -z --log "$SERIES" | \
+save "spark-distribution-groupby"
+
+xan freq -s category "$SERIES" | \
+xan spark -c value count -H .6 -W 10 -PN --min 0 --hide-names | \
+save "spark-vertical-hist"
+
+xan map 'date.year().round(5) as lustrum' "$SERIES" | \
+xan groupby lustrum,category 'sum(revenues) as total' | \
+xan sort -s lustrum | \
+xan spark total -c category -g lustrum -H 2 -W 4 | \
+save "spark-lustrum"
+
+xan spark -T date revenues -g category "$SERIES" -H5 --repeat-x-axis no -G plasma | \
+save "spark-gradient"
+
+xan spark -T date revenues -g format "$SERIES" --repeat-x-axis no -B magma | \
+save "spark-background-gradient"
+
+xan spark -T date revenues,adjusted_revenues "$SERIES" -V plasma -H 10 | \
+save "spark-vertical-gradient"
+
+xan spark --along-rows '*' "$PULSAR" --hide-all --cols 204 | \
+save "spark-joydiv"
 
 # progress
 

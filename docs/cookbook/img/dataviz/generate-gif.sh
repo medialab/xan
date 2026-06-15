@@ -3,21 +3,28 @@ IMG_DIR="$(dirname $0)"
 
 FILES=(
     "$IMG_DIR/view.png"
+    "$IMG_DIR/spark-gradient.png"
     "$IMG_DIR/heatmap-custom-decades.png"
     "$IMG_DIR/view-grouped.png"
+    "$IMG_DIR/spark-background-gradient.png"
     "$IMG_DIR/plot-scatter-small-multiples-horizontal.png"
     "$IMG_DIR/flatten.png"
+    "$IMG_DIR/spark-vertical-hist.png"
     "$IMG_DIR/hist-categorical1.png"
     "$IMG_DIR/stats-report.png"
+    "$IMG_DIR/spark-vertical-gradient.png"
     "$IMG_DIR/plot-layout-gradient-unzoomed.png"
     "$IMG_DIR/heatmap-conditional-formatting.png"
     "$IMG_DIR/plot-scatter-categorical.png"
+    "$IMG_DIR/spark-time-small-multiples.png"
     "$IMG_DIR/hist-freq-multiple.png"
     "$IMG_DIR/heatmap-adj.png"
     "$IMG_DIR/plot-time-small-multiples.png"
+    "$IMG_DIR/spark-lustrum.png"
     "$IMG_DIR/flatten-sotu-highlight.png"
     "$IMG_DIR/plot-layout-clusters-colors.png"
     "$IMG_DIR/heatmap-corr-renamed.png"
+    "$IMG_DIR/spark-time-height.png"
 )
 
 # NOTE: current is 2800x2240
