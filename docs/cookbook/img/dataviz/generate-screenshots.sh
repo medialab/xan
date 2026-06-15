@@ -1,6 +1,6 @@
 #!/usr/bin/bash
 
-# Generating the data from the "raw" sample:
+# Generating the data from the density design "Raw" sample:
 #   $ xan select -e 'Category as category, Format as format, col("year-date") as date, Units as units, col(-2) as revenues, col(-1) as adjusted_revenues' series.csv
 
 # Installing correct version of `ansi2png-rs`:
@@ -14,6 +14,7 @@ SERIES="$RESOURCES_DIR/series.csv"
 SOTU="$RESOURCES_DIR/sotu.csv"
 MEDIAS="$RESOURCES_DIR/medias.csv"
 IRIS="$RESOURCES_DIR/iris.csv"
+MISERABLES="$RESOURCES_DIR/les-miserables.csv"
 LAYOUT="$RESOURCES_DIR/layout.csv.gz"
 CLUSTERS="$RESOURCES_DIR/clusters.csv.gz"
 
@@ -211,6 +212,30 @@ save "plot-layout-clusters"
 
 xan plot x y -Q --hide-all "$CLUSTERS" -c cluster | \
 save "plot-layout-clusters-colors"
+
+# heatmap
+echo "xan heatmap snapshots"
+
+xan matrix corr -s :3 "$IRIS" | \
+xan heatmap -DU | \
+save "heatmap-corr"
+
+xan matrix corr -s :3 "$IRIS" | \
+xan heatmap -DUS 3 | \
+save "heatmap-corr-size"
+
+xan matrix corr -s :3 "$IRIS" | \
+xan heatmap -DUNS 3 | \
+save "heatmap-corr-show-numbers"
+
+xan rename -s :3 sl,sw,pl,pw "$IRIS" | \
+xan matrix corr -s :3 | \
+xan heatmap -DUNS 3 | \
+save "heatmap-corr-renamed"
+
+xan matrix adj source target -U -w weight "$MISERABLES" | \
+xan heatmap -F | \
+save "heatmap-adj"
 
 # progress
 

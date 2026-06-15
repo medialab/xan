@@ -36,6 +36,10 @@ I say "comfort" and I mean it ;). `xan` will have processed and rendered your da
     - [Regression line](#regression-line)
     - [Custom 2D plots & density gradients](#custom-2d-plots--density-gradients)
 - [`xan heatmap` for heatmaps and conditional formatting](#xan-heatmap-for-heatmaps-and-conditional-formatting) (TODO)
+    - [Correlation matrices](#correlation-matrices)
+    - [Count & adjacency matrices](#count--adjacency-matrices)
+    - [Arbitrary matrices](#arbitrary-matrices)
+    - [Conditional formatting](#conditional-formatting)
 - [`xan spark` for sparklines and aggregated bar plots](#xan-spark-for-sparklines-and-aggregated-bar-plots) (TODO)
     - [Distributions](#distributions-1)
 - [`xan progress` for progress bars](#xan-progress-for-progress-bars)
@@ -75,6 +79,14 @@ The fampus "Iris" dataset, used in a lot of machine learning examples.
 
 ```bash
 curl -LO https://github.com/medialab/xan/raw/refs/heads/master/docs/cookbook/resources/iris.csv
+```
+
+*les-miserables.csv*
+
+Edges from a graph of characters from the novel "Les Misérables" by Victor Hugo.
+
+```bash
+curl -LO https://github.com/medialab/xan/raw/refs/heads/master/docs/cookbook/resources/les-miserables.csv
 ```
 
 *pulsar.csv*
@@ -869,13 +881,112 @@ done
 
 ## `xan heatmap` for heatmaps and conditional formatting
 
-<!-- TODO: correlation matrices, count matrix, arbitrary matrices, conditional formatting  -->
+`xan heatmap` is a command representing a CSV file as a 2D heatmap where cells are colored using a gradient (see full list of available gradients using `xan help gradients`) mapped on a numerical value.
+
+By default, this command considers the first column of your file to be labels for the y axis, while all other commands will be used to draw the cells. But this behavior can always be tweaked using the `-l/--label` & `-v/--values` flags, both taking a selection of columns of the input.
+
+### Correlation matrices
+
+A very typical application for heatmaps is to represent correlation matrices.
+
+By chance, `xan matrix corr` can create those matrices for us very easily.
+
+Here is an example using the famour Iris dataset:
+
+```bash
+# We compute correlations over the first 4 columns only (:3)
+# because last column contains the name of the iris species
+xan matrix corr -s :3 iris.csv | \
+# --diverging will toggle a suitable gradient
+# --unit is a shorthand for --min -1 --max 1 when used with --diverging
+xan heatmap --diverging --unit
+```
+
+<p align="center">
+    <img alt="heatmap-corr.png" src="./img/dataviz/heatmap-corr.png" width="60%" />
+</p>
+
+This is fine, but cells are a bit puny, and we have enough space, to let's increase their size using the `-S/--size` flag:
+
+```bash
+xan matrix corr -s :3 iris.csv | \
+# -DU is the same as --diverging --unit
+xan heatmap -DU --size 3
+```
+
+<p align="center">
+    <img alt="heatmap-corr-size.png" src="./img/dataviz/heatmap-corr-size.png" width="60%" />
+</p>
+
+And since cells are bigger now, we can fit represented numbers within them, using the `-N/--show-numbers` flag:
+
+```bash
+xan matrix corr -s :3 iris.csv | \
+xan heatmap -DU -S 3 --show-numbers
+```
+
+<p align="center">
+    <img alt="heatmap-corr-show-numbers.png" src="./img/dataviz/heatmap-corr-show-numbers.png" width="60%" />
+</p>
+
+Also, notice that since there is not enough space above the cells to display column labels, a legend was written before the plot for you. If you are feeling brash, you can always force the command to "cram" labels above the columns using `--cram always`.
+
+Another strategy is to rename the labels like so:
+
+```bash
+xan rename -s :3 sl,sw,pl,pw iris.csv | \
+xan matrix corr -s :3 | \
+xan heatmap -DU -S 3 --show-numbers
+```
+
+<p align="center">
+    <img alt="heatmap-corr-renamed.png" src="./img/dataviz/heatmap-corr-renamed.png" width="60%" />
+</p>
+
+Now one issue with using color gradient is that your terminal needs to support true colors and you cannot copy-paste the result anymore.
+
+This said, if you are willing to accept not to show the numbers and to have a coarser gradient, you can use the `-A/--ascii` flag like so:
+
+```bash
+xan matrix corr -s :3 iris.csv | \
+xan heatmap -DU -S 3 -A
+```
+
+And here is the result as copy-pasted text:
+
+```txt
+             1: sepal_length 2: sepal_width 3: petal_length 4: petal_width
+
+             1     2     3     4
+sepal_length       ▒▒▒▒▒▒████████████
+                   ▒▒▒▒▒▒████████████
+                   ▒▒▒▒▒▒████████████
+sepal_width  ▒▒▒▒▒▒      ▒▒▒▒▒▒▒▒▒▒▒▒
+             ▒▒▒▒▒▒      ▒▒▒▒▒▒▒▒▒▒▒▒
+             ▒▒▒▒▒▒      ▒▒▒▒▒▒▒▒▒▒▒▒
+petal_length ██████▒▒▒▒▒▒      ██████
+             ██████▒▒▒▒▒▒      ██████
+             ██████▒▒▒▒▒▒      ██████
+petal_width  ██████▒▒▒▒▒▒██████
+             ██████▒▒▒▒▒▒██████
+             ██████▒▒▒▒▒▒██████
+```
+
+### Count & adjacency matrices
+
+<!-- customizing gradient, normalization, ascii, cramming -->
+
+### Arbitrary matrices
+
+### Conditional formatting
+
+<!-- width vs. size, align -->
 
 ## `xan spark` for sparklines and aggregated bar plots
 
 ### Distributions
 
-<!-- TODO: joydiv -->
+<!-- TODO: joydiv, ridgeplot-like could be useful for embeddings etc. -->
 
 ## `xan progress` for progress bars
 
