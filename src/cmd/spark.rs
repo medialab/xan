@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fmt::{Display, Write as FmtWrite};
 use std::io::{Write, stdout};
 use std::num::NonZeroUsize;
@@ -693,10 +694,20 @@ impl Series {
 
         if !self.categories.is_empty() {
             let mut categories_bins = Vec::with_capacity(count);
+            let mut counter = BTreeMap::<usize, usize>::new();
 
             for chunk in self.categories.chunks_mut(chunk_size) {
-                chunk.sort();
-                let mode = chunk[0];
+                counter.clear();
+
+                for category in chunk {
+                    counter
+                        .entry(*category)
+                        .and_modify(|c| *c += 1)
+                        .or_insert(1);
+                }
+
+                let mode = *counter.iter().max_by_key(|(_, count)| *count).unwrap().0;
+
                 // NOTE: in case of ties we should probably keep the first seen in original sequence
                 // but maybe it is good enough as-is.
                 categories_bins.push(mode);

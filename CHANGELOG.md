@@ -24,6 +24,7 @@
 * Fixing moonblade string with bstring equality.
 * Fixing percentages shown by `xan spark -P`.
 * Fixing `xan complete` correctness in presence of duplicate values.
+* Fixing `xan spark -c` discretization.
 
 *Performance*
 
