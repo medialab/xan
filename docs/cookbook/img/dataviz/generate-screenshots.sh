@@ -233,9 +233,27 @@ xan matrix corr -s :3 | \
 xan heatmap -DUNS 3 | \
 save "heatmap-corr-renamed"
 
+xan matrix count edito wheel_subcategory "$MEDIAS" | \
+xan heatmap --gradient viridis -F -S2 -N --normalize col | \
+save "heatmap-count"
+
 xan matrix adj source target -U -w weight "$MISERABLES" | \
 xan heatmap -F | \
 save "heatmap-adj"
+
+xan sample 5 -g species --seed 1 "$IRIS" | \
+xan heatmap -l species --normalize col | \
+save "heatmap-custom-iris"
+
+xan map 'date.year().round(10) as decade' "$SERIES" | \
+xan matrix count decade category | \
+xan heatmap -F -G viridis -S3 -N | \
+save "heatmap-custom-decades"
+
+xan search -s category Disc "$SERIES" | \
+xan slice -l 20 | \
+xan heatmap -l date -v revenues,adjusted_revenues -W 17 -N --align right -G yl_gn_bu --normalize col | \
+save "heatmap-conditional-formatting"
 
 # progress
 

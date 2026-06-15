@@ -35,13 +35,18 @@ I say "comfort" and I mean it ;). `xan` will have processed and rendered your da
     - [Scales](#scales)
     - [Regression line](#regression-line)
     - [Custom 2D plots & density gradients](#custom-2d-plots--density-gradients)
-- [`xan heatmap` for heatmaps and conditional formatting](#xan-heatmap-for-heatmaps-and-conditional-formatting) (TODO)
+- [`xan heatmap` for heatmaps and conditional formatting](#xan-heatmap-for-heatmaps-and-conditional-formatting)
     - [Correlation matrices](#correlation-matrices)
     - [Count & adjacency matrices](#count--adjacency-matrices)
     - [Arbitrary matrices](#arbitrary-matrices)
     - [Conditional formatting](#conditional-formatting)
-- [`xan spark` for sparklines and aggregated bar plots](#xan-spark-for-sparklines-and-aggregated-bar-plots) (TODO)
+- [`xan spark` for sparklines and aggregated bar plots](#xan-spark-for-sparklines-and-aggregated-bar-plots)
+    - [Column-wise minimaps](#column-wise-minimaps)
+    - [Time series](#time-series)
     - [Distributions](#distributions-1)
+    - [Vertical bar plots](#vertical-bar-plots)
+    - [Syntwave plots](#synthwave-plots)
+    - [Joy division plots](#joy-division-plots)
 - [`xan progress` for progress bars](#xan-progress-for-progress-bars)
 - [Troubleshooting](#troubleshooting)
     - [Color gradients are not rendered properly](#color-gradients-are-not-rendered-properly)
@@ -974,17 +979,103 @@ petal_width  ██████▒▒▒▒▒▒██████
 
 ### Count & adjacency matrices
 
-<!-- customizing gradient, normalization, ascii, cramming -->
+`xan heatmap` can also be used to represent count matrix, where we count the number of times values from a first column co-occur with values from a second column.
+
+But first, let's learn about a few more flags:
+
+- the gradient used can be customized through the `-G/--gradient` flag (see `xan help gradients` for the full list)
+- cell color is mapped over the normalization of the cell value against the full matrix. But you can use the `--normalize` flag to normalize against a cell's column (`col`) or a cell's row (`row`).
+- sometimes, when the resulting heatmap is very sparse, it can be easier on the eye to "fill" empty cells with a pattern using the `-F/--fill` flag
+
+Now here is an example of count matrix tracking co-occurrences, in our media corpus, of the editorialization of a media with its subcategory, using a *Viridis* gradient:
+
+```bash
+xan matrix count edito wheel_subcategory medias.csv | \
+xan heatmap --gradient viridis -F -S2 -N --normalize col
+```
+
+<p align="center">
+    <img alt="heatmap-count.png" src="./img/dataviz/heatmap-count.png" width="60%" />
+</p>
+
+We can also apply this to adjacency matrix to represent graphs. An adjacency matrix is the same thing as a count matrix but where both axis have homogeneous labels (a count matrix can be though of as a bipartite matrix also, if you will).
+
+```bash
+# -U means --undirected because our edges are not directed in this case
+# -w means --weight, so we have more than a binary definition of our edges
+xan matrix adj source target -U -w weight les-miserables.csv | \
+xan heatmap -F
+```
+
+<p align="center">
+    <img alt="heatmap-adj.png" src="./img/dataviz/heatmap-adj.png" width="80%" />
+</p>
+
+Don't forget that you can always unzoom your terminal for better "resolution". Sometimes you can also transpose your data with `xan transpose` to make sure the longest axis is vertical (terminal space is vertically infinite, while horizontal space is limited).
 
 ### Arbitrary matrices
 
+We have seen how to work with correlation matrices and count/adjacency matrices, but `xan heatmap` can really work with any abitrary table. And since vertical space is unlimited, you can very well use it to draw heatmap for full tables, or any heatmap-like application.
+
+Here I use `xan heatmap` to represent the dimensions of the Iris dataset:
+
+```bash
+xan sample 5 -g species iris.csv | \
+xan heatmap -l species --normalize col
+```
+
+<p align="center">
+    <img alt="heatmap-custom-iris.png" src="./img/dataviz/heatmap-custom-iris.png" width="60%" />
+</p>
+
+Do you see what distinguishes the Setosa species from the other ones?
+
+And here is an example where I use `xan heatmap` for crude temporal representation:
+
+```bash
+xan map 'date.year().round(10) as decade' series.csv | \
+xan matrix count decade category | \
+xan heatmap -F -G viridis -S3 -N
+```
+
+<p align="center">
+    <img alt="heatmap-custom-decades.png" src="./img/dataviz/heatmap-custom-decades.png" width="60%" />
+</p>
+
 ### Conditional formatting
 
-<!-- width vs. size, align -->
+Finally, `xan heatmap` can be used to perform what is usually called in spreadsheet software as "conditional formatting". That is to say that you are going to color your cells based on the value they contain.
+
+By default `xan heatmap` attempts to draw cells as squares, whose size you can tweak using the `-S/--size` flag. But in the case of conditional formatting, you don't really need your cells to be square. As a matter of fact, you even need them to be as wide as possible so you can show the numbers inside. This can be achieved with the `-W/--width` flag.
+
+You can also use the `-a/--align` flag to tweak how values will be printed within cells.
+
+```bash
+# Displaying only the rows related to CDs
+xan search -s category Disc series.csv | \
+# Using 17 characters as width for the cells, and aligning values on the right
+xan heatmap -l date -v revenues,adjusted_revenues -W 17 -N --align right -G yl_gn_bu --normalize col
+```
+
+<p align="center">
+    <img alt="heatmap-conditional-formatting.png" src="./img/dataviz/heatmap-conditional-formatting.png" width="60%" />
+</p>
 
 ## `xan spark` for sparklines and aggregated bar plots
 
+`xan spark` is a command able to draw horizontal "sparklines", which can be thought of as coarse line plots or bar plots.
+
+### Column-wise minimaps
+
+### Time series
+
 ### Distributions
+
+### Vertical bar plots
+
+### Synthwave plots
+
+### Joy division plots
 
 <!-- TODO: joydiv, ridgeplot-like could be useful for embeddings etc. -->
 
