@@ -255,6 +255,17 @@ xan slice -l 20 | \
 xan heatmap -l date -v revenues,adjusted_revenues -W 17 -N --align right -G yl_gn_bu --normalize col | \
 save "heatmap-conditional-formatting"
 
+# spark
+echo "xan spark snaphots"
+
+{
+    xan spark revenues "$SERIES" && \
+    echo "\noriginal order ↑ --- sorted ↓" && \
+    xan sort -s revenues -RN "$SERIES" | \
+    xan spark revenues;
+} | \
+save "spark-minimap"
+
 # progress
 
 # asciinema rec -c 'xan progress sample.csv > /dev/null' progress.cast --overwrite

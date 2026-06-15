@@ -1067,7 +1067,38 @@ xan heatmap -l date -v revenues,adjusted_revenues -W 17 -N --align right -G yl_g
 
 ### Column-wise minimaps
 
+At its heart, `xan spark` wants to draw one or multiple "series". Those series can be taken using different methods and can be reinterpreted in many ways: as time series, as distributions etc.
+
+But, by default, `xan spark` will work by representing one or more numerical columns from its input, as-is, in the order of the data.
+
+The result can be thought of as a column-wise "minimap" of sorts, and can be useful to detect patterns in the way the data itself is arranged.
+
+Here is the simplest way to call `xan spark` on some columns:
+
+```bash
+xan spark <y-columns> input.csv
+```
+
+And here is an example where I print one sparkline over a column of `series.csv`, and another sparkline after having sorted the same column:
+
+```bash
+xan spark revenues series.csv && \
+echo "\noriginal order ↑ --- sorted ↓" && \
+xan sort -s revenues -RN series.csv | \
+xan spark revenues
+```
+
+<p align="center">
+    <img alt="spark-minimap.png" src="./img/dataviz/spark-minimap.png" width="80%" />
+</p>
+
+The y-axis min,max discrepancy across both sparkline happens because of the way both series are discretized to fit in the horizontal space of the terminal.
+
+<!-- use a sorted column, use the categorical repr, scales etc. -->
+
 ### Time series
+
+<!-- height -->
 
 ### Distributions
 
@@ -1077,7 +1108,7 @@ xan heatmap -l date -v revenues,adjusted_revenues -W 17 -N --align right -G yl_g
 
 ### Joy division plots
 
-<!-- TODO: joydiv, ridgeplot-like could be useful for embeddings etc. -->
+<!-- TODO: joydiv, ridgeplot-like could be useful for embeddings etc. (check `xan from -f npy`) -->
 
 ## `xan progress` for progress bars
 
