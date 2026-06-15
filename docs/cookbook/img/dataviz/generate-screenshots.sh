@@ -187,6 +187,16 @@ save "plot-time-categorical"
 xan plot -LT date revenues -c category -S 3 -G "$SERIES" | \
 save "plot-time-small-multiples"
 
+xan plot revenues adjusted_revenues -R "$SERIES" | \
+save "plot-regression"
+
+xan tokenize words transcript -k word "$SOTU" | \
+xan vocab token | \
+xan sort -s gf -RN | \
+xan enum -c rank -S 1 | \
+xan plot rank gf --y-scale log10 --x-scale log10 | \
+save "plot-zipf"
+
 xan plot x y -Q --hide-all "$LAYOUT" | \
 save "plot-layout"
 

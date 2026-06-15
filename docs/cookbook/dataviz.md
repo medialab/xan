@@ -10,9 +10,6 @@ This aspect of the tool is often overlooked because `xan` is first and foremost 
 
 I say "comfort" and I mean it ;). `xan` will have processed and rendered your data in the terminal long before you are able to spin up your Jupyter instance and import `pandas` & `matplotlib`. No cruft. No distraction. Just raw insights, like it's still 1970 and all you have is ASCII art, but with (true) ✨colors✨ and Unicode ([braille](https://en.wikipedia.org/wiki/Braille_ASCII) characters are a godsend).
 
-<!-- TODO: finish gif -->
-<!-- TODO: layout gif -->
-
 ## Summary
 
 - [Downloading the datasets used in this guide](#downloading-the-datasets-used-in-this-guide)
@@ -32,10 +29,11 @@ I say "comfort" and I mean it ;). `xan` will have processed and rendered your da
     - [Categorical bar plots](#categorical-bar-plots)
     - [Working with arbitrary inputs](#working-with-arbitrary-inputs)
     - [Working with dates](#working-with-dates)
-- [`xan plot` for scatter plots, line plots and time series](#xan-plot-for-scatter-plots-line-plots-and-time-series) (TODO)
+- [`xan plot` for scatter plots, line plots and time series](#xan-plot-for-scatter-plots-line-plots-and-time-series)
     - [Scatter plots](#scatter-plots)
     - [Line plots & time series](#line-plots--time-series)
-    - [Regression line & scales](#regression-line--scales)
+    - [Scales](#scales)
+    - [Regression line](#regression-line)
     - [Custom 2D plots & density gradients](#custom-2d-plots--density-gradients)
 - [`xan heatmap` for heatmaps and conditional formatting](#xan-heatmap-for-heatmaps-and-conditional-formatting) (TODO)
 - [`xan spark` for sparklines and aggregated bar plots](#xan-spark-for-sparklines-and-aggregated-bar-plots) (TODO)
@@ -729,12 +727,50 @@ xan plot -LT date revenues -c category -S 3 -G series.csv
     <img alt="plot-time-small-multiples.png" src="./img/dataviz/plot-time-small-multiples.png" width="80%" />
 </p>
 
-### Regression line & scales
+### Scales
 
-<!-- https://en.wikipedia.org/wiki/Zipf%27s_law -->
-<!-- xan tokenize words transcript docs/cookbook/resources/sotu.csv -k word | xan vocab token | xan sort -s gf -RN | xan enum -c rank -S 1 | xan plot rank gf --y-scale log10 --x-scale log10 -->
+If you try to observe the relation between the number of occurrences of words in a text and their frequency rank, you will observe what is called a [Zipf's law](https://en.wikipedia.org/wiki/Zipf%27s_law).
 
-<!-- TODO: --scale, correlation and -R with tokenize -->
+This result is often shown as a scatter plot like this one, using log scales on both axis:
+
+<p align="center">
+    <img alt="wikipedia-zipf-law" src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d9/Zipf-engl-0_English_-_Culpeper_herbal_and_War_of_the_Worlds.svg/960px-Zipf-engl-0_English_-_Culpeper_herbal_and_War_of_the_Worlds.svg.png?_=20230515221456" width="60%" />
+</p>
+
+Fortunately, `xan plot` lets you choose from a variety of non-linear scales for both axis through the `--x-scale` & `--y-scale` flags.
+
+Let's see if we can produce the same result with our State-of-the-union speeches dataset:
+
+```bash
+# We split text into words
+xan tokenize words transcript -k word sotu.csv | \
+# We compute token-level, i.e. word-level, statistics
+xan vocab token | \
+# We sort by descending global frequency
+xan sort -s gf -RN | \
+# We create a rank column
+xan enum -c rank -S 1 | \
+# We plot the result with a log10 scale for both axis
+xan plot rank gf --y-scale log10 --x-scale log10
+```
+
+<p align="center">
+    <img alt="plot-zipf.png" src="./img/dataviz/plot-zipf.png" width="80%" />
+</p>
+
+### Regression line
+
+Sometimes it can be good to be able to draw a regression line to see how x & y are correlated. `xan plot` lets you do so through the `-R/--regression-line` flag.
+
+Let's see how the `revenues` and `adjusted_revenues` columns of the `series.csv` file correlate:
+
+```bash
+xan plot -R revenues adjusted_revenues series.csv
+```
+
+<p align="center">
+    <img alt="plot-regression.png" src="./img/dataviz/plot-regression.png" width="80%" />
+</p>
 
 ### Custom 2D plots & density gradients
 
@@ -832,6 +868,8 @@ done
 </p>
 
 ## `xan heatmap` for heatmaps and conditional formatting
+
+<!-- TODO: correlation matrices, count matrix, arbitrary matrices, conditional formatting  -->
 
 ## `xan spark` for sparklines and aggregated bar plots
 
