@@ -8,6 +8,7 @@
 * Overhauling how `xan scrape` takes its inputs. It now targets HTML files on disk by default now.
 * `xan plot --density-scale` now defaults to `log`.
 * `xan freq -X/--approx-algo` & `xan p freq -X/--approx-algo` now default to `heavy-keeper`.
+* Dropping `xan eval -S/--serialize`. The default behavior of the command is now to output the serialized value.
 
 *Features*
 
