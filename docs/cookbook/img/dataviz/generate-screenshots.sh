@@ -15,8 +15,8 @@ SOTU="$RESOURCES_DIR/sotu.csv"
 MEDIAS="$RESOURCES_DIR/medias.csv"
 IRIS="$RESOURCES_DIR/iris.csv"
 MISERABLES="$RESOURCES_DIR/les-miserables.csv"
-LAYOUT="$RESOURCES_DIR/layout.csv.gz"
-CLUSTERS="$RESOURCES_DIR/clusters.csv.gz"
+LAYOUT="$RESOURCES_DIR/layout.csv"
+CLUSTERS="$RESOURCES_DIR/clusters.csv"
 PULSAR="$RESOURCES_DIR/pulsar.csv"
 
 save() {

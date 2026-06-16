@@ -106,20 +106,20 @@ famously used on the cover of Joy Division's "Unknown Pleasures" album.
 curl -LO https://gist.githubusercontent.com/borgar/31c1e476b8e92a11d7e9/raw/0fae97dab6830ecee185a63c1cee0008f6778ff6/pulsar.csv
 ```
 
-*clusters.csv.gz*
+*clusters.csv*
 
 x and y positions of nodes in a graph containing 5 well-defined clusters, as inferred by the ForceAtlas2 layout algorithm.
 
 ```bash
-curl -LO https://github.com/medialab/xan/raw/refs/heads/master/docs/cookbook/resources/clusters.csv.gz
+curl -LO https://github.com/medialab/xan/raw/refs/heads/master/docs/cookbook/resources/clusters.csv
 ```
 
-*layout.csv.gz*
+*layout.csv*
 
 x and y positions of a sample of accounts from a French defunct social network, as inferred by the ForceAltas2 layout algorithm.
 
 ```bash
-curl -LO https://github.com/medialab/xan/raw/refs/heads/master/docs/cookbook/resources/layout.csv.gz
+curl -LO https://github.com/medialab/xan/raw/refs/heads/master/docs/cookbook/resources/layout.csv
 ```
 
 ## `xan view` to display tables
@@ -795,7 +795,7 @@ xan plot -R revenues adjusted_revenues series.csv
 
 For instance I personally use `xan plot` to draw simplified node-link diagrams of very large graphs in the terminal.
 
-The `layout.csv.gz` file (as described [here](#downloading-the-datasets-used-in-this-guide)) contains a sample of the x & y positions assigned to each page of a now defunct French social network by the [ForceAtlas2](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0098679) layout algorithm.
+The `layout.csv` file (as described [here](#downloading-the-datasets-used-in-this-guide)) contains a sample of the x & y positions assigned to each page of a now defunct French social network by the [ForceAtlas2](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0098679) layout algorithm.
 
 People usually rely on [Gephi](https://gephi.org/) or [sigma.js](sigmajs.org/) to interactively explore this kind of graphs.
 
@@ -812,17 +812,17 @@ Now let's print our graph:
 
 ```bash
 # --hide-all is a shorthand for --hide-x-axis & --hide-y-axis
-xan plot x y -Q --hide-all layout.csv.gz
+xan plot x y -Q --hide-all layout.csv
 ```
 
 <p align="center">
     <img alt="plot-layout.png" src="./img/dataviz/plot-layout.png" width="80%" />
 </p>
 
-Here is another example using the similar `clusters.csv.gz` file that contains a graph with 5 distinct & well-connected communities:
+Here is another example using the similar `clusters.csv` file that contains a graph with 5 distinct & well-connected communities:
 
 ```bash
-xan plot x y -Q --hide-all clusters.csv.gz
+xan plot x y -Q --hide-all clusters.csv
 ```
 
 <p align="center">
@@ -831,10 +831,10 @@ xan plot x y -Q --hide-all clusters.csv.gz
 
 With both graphs we can start distinguishing a geography. But admittedly this remains hard to read and we should be able to do better by using some color.
 
-For `clusters.csv.gz` this is easy because we have a `cluster` column containing the id of the cluster for each node, so we can pass it to the `-c/--category` flag:
+For `clusters.csv` this is easy because we have a `cluster` column containing the id of the cluster for each node, so we can pass it to the `-c/--category` flag:
 
 ```bash
-xan plot x y -c cluster -Q --hide-all clusters.csv.gz
+xan plot x y -c cluster -Q --hide-all clusters.csv
 ```
 
 <p align="center">
@@ -852,7 +852,7 @@ This can be done through the `-D/--density-gradient` flag that takes a gradient 
 In this example I will use the `or_rd` gradient that will continuously map from orange for low density to red for high density. The default scale used for density is `log`, but you can tweak it with `--density-scale` if required:
 
 ```bash
-xan plot x y -D or_rd -Q --hide-all layout.csv.gz
+xan plot x y -D or_rd -Q --hide-all layout.csv
 ```
 
 <p align="center">
@@ -1098,13 +1098,13 @@ Now `xan spark`, like `xan plot`, has a `-c/--category` flag that can be used to
 
 You can use this to see how categories are distributed in a file.
 
-Here is an example where I print a categorical sparkline over the x & y columns of `clusters.csv.gz` and another one after having shuffled the file:
+Here is an example where I print a categorical sparkline over the x & y columns of `clusters.csv` and another one after having shuffled the file:
 
 ```bash
 # I use --hide-legend here because the ids of the clusters are irrelevant
-xan spark x,y -c cluster clusters.csv.gz --hide-legend && \
+xan spark x,y -c cluster clusters.csv --hide-legend && \
 printf "\noriginal order ↑ --- shuffled ↓\n\n" && \
-xan shuffle clusters.csv.gz | \
+xan shuffle clusters.csv | \
 xan spark x,y -c cluster --hide-legend
 ```
 
@@ -1410,7 +1410,7 @@ cargo install --git https://github.com/yomguithereal/ansi2png-rs --locked --bran
 I used it to render most of this guide's screenshots (you can read my script over [there](./img/dataviz/generate-screenshots.sh)). You can use it thusly:
 
 ```bash
-xan plot x y layout.csv.gz --color=always | ansi2png-rs -o screen.png
+xan plot x y layout.csv --color=always | ansi2png-rs -o screen.png
 ```
 
 Don't forget to use `--color=always` to force the output to have ANSI colors (they are usually disabled when piping, by default), or to use the relevant env variables like `CLICOLOR_FORCE=1`. More details about this can be found [here](https://github.com/medialab/xan#regarding-color).
