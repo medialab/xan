@@ -10,7 +10,34 @@ This aspect of the tool is often overlooked because `xan` is first and foremost 
 
 I say "comfort" and I mean it ;). `xan` will have processed and rendered your data in the terminal long before you are able to spin up your Jupyter instance and import `pandas` & `matplotlib`. No cruft. No distraction. Just raw insights, like it's still 1970 and all you have is ASCII art, but with (true) ✨colors✨ and Unicode ([braille](https://en.wikipedia.org/wiki/Braille_ASCII) characters are a godsend).
 
-## Summary
+## Fancy Table of Contents
+
+<table>
+    <tbody>
+        <tr>
+            <td>
+                <a href="#xan-view-to-display-tables">xan view</a>
+            </td>
+            <td>
+                <a href="#xan-flatten-for-close-reading">xan flatten</a>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <p align="center">
+                    <img alt="view.png" src="./img/dataviz/view.png" width="100%" />
+                </p>
+            </td>
+            <td>
+                <p align="center">
+                    <img alt="flatten.png" src="./img/dataviz/flatten-sotu-highlight.png" width="60%" />
+                </p>
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+## Boring Table of Contents
 
 - [Downloading the datasets used in this guide](#downloading-the-datasets-used-in-this-guide)
 - [`xan view` to display tables](#xan-view-to-display-tables)
