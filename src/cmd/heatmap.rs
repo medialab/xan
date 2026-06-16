@@ -97,7 +97,11 @@ impl Matrix {
     where
         I: IntoIterator<Item = Option<f64>>,
     {
-        self.row_labels.push(label);
+        self.row_labels.push(if label.is_empty() {
+            "<empty>".to_string()
+        } else {
+            label
+        });
 
         for cell in row {
             self.array.push(cell);
@@ -381,7 +385,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut column_labels = values_sel
         .select(&headers)
-        .map(|cell| String::from_utf8_lossy(cell).into_owned())
+        .map(|cell| {
+            if cell.is_empty() {
+                "<empty>".to_string()
+            } else {
+                String::from_utf8_lossy(cell).into_owned()
+            }
+        })
         .collect::<Vec<_>>();
 
     if conf.no_headers {
@@ -440,7 +450,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .column_labels
         .iter()
         .enumerate()
-        .map(|(i, label)| format!("{}: {}", (i + 1).to_string().dimmed(), label))
+        .map(|(i, label)| {
+            format!(
+                "{}: {}",
+                (i + 1).to_string().dimmed(),
+                if label == "<empty>" {
+                    label.dimmed()
+                } else {
+                    label.normal()
+                }
+            )
+        })
         .collect::<Vec<_>>()
         .join(" ");
 
@@ -483,10 +503,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 col_label.to_string()
             };
 
+            let formatted_label = util::unicode_aware_rpad_with_ellipsis(&label, width, " ");
+
             write!(
                 &out,
                 "{}",
-                util::unicode_aware_rpad_with_ellipsis(&label, width, " "),
+                if label == "<empty>" {
+                    formatted_label.dimmed()
+                } else {
+                    formatted_label.normal()
+                },
             )?;
         }
         writeln!(&out)?;
@@ -526,14 +552,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         for i in 0..size {
             if i == 0 {
+                let formatted_label = util::unicode_aware_rpad_with_ellipsis(
+                    row_label,
+                    label_cols.saturating_sub(1),
+                    " ",
+                );
+
                 write!(
                     &out,
                     "{} ",
-                    util::unicode_aware_rpad_with_ellipsis(
-                        row_label,
-                        label_cols.saturating_sub(1),
-                        " "
-                    )
+                    if row_label == "<empty>" {
+                        formatted_label.dimmed()
+                    } else {
+                        formatted_label.normal()
+                    }
                 )?;
             } else {
                 write!(&out, "{}", left_padding)?;

@@ -34,6 +34,7 @@
 *Quality of Life*
 
 * Better legends & axis for `xan spark`.
+* Highlighting empty labels when using `xan heatmap`.
 
 ## 0.58.0
 
