@@ -54,73 +54,23 @@ I say "comfort" and I mean it ;). `xan` will have processed and rendered your da
 
 ## Downloading the datasets used in this guide
 
-*series.csv*
-
-Time series related from RIAA about music distribution formats in time and their associated gross revenues.
+You can  download all datasets used throughout this guide as a single tarball:
 
 ```bash
-curl -LO https://github.com/medialab/xan/raw/refs/heads/master/docs/cookbook/resources/series.csv
+curl -LO https://github.com/medialab/xan/raw/refs/heads/master/docs/cookbook/resources/dataviz.tar.gz
+tar -xvzf dataviz.tar.gz
 ```
 
-*sotu.csv*
+Here is the list of files you will find inside the tarball (~10MB):
 
-Retranscription of U.S. state of the union speeches across time (1790 to 2018):
-
-```bash
-curl -L https://github.com/BrianWeinstein/state-of-the-union/raw/refs/heads/master/transcripts.csv > sotu.csv
-```
-
-*medias.csv*
-
-A curated corpus of French medias online.
-
-```bash
-curl -LO https://github.com/medialab/corpora/raw/master/polarisation/medias.csv
-```
-
-*iris.csv*
-
-The fampus "Iris" dataset, used in a lot of machine learning examples.
-
-```bash
-curl -LO https://github.com/medialab/xan/raw/refs/heads/master/docs/cookbook/resources/iris.csv
-```
-
-*les-miserables.csv*
-
-Edges from a graph of characters from the novel "Les Misérables" by Victor Hugo.
-
-```bash
-curl -LO https://github.com/medialab/xan/raw/refs/heads/master/docs/cookbook/resources/les-miserables.csv
-```
-
-*pulsar.csv*
-
-Data from the pulsar plot of the following article:
-
-> Radio Observations of the Pulse Profiles and Dispersion Measures of Twelve Pulsars by Harold D. Carft, Jr. 1970
-
-famously used on the cover of Joy Division's "Unknown Pleasures" album.
-
-```bash
-curl -LO https://gist.githubusercontent.com/borgar/31c1e476b8e92a11d7e9/raw/0fae97dab6830ecee185a63c1cee0008f6778ff6/pulsar.csv
-```
-
-*clusters.csv*
-
-x and y positions of nodes in a graph containing 5 well-defined clusters, as inferred by the ForceAtlas2 layout algorithm.
-
-```bash
-curl -LO https://github.com/medialab/xan/raw/refs/heads/master/docs/cookbook/resources/clusters.csv
-```
-
-*layout.csv*
-
-x and y positions of a sample of accounts from a French defunct social network, as inferred by the ForceAltas2 layout algorithm.
-
-```bash
-curl -LO https://github.com/medialab/xan/raw/refs/heads/master/docs/cookbook/resources/layout.csv
-```
+- `clusters.csv`: x and y positions of nodes in a graph containing 5 well-defined clusters, as inferred by the ForceAtlas2 layout algorithm
+- `iris.csv`: the famous "Iris" dataset, used in a lot of machine learning examples
+- `layout.csv`: x and y positions of a sample of accounts from a French defunct social network, as inferred by the ForceAltas2 layout algorithm
+- `les-miserables.csv`: edges from a graph of characters from the novel "Les Misérables" by Victor Hugo
+- `medias.csv`: a curated corpus of French medias online
+- `pulsar.csv`: data from the pulsar plot from the article *"Radio Observations of the Pulse Profiles and Dispersion Measures of Twelve Pulsars by Harold D. Carft, Jr. 1970"* ([original data](https://gist.githubusercontent.com/borgar/31c1e476b8e92a11d7e9/raw/0fae97dab6830ecee185a63c1cee0008f6778ff6/pulsar.csv))
+- `series.csv`: time series related from RIAA about music distribution formats in time and their associated gross revenues
+- `sotu.csv`: retranscription of U.S. state of the union speeches across time (1790 to 2018) ([original data](https://github.com/BrianWeinstein/state-of-the-union/raw/refs/heads/master/transcripts.csv))
 
 ## `xan view` to display tables
 
