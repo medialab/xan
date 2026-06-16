@@ -530,6 +530,10 @@ impl ColorMap {
         *self.map.entry(name.to_vec()).or_insert(i)
     }
 
+    fn get(&self, category: usize) -> Option<&[u8]> {
+        self.map.get_index(category).map(|(name, _)| name.as_ref())
+    }
+
     fn iter(&self) -> impl Iterator<Item = (usize, &[u8])> {
         self.map
             .iter()
@@ -1791,8 +1795,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 if actually_cram {
                     let color_map = &categories_opt.as_ref().unwrap().1;
 
-                    sparkline_renderer
-                        .cram_names(name_padding.len(), color_map.iter().map(|(_, name)| name));
+                    let categories_chunk = &series.categories
+                        [chunk_i * chunk_size..chunk_i * chunk_size + chunk.len()];
+
+                    sparkline_renderer.cram_names(
+                        name_padding.len(),
+                        categories_chunk
+                            .iter()
+                            .map(|category| color_map.get(*category).unwrap()),
+                    );
                 }
 
                 if let Some(ticks) = &temporal_ticks_opt {
