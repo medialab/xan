@@ -1104,7 +1104,7 @@ Here is an example where I print a categorical sparkline over the x & y columns 
 # I use --hide-legend here because the ids of the clusters are irrelevant
 xan spark x,y -c cluster clusters.csv.gz --hide-legend && \
 printf "\noriginal order ↑ --- shuffled ↓\n\n" && \
-xan shuffle --seed 1 clusters.csv.gz | \
+xan shuffle clusters.csv.gz | \
 xan spark x,y -c cluster --hide-legend
 ```
 
