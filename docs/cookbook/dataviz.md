@@ -25,12 +25,72 @@ I say "comfort" and I mean it ;). `xan` will have processed and rendered your da
         <tr>
             <td>
                 <p align="center">
-                    <img alt="view.png" src="./img/dataviz/view.png" width="100%" />
+                    <img alt="view" src="./img/dataviz/grid/view-grouped.png" />
                 </p>
             </td>
             <td>
                 <p align="center">
-                    <img alt="flatten.png" src="./img/dataviz/flatten-sotu-highlight.png" width="60%" />
+                    <img alt="flatten" src="./img/dataviz/grid/flatten-split.png" />
+                </p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <a href="#xan-stats--r--report-for-automatic-statistical-reports">xan stats -R/--report</a>
+            </td>
+            <td>
+                <a href="#xan-hist-for-detailed-bar-plots">xan hist</a>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <p align="center">
+                    <img alt="view" src="./img/dataviz/grid/stats-report.png" />
+                </p>
+            </td>
+            <td>
+                <p align="center">
+                    <img alt="flatten" src="./img/dataviz/grid/hist-categorical1.png" />
+                </p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <a href="#xan-plot-for-scatter-plots-line-plots-and-time-series">xan plot</a>
+            </td>
+            <td>
+                <a href="#xan-heatmap-for-heatmaps-and-conditional-formatting">xan heatmap</a>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <p align="center">
+                    <img alt="view" src="./img/dataviz/grid/plot-scatter-categorical.png" />
+                </p>
+            </td>
+            <td>
+                <p align="center">
+                    <img alt="flatten" src="./img/dataviz/grid/heatmap-custom-decades.png" />
+                </p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <a href="#xan-spark-for-sparklines-and-aggregated-bar-plots">xan spark</a>
+            </td>
+            <td>
+                <a href="#xan-progress-for-progress-bars">xan progress</a>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <p align="center">
+                    <img alt="view" src="./img/dataviz/grid/spark-gradient.png" />
+                </p>
+            </td>
+            <td>
+                <p align="center">
+                    <img alt="flatten" src="./img/dataviz/progress-parallel.gif" />
                 </p>
             </td>
         </tr>
