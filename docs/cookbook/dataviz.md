@@ -45,7 +45,7 @@ I say "comfort" and I mean it ;). `xan` will have processed and rendered your da
         <tr>
             <td>
                 <p align="center">
-                    <img alt="view" src="./img/dataviz/grid/stats-report.png" />
+                    <img alt="view" src="./img/dataviz/grid/stats-report-long.png" />
                 </p>
             </td>
             <td>
