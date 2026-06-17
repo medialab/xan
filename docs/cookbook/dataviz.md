@@ -585,7 +585,7 @@ See how consecutive bars with a same label were reduced to a single label for be
 
 ### Working with arbitrary inputs
 
-`xan hist` has been tailored to work easily with `xan freq` & `xan hist`. But it does not mean you cannot use it with custom inputs.
+`xan hist` has been tailored to work easily with `xan freq` & `xan bins`. But it does not mean you cannot use it with custom inputs.
 
 `xan hist` needs to be given a CSV file with one column representing a bar's label and another one representing a bar's value. You can pass them using the `-l/--label` & `-v/--value` flags respectively.
 
@@ -708,8 +708,7 @@ To do so, you need to give a maximum number of plots you want to draw on a singl
 Here is an example where we arrange all iris species horizontally:
 
 ```bash
-# With a grid (-G)
-xan plot sepal_length petal_width -c species --marker dot -G -S 3 iris.csv
+xan plot sepal_length petal_width -c species --marker dot -S 3 iris.csv
 ```
 
 <p align="center">
