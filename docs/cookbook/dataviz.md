@@ -187,7 +187,7 @@ xan view --rainbow series.csv
 
 ### Fitting the screen
 
-In `series.csv`, the data is quite concise, so it is easy to print all columns losslessly in the terminal. But see what happens when we use the command, in a small terminal, on `sotu.csv`, containing urls and full text for whole speeches:
+In `series.csv`, the data is quite concise, so it is easy to print all columns losslessly in the terminal. But see what happens when we use the command, in a small terminal, on `sotu.csv`, containing urls and the full text of whole speeches:
 
 ```bash
 xan view sotu.csv
@@ -203,11 +203,11 @@ Then the command tells you we could only display 3 out of 5 columns, which is wh
 
 Then, see how the first cell of the `transcript` column contains a highlighted leading newline character? The `view` command will highlight a lot of those patterns to easily spot irregularities about your data, such as empty cells (displayed as a greyed out `<empty>`), leading/trailing whitespace etc.
 
-Finally, see how last row is also a dummy one full of ellipsis `…` characters? That's because `xan view`, like most `xan` commands, follow a streaming approach and only displays the first rows of your data by default (my screenshots use 10, but the command's default is 100).
+Finally, see how last row is also a dummy one full of ellipsis `…` characters? That's because `xan view`, like most `xan` commands, follow a streaming approach and only displays the first rows of your data by default (my screenshots shows only 10, but the command's default is 100).
 
 The command works thusly because you usually don't need to consume all rows of a file to be able to preview it efficiently and because, as a human, you won't be able to read more than some hundreds of rows by yourself anyway ;).
 
-What's more `xan view` is usually the last step of a complex `xan pipeline` yielding a stream you should not need to consume entirely to make sure it spits out the required data, which is the reason why you used `xan view` in the first place instead of piping the result to a file.
+What's more `xan view` is usually the last step of a complex `xan pipeline` yielding a stream. You should not need to consume it entirely to make sure it spits out the required data, which is the reason why you used `xan view` in the first place instead of piping the result to a file.
 
 *Printing more rows*
 
@@ -785,7 +785,7 @@ xan plot -LT date revenues -c category -S 3 -G series.csv
 
 If you try to observe the relation between the number of occurrences of words in a text and their frequency rank, you will observe what is called a [Zipf's law](https://en.wikipedia.org/wiki/Zipf%27s_law).
 
-This result is often shown as a scatter plot like this one, using log scales on both axis:
+This result is often shown in a plot like this one, using log scales on both axis:
 
 <p align="center">
     <img alt="wikipedia-zipf-law" src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d9/Zipf-engl-0_English_-_Culpeper_herbal_and_War_of_the_Worlds.svg/960px-Zipf-engl-0_English_-_Culpeper_herbal_and_War_of_the_Worlds.svg.png?_=20230515221456" width="60%" />
@@ -838,7 +838,7 @@ People usually rely on [Gephi](https://gephi.org/) or [sigma.js](sigmajs.org/) t
 
 But what if your graph is very large (tens of millions of nodes), and you just want a quick glance to make sure everything is where it should be?
 
-For small graphs, `xan plot` is useless, since you cannot draw edges nor labels, even at that scale, to have a proper node-link diagram. But when you have million of nodes, you are less interested in the specificities of each node's position than the overall geography of the network.
+For small graphs, `xan plot` is useless, since you cannot draw edges nor labels, even at that scale, to have a proper node-link diagram. But when you have million of nodes, you are less interested in the specificities of each node's position than in the overall geography of the network.
 
 In this context, it can be good to know that `xan plot` has the following flags:
 
@@ -880,7 +880,7 @@ xan plot x y -c cluster -Q --hide-all clusters.csv
 
 The colors match the geography of the layout, everything is fine here.
 
-Now for our social network we don't have information about communities nor clusters. What's more we may have too much nodes and colors might get muddled because even if we are using braille characters to increase the "resolution" of our plot, a character can only have a single color.
+Now for our social network we don't have information about communities nor clusters. What's more we may have too much nodes and colors might get muddled because even if we are using braille characters to increase the "resolution" of our plot, a character can still only have a single color.
 
 But we can try something else: a density gradient. This means we are going to assign a color to each braille character based on the number of points it actually represents.
 
@@ -960,7 +960,7 @@ xan heatmap -DU --size 3
     <img alt="heatmap-corr-size.png" src="./img/dataviz/heatmap-corr-size.png" width="60%" />
 </p>
 
-And since cells are bigger now, we can fit represented numbers within them, using the `-N/--show-numbers` flag:
+And since cells are bigger now, we can fit numbers within them, using the `-N/--show-numbers` flag:
 
 ```bash
 xan matrix corr -s :3 iris.csv | \
@@ -1035,11 +1035,11 @@ xan heatmap --gradient viridis -F -S2 -N --normalize col
     <img alt="heatmap-count.png" src="./img/dataviz/heatmap-count.png" width="60%" />
 </p>
 
-We can also apply this to adjacency matrix to represent graphs. An adjacency matrix is the same thing as a count matrix but where both axis have homogeneous labels (a count matrix can be though of as a bipartite matrix also, if you will).
+We can also apply this to adjacency matrix to represent graphs. An adjacency matrix is the same thing as a count matrix but where both axis have homogeneous labels (a count matrix can be though of as a bipartite matrix, also).
 
 ```bash
 # -U means --undirected because our edges are not directed in this case
-# -w means --weight, so we have more than a binary definition of our edges
+# -w means --weight, so we fill matrix cells with a weight, not just 1 or 0
 xan matrix adj source target -U -w weight les-miserables.csv | \
 xan heatmap -F
 ```
@@ -1081,7 +1081,7 @@ xan heatmap -F -G viridis -S3 -N
 
 ### Conditional formatting
 
-Finally, `xan heatmap` can be used to perform what is usually called in spreadsheet software as "conditional formatting". That is to say that you are going to color your cells based on the value they contain.
+Finally, `xan heatmap` can be used to perform what is usually called "conditional formatting" in spreadsheet software. That is to say you are going to color cells of the tabular representation based on the value they contain.
 
 By default `xan heatmap` attempts to draw cells as squares, whose size you can tweak using the `-S/--size` flag. But in the case of conditional formatting, you don't really need your cells to be square. As a matter of fact, you even need them to be as wide as possible so you can show the numbers inside. This can be achieved with the `-W/--width` flag.
 
@@ -1104,7 +1104,7 @@ xan heatmap -l date -v revenues,adjusted_revenues -W 17 -N --align right -G yl_g
 
 ### Column-wise minimaps
 
-At its heart, `xan spark` wants to draw one or multiple "series". Those series can be taken using different methods and can be reinterpreted in many ways: as time series, as distributions etc.
+At its heart, `xan spark` wants to draw one or multiple "series". Those series can be collected using different methods and can be reinterpreted in many ways: as time series, as distributions etc.
 
 But, by default, `xan spark` will work by representing one or more numerical columns from its input, as-is, in the order of the data.
 
@@ -1153,7 +1153,7 @@ See how the original file is clearly sorted on clusters (we can also see, at a g
 
 ### Time series
 
-But of course `xan spark` can be used for more typical application such as representing time series. It is quite similar in this regard to `xan plot`, but is more suited for displaying large amount of series as small multiples.
+But of course `xan spark` can be used for more typical applications such as representing time series. It is quite similar in this regard to `xan plot`, but is more suited for displaying large amount of series as small multiples.
 
 To show a time series with `xan spark`, you need to feed a temporal column to its `-T/--time` flag. They you are free to provide a numerical column as y, or you can use the `--count` flag to count rows per time unit instead:
 
@@ -1214,7 +1214,7 @@ xan spark -T date revenues -g category -H 2 -Rz -S 2 no series.csv
 
 ### Distributions
 
-Using the `-D/--distribution` scale, `xan spark` is also able to display target series distribution, along with useful information such as the mean, the median etc.
+Using the `-D/--distribution` scale, `xan spark` is also able to display the distribution of your series instead, along with useful information such as the mean, the median etc.
 
 Like other commands, it also knows how to change the scale used to represent the values. Here I am going to use the `--log` flag, which is a shorthand for `--scale log`, to display the distribution of two columns from the `series.csv` file:
 
@@ -1251,7 +1251,7 @@ xan spark -c value count -H .6 -W 10 -PN --min 0 --hide-names
     <img alt="spark-vertical-hist.png" src="./img/dataviz/spark-vertical-hist.png" width="60%" />
 </p>
 
-And of course `-c/--category` perfectly works with multiple series.
+And of course `-c/--category` works perfectly fine with multiple series.
 
 In this example I show one bar plot per lustrum (a span of 5 years, half a decade if you will) of `series.csv`:
 
@@ -1304,7 +1304,7 @@ xan spark -T date revenues,adjusted_revenues series.csv -V plasma -H 10
 
 ### Joy division plots
 
-The "Unknown Pleasures" album of the band Joy Division is important to the dataviz community because it reminds us of the existence of a kind of plot that used to be called a "ridge plot" and that is now called, cheekily, the joy division plot.
+The "Unknown Pleasures" album of the band Joy Division is important to the dataviz community because it reminds us of the existence of a kind of plot that used to be called a "ridge plot" and that is now called, cheekily, the "joy division plot".
 
 Here is the very famous cover of this album
 
@@ -1312,7 +1312,7 @@ Here is the very famous cover of this album
     <img alt="unknown-pleasures.jpeg" src="./img/dataviz/unknown-pleasures.jpeg" width="40%" />
 </p>
 
-But the plot was not drawn for the cover, but comes from a paper in astronomy studying pulsars, published in 1970 in:
+The plot was not drawn for the cover, but comes from a paper in astronomy studying pulsars, published in 1970 in:
 
 > Radio Observations of the Pulse Profiles and Dispersion Measures of Twelve Pulsars by Harold D. Carft, Jr. 1970
 
@@ -1320,12 +1320,13 @@ But the plot was not drawn for the cover, but comes from a paper in astronomy st
     <img alt="pulsars.jpg" src="./img/dataviz/pulsars.jpg" width="50%" />
 </p>
 
-The data used to draw the plot originally can be found online (see the [downloading](#downloading-the-datasets-used-in-this-guide) section of this guide and search for `pulsars.csv`).
+The data used to draw the plot originally can be found [online](https://gist.githubusercontent.com/borgar/31c1e476b8e92a11d7e9/raw/0fae97dab6830ecee185a63c1cee0008f6778ff6/pulsar.csv) (or see the [downloading](#downloading-the-datasets-used-in-this-guide) section of this guide and search for `pulsars.csv`).
 
-Fortunately, `xan spark` also knows how to draw one series per row in input. You just need to give a selection of columns to display per row using the `--along-rows` flag:
+Fortunately, `xan spark` also knows how to draw one series per row in your input. You just need to give a selection of columns to display per row using the `--along-rows` flag:
 
 ```bash
 # I am using --hide-all to hamper the less-artistic endeavors of the command
+# --along-rows '*' means we are going to consider all columns of the file
 xan spark --along-rows '*' pulsar.csv --hide-all
 ```
 
@@ -1337,13 +1338,13 @@ Unzoom your terminal and squint a little for better effect.
 
 Now admittedly this example is a bit of a joke, but you could nevertheless use `--along-rows` more productively. It can be very useful to check embeddings, to make sure they look fine and don't exhibit concerning patterns, such as sorted or low-variance dimensions. Check out `xan from -f npy` to load numpy embedding for this very purpose.
 
-<!-- TODO: test embedding -->
+<!-- TODO: test embedding tartans -->
 
 ## `xan progress` for progress bars
 
-When performing heavy processing, it can be nice to have a progress bar. Fortunately this is what `xan progress` proposes. It reads a CSV stream, prints a progress bar in stderr, and forward CSV data to stdout so you can pipe it into something else. This means it can be placed anywhere in a pipeline (even if it is usually better to place it at the beginning, rather than at the end), and works thanks to the magic of unix pipes backpressure.
+When performing heavy processing, it can be nice to have a progress bar. This is what `xan progress` proposes to do. It reads a CSV stream, prints a progress bar in stderr, and forward CSV data to stdout so you can pipe it into something else. This means it can be placed anywhere in a pipeline (even if it is usually better to place it at the beginning, rather than at the end), and works thanks to the magic of unix pipes backpressure.
 
-For instance, let's say you need to read files whose paths are contained in a CSV file, to make sure they contain the occurrence of some keyword. This might take a while, so first wrap beforementioed CSV file using `xan progress` like so:
+For instance, let's say you need to read files whose paths are contained in a CSV file, to make sure they contain the occurrence of some keyword. This might take a while, so first wrap beforementioned CSV file using `xan progress` like so:
 
 ```bash
 xan progress paths.csv | \

@@ -316,7 +316,7 @@ xan spark -T date revenues,adjusted_revenues "$SERIES" -V plasma -H 10 | \
 save "spark-vertical-gradient"
 
 xan spark --along-rows '*' "$PULSAR" --hide-all --cols 204 | \
-save "spark-joydiv"
+save "spark-joydiv" --horizontal-padding 1024 --vertical-padding 1024
 
 # progress
 
