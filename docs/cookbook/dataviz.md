@@ -815,6 +815,8 @@ This result is often shown in a plot like this one, using log scales on both axi
     <img alt="wikipedia-zipf-law" src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d9/Zipf-engl-0_English_-_Culpeper_herbal_and_War_of_the_Worlds.svg/960px-Zipf-engl-0_English_-_Culpeper_herbal_and_War_of_the_Worlds.svg.png?_=20230515221456" width="60%" />
 </p>
 
+*A plot of the frequency of each word as a function of its frequency rank for two English language texts: Culpeper's Complete Herbal (1652) and H. G. Wells's The War of the Worlds (1898) in a log-log scale.*
+
 Fortunately, `xan plot` lets you choose from a variety of non-linear scales for both axis through the `--x-scale` & `--y-scale` flags.
 
 Let's see if we can produce the same result with our State-of-the-union speeches dataset:
