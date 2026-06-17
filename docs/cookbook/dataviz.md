@@ -16,10 +16,10 @@ I say "comfort" and I mean it ;). `xan` will have processed and rendered your da
     <tbody>
         <tr>
             <td>
-                <a href="#xan-view-to-display-tables">xan view</a>
+                <a href="#xan-view-to-display-tables">tables (xan view)</a>
             </td>
             <td>
-                <a href="#xan-flatten-for-close-reading">xan flatten</a>
+                <a href="#xan-flatten-for-close-reading">records (xan flatten)</a>
             </td>
         </tr>
         <tr>
@@ -36,10 +36,10 @@ I say "comfort" and I mean it ;). `xan` will have processed and rendered your da
         </tr>
         <tr>
             <td>
-                <a href="#xan-stats--r--report-for-automatic-statistical-reports">xan stats -R/--report</a>
+                <a href="#xan-stats--r--report-for-automatic-statistical-reports">reports (xan stats -R/--report)</a>
             </td>
             <td>
-                <a href="#xan-hist-for-detailed-bar-plots">xan hist</a>
+                <a href="#xan-hist-for-detailed-bar-plots">horizontal bar plots (xan hist)</a>
             </td>
         </tr>
         <tr>
@@ -56,10 +56,10 @@ I say "comfort" and I mean it ;). `xan` will have processed and rendered your da
         </tr>
         <tr>
             <td>
-                <a href="#xan-plot-for-scatter-plots-line-plots-and-time-series">xan plot</a>
+                <a href="#xan-plot-for-scatter-plots-line-plots-and-time-series">scatter plots (xan plot)</a>
             </td>
             <td>
-                <a href="#xan-heatmap-for-heatmaps-and-conditional-formatting">xan heatmap</a>
+                <a href="#line-plots--time-series">line plots & time series (xan plot)</a>
             </td>
         </tr>
         <tr>
@@ -70,16 +70,36 @@ I say "comfort" and I mean it ;). `xan` will have processed and rendered your da
             </td>
             <td>
                 <p align="center">
-                    <img alt="flatten" src="./img/dataviz/grid/heatmap-custom-decades.png" />
+                    <img alt="flatten" src="./img/dataviz/grid/plot-time-small-multiples.png" />
                 </p>
             </td>
         </tr>
         <tr>
             <td>
-                <a href="#xan-spark-for-sparklines-and-aggregated-bar-plots">xan spark</a>
+                <a href="#xan-heatmap-for-heatmaps-and-conditional-formatting">heatmaps (xan heatmap)</a>
             </td>
             <td>
-                <a href="#xan-progress-for-progress-bars">xan progress</a>
+                <a href="#conditional-formatting">conditional formatting (xan heatmap)</a>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <p align="center">
+                    <img alt="flatten" src="./img/dataviz/grid/heatmap-custom-decades.png" />
+                </p>
+            </td>
+            <td>
+                <p align="center">
+                    <img alt="flatten" src="./img/dataviz/grid/heatmap-conditional-formatting.png" />
+                </p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <a href="#xan-spark-for-sparklines-and-aggregated-bar-plots">vertical bar plots (xan spark)</a>
+            </td>
+            <td>
+                <a href="#xan-progress-for-progress-bars">progress bars (xan progress)</a>
             </td>
         </tr>
         <tr>
