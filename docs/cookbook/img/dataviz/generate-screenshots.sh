@@ -170,6 +170,9 @@ save "plot-scatter-ys"
 xan plot sepal_length petal_width -c species "$IRIS" -M dot | \
 save "plot-scatter-categorical"
 
+xan plot sepal_length petal_width -c species "$IRIS" -M dot -G | \
+save "plot-scatter-categorical-grid"
+
 xan plot sepal_length petal_width -c species "$IRIS" -M dot -S 1 | \
 save "plot-scatter-small-multiples-vertical"
 
@@ -187,6 +190,9 @@ save "plot-time-y"
 
 xan plot -LT date revenues -c category "$SERIES" | \
 save "plot-time-categorical"
+
+xan plot -LT date revenues -c category "$SERIES" -G -M dot | \
+save "plot-time-categorical-grid"
 
 xan plot -LT date revenues -c category -S 3 -G "$SERIES" | \
 save "plot-time-small-multiples"

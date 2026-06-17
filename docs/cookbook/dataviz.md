@@ -65,12 +65,12 @@ I say "comfort" and I mean it ;). `xan` will have processed and rendered your da
         <tr>
             <td>
                 <p align="center">
-                    <img alt="view" src="./img/dataviz/grid/plot-scatter-categorical.png" />
+                    <img alt="view" src="./img/dataviz/grid/plot-scatter-categorical-grid.png" />
                 </p>
             </td>
             <td>
                 <p align="center">
-                    <img alt="flatten" src="./img/dataviz/grid/plot-time-categorical.png" />
+                    <img alt="flatten" src="./img/dataviz/grid/plot-time-categorical-grid.png" />
                 </p>
             </td>
         </tr>
