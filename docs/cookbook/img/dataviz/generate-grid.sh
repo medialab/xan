@@ -7,7 +7,7 @@ FILES=(
     "$IMG_DIR/hist-categorical1.png"
     "$IMG_DIR/stats-report.png"
     "$IMG_DIR/plot-scatter-categorical.png"
-    "$IMG_DIR/plot-time-small-multiples.png"
+    "$IMG_DIR/plot-time-categorical.png"
     "$IMG_DIR/heatmap-custom-decades.png"
     "$IMG_DIR/heatmap-conditional-formatting.png"
     "$IMG_DIR/spark-gradient.png"

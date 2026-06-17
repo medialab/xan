@@ -70,7 +70,7 @@ I say "comfort" and I mean it ;). `xan` will have processed and rendered your da
             </td>
             <td>
                 <p align="center">
-                    <img alt="flatten" src="./img/dataviz/grid/plot-time-small-multiples.png" />
+                    <img alt="flatten" src="./img/dataviz/grid/plot-time-categorical.png" />
                 </p>
             </td>
         </tr>
