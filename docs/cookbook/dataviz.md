@@ -447,7 +447,7 @@ The result of the command is another CSV file, so people would usually feed to `
 ```bash
 # Some columns in the output correspond to numerical vs. text columns
 # so people use the -N/--non-empty flag of flatten to hide irrelevant information
-xan stats series.csv | xan flatten -N --row-separator " "
+xan stats -s 0,2,3 series.csv | xan flatten -N --row-separator " "
 ```
 
 <p align="center">
@@ -457,11 +457,11 @@ xan stats series.csv | xan flatten -N --row-separator " "
 But since this was a prominent use-case and since it would be nice to have inline dataviz such as bar charts, time series and distributions, the command gained a `-R/--report` flag to do just that:
 
 ```bash
-xan stats -R series.csv
+xan stats -s 1:4 -R series.csv
 ```
 
 <p align="center">
-    <img alt="stats-report.png" src="./img/dataviz/stats-report.png" width="80%" />
+    <img alt="stats-report.png" src="./img/dataviz/stats-report-long.png" width="80%" />
 </p>
 
 ## `xan hist` for detailed bar plots
@@ -623,7 +623,10 @@ Sometimes you might want to print a temporal bar plot, aligned on dates. For ins
 
 ```bash
 # -A to output all values, not just top 10, and -N to avoid counting empty cells
-xan freq -AN -s foundation_year medias.csv | xan hist -D
+xan freq -AN -s foundation_year medias.csv | \
+# I filter the data so I can get my point across
+xan filter 'value > 1980' | \
+xan hist -D
 ```
 
 <p align="center">
@@ -635,14 +638,15 @@ See here how the 1983 year was added even so it is never found in the original d
 Also, note that the fact that the `-D/--dates` flag will complete missing values for you might introduce a number of large gaps in the representation. If you want to avoid scrolling too much, you can also ask the command to compress gaps as soon as they span a number of bars given to the `-G/--compress-gaps` flag:
 
 ```bash
-xan freq -AN -s foundation_year medias.csv | xan hist -D -G 2
+xan freq -AN -s foundation_year medias.csv | \
+# I filter the data so I can get my point across
+xan filter 'value >= 1910 && value <= 1960' | \
+xan hist -D -G 2
 ```
 
 <p align="center">
     <img alt="hist-gaps.png" src="./img/dataviz/hist-gaps.png" width="80%" />
 </p>
-
-Note that both my screenshots show a filtered version of the data so I can get my point across. You will have different results if you run the commands as-is.
 
 This is it for `xan hist`. Now if you want to have vertical bar plots, you have 2 solutions:
 
