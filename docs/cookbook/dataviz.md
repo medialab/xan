@@ -1394,7 +1394,11 @@ Don't forget to use `--color=always` to force the output to have ANSI colors (th
 
 *The future*
 
-I might add a builtin way to save produced datavisualizations as PNG rasters, in `xan` itself, using the library powering my fork of `ansi2png-rs`, but it might add too much cruft to the binary already weighing ~20MB (Rust executables are not easy to keep light as of yet, lol). So stay tuned.
+I might add a builtin way to save produced datavisualizations as PNG rasters, in `xan` itself, using the library powering my fork of `ansi2png-rs`, but it might add too much cruft to the binary already weighing ~20MB (Rust executables are not easy to keep light as of yet, lol).
+
+I might also add SVG outputs to most of the commands.
+
+So stay tuned.
 
 ---
 
