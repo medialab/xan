@@ -6,9 +6,9 @@
 
 This document is a showcase & guide to data visualization in the terminal using the [`xan`](https://github.com/medialab/xan) command line tool.
 
-This aspect of the tool is often overlooked because `xan` is first and foremost a very performant tabular data processing utility, but it can also render a large variety of typical data visualizations directly in your terminal. This ultimately means you never have to leave it to explore the data you mangle.
+This aspect of the tool is often overlooked because `xan` is first and foremost a very performant tabular data processing utility, but it can also render a large variety of typical data visualizations directly in your terminal. This ultimately means you never have to leave the terminal to explore the data you mangle.
 
-I say "comfort" and I mean it ;). `xan` will have processed and rendered your data in the terminal long before you are able to spin up your Jupyter instance and import `pandas` & `matplotlib`. No cruft. No distraction. Just raw insights, like it's still 1970 and all you have is ASCII art, but with (true) ✨colors✨ and Unicode ([braille](https://en.wikipedia.org/wiki/Braille_ASCII) characters are a godsend).
+I say "comfort" and I mean it ;). `xan` will have processed and rendered your data in the terminal long before you are able to spin up your Jupyter instance and import `pandas` & `matplotlib`. No cruft. No distraction. Just raw insights, like it's still 1970 and all you have is ASCII art, now with (true) ✨colors✨ and Unicode support ([braille](https://en.wikipedia.org/wiki/Braille_ASCII) characters are a godsend).
 
 ## Fancy Table of Contents
 
@@ -161,7 +161,7 @@ Here is the list of files you will find inside the tarball (~10MB):
 
 ## `xan view` to display tables
 
-[`xan view`](../cmd/view.md) is usually one of the first learned and most used commands of `xan` since it lets you take a glance at your CSV files directly in the terminal, using the very familiar tabular representation. You can thus forego using `LibreOffice` or (god forbids!) `Excel` and never ever have to leave the terminal again!
+[`xan view`](../cmd/view.md) is usually one of the first learned and most used commands of `xan` since it lets you take a glance at your CSV files directly in the terminal, using a very familiar tabular representation. You can forego using `LibreOffice` or (god forbids!) `Excel` and never ever have to leave the terminal again!
 
 Here is how to use it:
 
