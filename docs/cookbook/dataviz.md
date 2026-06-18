@@ -1180,7 +1180,7 @@ See how the original file is clearly sorted on clusters (we can also see, at a g
 
 But of course `xan spark` can be used for more typical applications such as representing time series. It is quite similar in this regard to `xan plot`, but is more suited for displaying large amount of series as small multiples.
 
-To show a time series with `xan spark`, you need to feed a temporal column to its `-T/--time` flag. They you are free to provide a numerical column as y, or you can use the `--count` flag to count rows per time unit instead:
+To show a time series with `xan spark`, you need to feed a temporal column to its `-T/--time` flag. Then you are free to provide a numerical column as y, or to use the `--count` flag to count rows per time unit instead:
 
 ```bash
 xan spark -T date revenues series.csv
