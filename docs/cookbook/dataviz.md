@@ -950,7 +950,7 @@ done
 
 `xan heatmap` is a command representing a CSV file as a 2D heatmap where cells are colored using a gradient (see full list of available gradients using `xan help gradients`) mapped on a numerical value.
 
-By default, this command considers the first column of your file to be labels for the y axis, while all other commands will be used to draw the cells. But this behavior can always be tweaked using the `-l/--label` & `-v/--values` flags, both taking a selection of columns of the input.
+By default, this command considers the first column of your file to be labels for the y axis, while all other columns will be used to draw the cells. But this behavior can always be tweaked using the `-l/--label` & `-v/--values` flags, both taking a selection of columns of the input.
 
 ### Correlation matrices
 
