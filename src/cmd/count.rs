@@ -6,10 +6,16 @@ use crate::config::{Config, Delimiter};
 use crate::util;
 
 static USAGE: &str = "
-Prints a count of the number of records in the CSV data.
+Print the number of records in given CSV data.
 
 Note that the count will not include the header row (unless --no-headers is
 given).
+
+This command uses by default a very performant CSV parser that does not even need
+to find cell delimitations. This means it will not validate given CSV stream by
+checking that every row has the same number of column. You can always use
+the -c/--check-alignment flag to force the command to use a less performant parser
+but that will perform the check.
 
 You can also use the -p/--parallel or -t/--threads flag to count the number
 of records of the file in parallel to go faster. But this cannot work on streams
@@ -29,6 +35,8 @@ count options:
     -a, --approx             Attempt to approximate a CSV file row count by sampling its
                              first rows. Target must be seekable, which means this cannot
                              work on a stream fed through stdin nor with gzipped data.
+    -c, --check-alignment    Use a slower parser validating that given CSV stream yields rows
+                             having the same number of columns.
 
 Common options:
     -h, --help             Display this message
@@ -45,6 +53,7 @@ struct Args {
     flag_parallel: bool,
     flag_threads: Option<NonZeroUsize>,
     flag_approx: bool,
+    flag_check_alignment: bool,
     flag_no_headers: bool,
     flag_output: Option<String>,
     flag_delimiter: Option<Delimiter>,
@@ -53,9 +62,15 @@ struct Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
+    if args.flag_approx && args.flag_check_alignment {
+        Err("-a/--approx does not work with -c/--check-alignment!")?;
+    }
+
     if args.flag_parallel || args.flag_threads.is_some() {
-        if args.flag_approx {
-            Err("-p/--parallel or -t/--threads cannot be used with -a/--approx!")?;
+        if args.flag_approx || args.flag_check_alignment {
+            Err(
+                "-p/--parallel or -t/--threads cannot be used with -a/--approx nor -c/--check-alignment!",
+            )?;
         }
 
         let mut parallel_args = ParallelArgs::single_file(&args.arg_input, args.flag_threads)?;
@@ -80,6 +95,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             None => 0,
             Some(seeker) => seeker.approx_count(),
         }
+    } else if args.flag_check_alignment {
+        let mut reader = conf.simd_zero_copy_reader()?;
+        let mut count = 0;
+
+        while reader.read_byte_record()?.is_some() {
+            count += 1;
+        }
+
+        count
     } else {
         conf.simd_splitter()?.count_records()?
     };

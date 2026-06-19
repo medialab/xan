@@ -2,10 +2,16 @@
 # xan count
 
 ```txt
-Prints a count of the number of records in the CSV data.
+Print the number of records in given CSV data.
 
 Note that the count will not include the header row (unless --no-headers is
 given).
+
+This command uses by default a very performant CSV parser that does not even need
+to find cell delimitations. This means it will not validate given CSV stream by
+checking that every row has the same number of column. You can always use
+the -c/--check-alignment flag to force the command to use a less performant parser
+but that will perform the check.
 
 You can also use the -p/--parallel or -t/--threads flag to count the number
 of records of the file in parallel to go faster. But this cannot work on streams
@@ -25,6 +31,8 @@ count options:
     -a, --approx             Attempt to approximate a CSV file row count by sampling its
                              first rows. Target must be seekable, which means this cannot
                              work on a stream fed through stdin nor with gzipped data.
+    -c, --check-alignment    Use a slower parser validating that given CSV stream yields rows
+                             having the same number of columns.
 
 Common options:
     -h, --help             Display this message

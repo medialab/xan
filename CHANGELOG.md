@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.60.0 (provisional)
+
+*Features*
+
+* Adding `xan count -c/--check-alignment`.
+
 ## 0.59.0
 
 *Breaking*

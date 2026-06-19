@@ -18,6 +18,7 @@ Supported formats:
     - npy: numpy array
     - tar: tarball archive
     - md, markdown: Markdown table
+    - raw: read whole input as a single CSV cell
 
 Optionally supported formats (requires `xan` to be compiled using optional features):
     - parquet: Parquet frame (requires the `parquet` feature)
@@ -26,7 +27,7 @@ Some formats can be streamed, some others require the full file to be loaded int
 memory. The streamable formats are `ndjson`, `jsonl`, `parquet`, `tar`,`txt` and `npy`.
 
 Some formats will handle gzip decompression on the fly if the filename ends
-in `.gz`: `json`, `ndjson`, `jsonl`, `tar` and `txt`.
+in `.gz`: `json`, `ndjson`, `jsonl`, `raw`, `tar` and `txt`.
 
 Tarball extraction was designed for utf8-encoded text files. Expect weird or
 broken results with other encodings or binary files.
@@ -64,9 +65,9 @@ JSON/TOML options:
                            must be given as a getter using the expression language. For instance
                            "data" or "_.nodes[0].metadata".
 
-Text lines options:
-    -c, --column <name>    Name of the column to create.
-                           [default: line]
+Text lines & raw options:
+    -c, --column <name>    Name of the column to create. Will default to "line" with -f=txt
+                           and "value" with -f=raw.
 
 Markdown options:
     -n, --nth-table <n>    Select nth table in document, starting at 0.
