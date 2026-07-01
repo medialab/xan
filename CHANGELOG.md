@@ -5,6 +5,7 @@
 *Features*
 
 * Adding `xan count -c/--check-alignment`.
+* Adding `xan sort -e -z/--compress`.
 
 *Fixes*
 

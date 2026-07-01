@@ -33,6 +33,9 @@ sort options:
                               Will default to "/tmp" or equivalent.
     -m, --memory-limit <arg>  Maximum allowed memory when using external sorting, in
                               megabytes. [default: 512].
+    -z, --compress            When using -e/--external, compress temporary chunks on disk.
+                              This can be useful when input is very large but will slow down
+                              the process.
     --columns                 Sort selected columns alphabetically by their names. Runs in
                               constant memory and can be streamed.
     --cells                   Sort the selected cell values instead of the file itself,

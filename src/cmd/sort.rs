@@ -84,6 +84,9 @@ sort options:
                               Will default to \"/tmp\" or equivalent.
     -m, --memory-limit <arg>  Maximum allowed memory when using external sorting, in
                               megabytes. [default: 512].
+    -z, --compress            When using -e/--external, compress temporary chunks on disk.
+                              This can be useful when input is very large but will slow down
+                              the process.
     --columns                 Sort selected columns alphabetically by their names. Runs in
                               constant memory and can be streamed.
     --cells                   Sort the selected cell values instead of the file itself,
@@ -119,6 +122,7 @@ struct Args {
     flag_external: bool,
     flag_tmp_dir: Option<String>,
     flag_memory_limit: u64,
+    flag_compress: bool,
     flag_cells: bool,
     flag_columns: bool,
 }
@@ -399,13 +403,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                 // Writing chunk
                 let mut file = tempfile::tempfile_in(&tmp_dir)?;
-                let mut writer = simd_csv::Writer::from_writer(&mut file);
 
-                for record in buffer.iter() {
-                    writer.write_byte_record(record)?;
+                {
+                    let writer: Box<dyn Write> = if args.flag_compress {
+                        Box::new(zstd::Encoder::new(&mut file, 0)?.auto_finish())
+                    } else {
+                        Box::new(&mut file)
+                    };
+
+                    let mut writer = simd_csv::Writer::from_writer(writer);
+
+                    for record in buffer.iter() {
+                        writer.write_byte_record(record)?;
+                    }
                 }
-
-                std::mem::drop(writer);
 
                 file.rewind()?;
                 chunks.push(file);
@@ -437,17 +448,31 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let comparator = MergeHeapComparator::new(&sel, args.flag_numeric, args.flag_reverse);
         let heap = MergeHeap::with_comparator(comparator);
 
-        let chunk_iterators = chunks
-            .iter()
-            .map(|file| {
-                simd_csv::ReaderBuilder::new()
-                    .has_headers(false)
-                    .from_reader(file)
-                    .into_byte_records()
-            })
-            .collect::<Vec<_>>();
+        if args.flag_compress {
+            let chunk_iterators = chunks
+                .iter()
+                .map(|file| {
+                    simd_csv::ReaderBuilder::new()
+                        .has_headers(false)
+                        .from_reader(zstd::Decoder::new(file).unwrap())
+                        .into_byte_records()
+                })
+                .collect::<Vec<_>>();
 
-        Box::new(heap.into_iter(chunk_iterators)?.map(|r| r.unwrap().1))
+            Box::new(heap.into_iter(chunk_iterators)?.map(|r| r.unwrap().1))
+        } else {
+            let chunk_iterators = chunks
+                .iter()
+                .map(|file| {
+                    simd_csv::ReaderBuilder::new()
+                        .has_headers(false)
+                        .from_reader(file)
+                        .into_byte_records()
+                })
+                .collect::<Vec<_>>();
+
+            Box::new(heap.into_iter(chunk_iterators)?.map(|r| r.unwrap().1))
+        }
     } else {
         let mut all = rdr.byte_records().collect::<Result<Vec<_>, _>>()?;
 
