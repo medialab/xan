@@ -13,6 +13,7 @@
 *Quality of Life*
 
 * Better record size estimation for `xan sort -e`.
+* Better `xan flatten -c` when string width cannot be computed correctly (because of emojis typically).
 
 ## 0.59.0
 

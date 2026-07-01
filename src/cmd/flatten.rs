@@ -226,12 +226,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         };
 
         let cell = if args.flag_condense {
-            util::unicode_aware_highlighted_pad_with_ellipsis(
-                false,
+            util::unicode_aware_ellipsis(
                 &util::sanitize_text_for_single_line_printing(cell),
                 max_value_width.saturating_sub(offset),
-                " ",
-                true,
             )
         } else if args.flag_wrap {
             util::wrap(
