@@ -45,6 +45,13 @@ macro_rules! sort_by {
     };
 }
 
+fn estimate_byte_record_size(record: &ByteRecord) -> u64 {
+    use std::mem::size_of;
+
+    (size_of::<ByteRecord>() + record.as_slice().len() + record.len() * size_of::<usize>() * 2)
+        as u64
+}
+
 static USAGE: &str = "
 Sort CSV data, in ascending lexicographic order.
 
@@ -410,8 +417,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         for result in rdr.byte_records() {
             let record = result?;
-            // NOTE: this is a good-enough approximation
-            let size = record.as_slice().len() as u64;
+            let size = estimate_byte_record_size(&record);
             current_buffer_size += size;
 
             buffer.push(record);

@@ -6,6 +6,10 @@
 
 * Adding `xan count -c/--check-alignment`.
 
+*Quality of Life*
+
+* Better record size estimation for `xan sort -e`.
+
 ## 0.59.0
 
 *Breaking*
