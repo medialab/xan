@@ -11,6 +11,10 @@
 
 * Fixing text wrapping across tool, especially `xan flatten -w` & `xan flatten -F`.
 
+*Performance*
+
+* Introducing a fast path for `xan sort -e` when input fits in a single chunk.
+
 *Quality of Life*
 
 * Better record size estimation for `xan sort -e`.

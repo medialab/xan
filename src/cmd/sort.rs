@@ -440,38 +440,50 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
         }
 
-        // Flushing remaining part of buffer
-        if !buffer.is_empty() {
-            flush_buffer(&mut buffer, &mut chunks)?;
-        }
+        // Fast path if only one chunk
+        if chunks.is_empty() {
+            // Sorting
+            if args.flag_parallel {
+                sort_by!(buffer, par_sort_by, sel, numeric, reverse);
+            } else {
+                sort_by!(buffer, sort_by, sel, numeric, reverse);
+            }
 
-        let comparator = MergeHeapComparator::new(&sel, args.flag_numeric, args.flag_reverse);
-        let heap = MergeHeap::with_comparator(comparator);
-
-        if args.flag_compress {
-            let chunk_iterators = chunks
-                .iter()
-                .map(|file| {
-                    simd_csv::ReaderBuilder::new()
-                        .has_headers(false)
-                        .from_reader(zstd::Decoder::new(file).unwrap())
-                        .into_byte_records()
-                })
-                .collect::<Vec<_>>();
-
-            Box::new(heap.into_iter(chunk_iterators)?.map(|r| r.unwrap().1))
+            Box::new(buffer.into_iter())
         } else {
-            let chunk_iterators = chunks
-                .iter()
-                .map(|file| {
-                    simd_csv::ReaderBuilder::new()
-                        .has_headers(false)
-                        .from_reader(file)
-                        .into_byte_records()
-                })
-                .collect::<Vec<_>>();
+            // Flushing remaining part of buffer
+            if !buffer.is_empty() {
+                flush_buffer(&mut buffer, &mut chunks)?;
+            }
 
-            Box::new(heap.into_iter(chunk_iterators)?.map(|r| r.unwrap().1))
+            let comparator = MergeHeapComparator::new(&sel, args.flag_numeric, args.flag_reverse);
+            let heap = MergeHeap::with_comparator(comparator);
+
+            if args.flag_compress {
+                let chunk_iterators = chunks
+                    .iter()
+                    .map(|file| {
+                        simd_csv::ReaderBuilder::new()
+                            .has_headers(false)
+                            .from_reader(zstd::Decoder::new(file).unwrap())
+                            .into_byte_records()
+                    })
+                    .collect::<Vec<_>>();
+
+                Box::new(heap.into_iter(chunk_iterators)?.map(|r| r.unwrap().1))
+            } else {
+                let chunk_iterators = chunks
+                    .iter()
+                    .map(|file| {
+                        simd_csv::ReaderBuilder::new()
+                            .has_headers(false)
+                            .from_reader(file)
+                            .into_byte_records()
+                    })
+                    .collect::<Vec<_>>();
+
+                Box::new(heap.into_iter(chunk_iterators)?.map(|r| r.unwrap().1))
+            }
         }
     } else {
         let mut all = rdr.byte_records().collect::<Result<Vec<_>, _>>()?;
@@ -534,10 +546,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             wtr.write_byte_record(&r)?;
         }
     }
+
     if let Some(mut to_flush) = line_buffer {
         to_flush.push_field(counter.to_string().as_bytes());
         wtr.write_byte_record(&to_flush)?;
     }
+
     Ok(wtr.flush()?)
 }
 
