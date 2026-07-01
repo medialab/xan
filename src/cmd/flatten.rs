@@ -206,11 +206,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .iter()
         .map(|h| h.width())
         .max()
-        .ok_or("file is empty")?;
-
-    if cols < max_header_width + 2 {
-        Err("not enough cols provided to safely print data!")?;
-    }
+        .ok_or("file is empty")?
+        .min(cols / 2);
 
     let mut record = StringRecord::new();
 
@@ -270,13 +267,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let display_headers = headers
         .iter()
         .map(|header| {
-            util::unicode_aware_highlighted_pad_with_ellipsis(
-                false,
-                header,
-                max_header_width + 1,
-                " ",
-                true,
-            )
+            if args.flag_flatter {
+                util::highlight_problematic_string_features(header)
+            } else {
+                util::unicode_aware_highlighted_pad_with_ellipsis(
+                    false,
+                    header,
+                    max_header_width + 1,
+                    " ",
+                    true,
+                )
+            }
         })
         .collect::<Vec<_>>();
 

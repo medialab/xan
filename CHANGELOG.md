@@ -6,6 +6,10 @@
 
 * Adding `xan count -c/--check-alignment`.
 
+*Fixes*
+
+* Fixing text wrapping across tool, especially `xan flatten -w` & `xan flatten -F`.
+
 *Quality of Life*
 
 * Better record size estimation for `xan sort -e`.

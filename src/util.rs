@@ -690,7 +690,7 @@ pub fn unicode_aware_highlighted_pad_with_ellipsis(
         &(if highlight {
             highlight_problematic_string_features(&with_ellipsis)
         } else {
-            unicode_aware_ellipsis(string, width)
+            with_ellipsis
         }),
         width,
         padding,
@@ -716,10 +716,27 @@ pub fn unicode_aware_lpad_with_ellipsis(string: &str, width: usize, padding: &st
 }
 
 pub fn wrap(string: &str, max_width: usize, indent: usize) -> String {
-    let indent = " ".repeat(indent);
-    let options = textwrap::Options::new(max_width).subsequent_indent(&indent);
+    let options = textwrap::Options::new(max_width);
 
-    textwrap::fill(string, &options)
+    let wrapped = textwrap::fill(string, &options);
+
+    // NOTE: it seems `textwrap` subsequent_indent is not properly implemented
+    let mut lines = String::with_capacity(wrapped.len());
+
+    for (i, line) in wrapped.lines().enumerate() {
+        if i > 0 {
+            for _ in 0..indent {
+                lines.push(' ');
+            }
+        }
+
+        lines.push_str(line);
+        lines.push('\n');
+    }
+
+    lines.pop();
+
+    lines
 }
 
 pub struct EmojiSanitizer {
