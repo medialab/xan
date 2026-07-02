@@ -14,9 +14,6 @@ use crate::select::SelectedColumns;
 use crate::util;
 
 // TODO: limit allocations
-// TODO: use byterecord keys for groups
-
-type GroupKey = Vec<Vec<u8>>;
 
 struct GroupReservoir {
     records: Vec<ByteRecord>,
@@ -222,14 +219,14 @@ impl Args {
             .unwrap()
             .selection(rdr.byte_headers()?, has_headers)?;
 
-        let mut global_reservoir: ClusteredInsertHashmap<GroupKey, GroupReservoir> =
+        let mut global_reservoir: ClusteredInsertHashmap<ByteRecord, GroupReservoir> =
             ClusteredInsertHashmap::new();
 
         let mut rng = self.rng();
 
         for result in rdr.byte_records() {
             let record = result?;
-            let group = group_sel.collect(&record);
+            let group = group_sel.select(&record).collect();
 
             let reservoir = global_reservoir.insert_with(group, || GroupReservoir {
                 records: Vec::with_capacity(1),
@@ -276,13 +273,13 @@ impl Args {
             .unwrap()
             .single_selection(rdr.byte_headers()?, has_headers)?;
 
-        let mut global_reservoir: ClusteredInsertHashmap<GroupKey, BinaryHeap<WeightedRow>> =
+        let mut global_reservoir: ClusteredInsertHashmap<ByteRecord, BinaryHeap<WeightedRow>> =
             ClusteredInsertHashmap::new();
 
         for result in rdr.byte_records() {
             let record = result?;
 
-            let group_key = group_sel.collect(&record);
+            let group_key = group_sel.select(&record).collect();
 
             let weight: f64 = fast_float::parse(&record[weight_column_index])
                 .map_err(|_| CliError::Other("could not parse weight as f64".to_string()))?;
