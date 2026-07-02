@@ -21,6 +21,22 @@ fn from_ndjson() {
 }
 
 #[test]
+fn from_ndjson_sample_size() {
+    let wrk = Workdir::new("from_ndjson_sample_size");
+    wrk.write(
+        "data.ndjson",
+        "{\"name\": \"john\", \"age\": 34}\n{\"age\": 56, \"surname\": \"landis\"}",
+    );
+
+    let mut cmd = wrk.command("from");
+    cmd.arg("data.ndjson").args(["--sample-size", "1"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![["name", "age"], ["john", "34"], ["", "56"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn from_ndjson_model() {
     let wrk = Workdir::new("from_ndjson_model");
     wrk.write(

@@ -321,13 +321,11 @@ impl Args {
 
         let mut tape = simd_json::Tape::null();
 
-        while let Some(line) = rdr.read_line()? {
-            // Sshhh... it's alright, really.
-            let line_mut =
-                unsafe { std::slice::from_raw_parts_mut(line.as_ptr() as *mut u8, line.len()) };
+        while tabularizer.is_sampling() {
+            if let Some(line) = rdr.read_line()? {
+                let line_mut =
+                    unsafe { std::slice::from_raw_parts_mut(line.as_ptr() as *mut u8, line.len()) };
 
-            // NOTE: we use serde for the sample to ensure a consistent ordering of keys
-            if tabularizer.is_sampling() {
                 let mut value: Value =
                     simd_json::serde::from_slice_with_buffers(line_mut, &mut buffers)?;
 
@@ -339,19 +337,27 @@ impl Args {
 
                 tabularizer.process(value)?;
             } else {
-                simd_json::fill_tape(line_mut, &mut buffers, &mut tape)?;
-                let value = tape.as_value();
-
-                let mut nested = value;
-
-                if let Some(path) = &path_opt {
-                    nested = nested
-                        .get_path_owned(path)
-                        .ok_or("could not extract value given to --path!")?;
-                }
-
-                tabularizer.process_tape_no_sampling(nested)?;
+                break;
             }
+        }
+
+        while let Some(line) = rdr.read_line()? {
+            // Sshhh... it's alright, really.
+            let line_mut =
+                unsafe { std::slice::from_raw_parts_mut(line.as_ptr() as *mut u8, line.len()) };
+
+            simd_json::fill_tape(line_mut, &mut buffers, &mut tape)?;
+            let value = tape.as_value();
+
+            let mut nested = value;
+
+            if let Some(path) = &path_opt {
+                nested = nested
+                    .get_path_owned(path)
+                    .ok_or("could not extract value given to --path!")?;
+            }
+
+            tabularizer.process_tape_no_sampling(nested)?;
         }
 
         Ok(tabularizer.flush()?)
