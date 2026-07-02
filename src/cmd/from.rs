@@ -303,7 +303,7 @@ impl Args {
     fn convert_ndjson(&self) -> CliResult<()> {
         use simd_json::Buffers;
 
-        let path_opt = self.root()?;
+        let root_opt = self.root()?;
 
         let mut buffers = Buffers::default();
 
@@ -329,10 +329,10 @@ impl Args {
                 let mut value: Value =
                     simd_json::serde::from_slice_with_buffers(line_mut, &mut buffers)?;
 
-                if let Some(path) = &path_opt {
+                if let Some(path) = &root_opt {
                     value = value
                         .get_path_owned(path)
-                        .ok_or("could not extract value given to --path!")?;
+                        .ok_or("could not extract at --root!")?;
                 }
 
                 tabularizer.process(value)?;
@@ -351,10 +351,10 @@ impl Args {
 
             let mut nested = value;
 
-            if let Some(path) = &path_opt {
+            if let Some(path) = &root_opt {
                 nested = nested
                     .get_path_owned(path)
-                    .ok_or("could not extract value given to --path!")?;
+                    .ok_or("could not extract at --root!")?;
             }
 
             tabularizer.process_tape_no_sampling(nested)?;
@@ -382,7 +382,7 @@ impl Args {
         if let Some(path) = self.root()? {
             value = value
                 .get_path_owned(&path)
-                .ok_or("could not extract value given to --path!")?;
+                .ok_or("could not extract at --root!")?;
         }
 
         // NOTE: recombobulating objects as collections
