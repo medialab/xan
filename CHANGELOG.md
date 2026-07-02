@@ -13,6 +13,7 @@
 * Adding `xan sort -e -z/--compress`.
 * Adding `xan sample -g -S/--sorted`.
 * Adding `xan from -f=(json|ndjson) --model`.
+* Adding `xan cat rows -I/--intersection & -U/--union`.
 
 *Fixes*
 

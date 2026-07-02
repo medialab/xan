@@ -15,6 +15,10 @@ If you need to rearrange the columns or fix the lengths of records, use the
 data given are used. Headers in subsequent inputs are ignored. (This behavior
 can be disabled with --no-headers.)
 
+Alternatively, you can reorder columns and pad rows using -I/--intersection
+or -U/-union. This can be useful when dealing with multiple files having similar
+but not exactly identical schemas.
+
 When concatenating a large number of CSV files exceeding your shell's
 command arguments limit, prefer using the --paths flag to read the list of CSV
 files to concatenate from input lines or from a CSV file containing paths in a
@@ -53,6 +57,12 @@ cat cols/columns options:
                                 other CSV data isn't long enough.
 
 cat rows options:
+    -I, --intersection           Compute the intersection of headers of all concatenated files
+                                 and reorder columns of concatenated files accordingly. This is incompatible
+                                 with -U/--union, preprocessing and -n/--no-headers.
+    -U, --union                  Compute the union of headers of all concatenated files
+                                 and reorder columns of concatenated files accordingly. This is incompatible
+                                 with -I/--intersection, preprocessing and -n/--no-headers.
     --paths <input>              When concatenating rows, give a text file (use "-" for stdin)
                                  containing one path of CSV file to concatenate per line.
     --path-column <name>         When given a column name, --paths will be considered as CSV, and paths

@@ -5,6 +5,7 @@ use simd_csv::ByteRecord;
 
 use crate::CliResult;
 use crate::cmd::parallel::Args as ParallelArgs;
+use crate::collections::new_index_set;
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
 use crate::util;
@@ -22,6 +23,10 @@ If you need to rearrange the columns or fix the lengths of records, use the
 'select' or 'fixlengths' commands. Also, only the headers of the *first* CSV
 data given are used. Headers in subsequent inputs are ignored. (This behavior
 can be disabled with --no-headers.)
+
+Alternatively, you can reorder columns and pad rows using -I/--intersection
+or -U/-union. This can be useful when dealing with multiple files having similar
+but not exactly identical schemas.
 
 When concatenating a large number of CSV files exceeding your shell's
 command arguments limit, prefer using the --paths flag to read the list of CSV
@@ -61,6 +66,12 @@ cat cols/columns options:
                                 other CSV data isn't long enough.
 
 cat rows options:
+    -I, --intersection           Compute the intersection of headers of all concatenated files
+                                 and reorder columns of concatenated files accordingly. This is incompatible
+                                 with -U/--union, preprocessing and -n/--no-headers.
+    -U, --union                  Compute the union of headers of all concatenated files
+                                 and reorder columns of concatenated files accordingly. This is incompatible
+                                 with -I/--intersection, preprocessing and -n/--no-headers.
     --paths <input>              When concatenating rows, give a text file (use \"-\" for stdin)
                                  containing one path of CSV file to concatenate per line.
     --path-column <name>         When given a column name, --paths will be considered as CSV, and paths
@@ -108,6 +119,8 @@ struct Args {
     flag_preprocess: Option<String>,
     flag_shell_preprocess: Option<String>,
     flag_run: Option<String>,
+    flag_intersection: bool,
+    flag_union: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -117,10 +130,22 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("--paths cannot be used with other positional arguments!")?;
     }
 
+    if args.flag_intersection && args.flag_union {
+        Err("only one of -I/--intersection or -U/--union must be selected!")?;
+    }
+
+    if (args.flag_intersection || args.flag_union) && args.flag_no_headers {
+        Err("-I/--intersection or -U/--union cannot work with -n/--no-headers!")?;
+    }
+
     if args.flag_preprocess.is_some()
         || args.flag_shell_preprocess.is_some()
         || args.flag_run.is_some()
     {
+        if args.flag_intersection || args.flag_union {
+            Err("preprocessing is incompatible with -I/--intersection or -U/--union!")?;
+        }
+
         let mut parallel_args = ParallelArgs::default();
         parallel_args.cmd_cat = true;
         parallel_args.arg_inputs = args.paths()?.collect::<Result<Vec<_>, _>>()?;
@@ -138,6 +163,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if args.cmd_rows {
         if args.flag_raw {
             args.cat_rows_raw()
+        } else if args.flag_intersection || args.flag_union {
+            args.cat_rows_recombobulated()
         } else {
             args.cat_rows()
         }
@@ -287,6 +314,73 @@ impl Args {
                 while reader.read_byte_record(&mut record)? {
                     wtr.write_record([path.as_bytes()].into_iter().chain(&record))?;
                 }
+            }
+        }
+
+        Ok(wtr.flush()?)
+    }
+
+    fn cat_rows_recombobulated(&self) -> CliResult<()> {
+        let mut record = ByteRecord::new();
+        let mut wtr = Config::new(&self.flag_output).simd_writer()?;
+
+        let mut readers = self
+            .paths()?
+            .map(
+                |p| -> CliResult<simd_csv::Reader<Box<dyn io::Read + Send>>> {
+                    Ok(Config::new(&Some(p?))
+                        .delimiter(self.flag_delimiter)
+                        .no_headers(self.flag_no_headers)
+                        .simd_reader()?)
+                },
+            )
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let all_headers = readers
+            .iter_mut()
+            .map(|reader| reader.byte_headers().cloned())
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let mut headers_index = new_index_set::<Vec<u8>>();
+
+        for (i, headers) in all_headers.iter().enumerate() {
+            for name in headers {
+                if self.flag_intersection {
+                    if i == 0 {
+                        headers_index.insert(name.to_vec());
+                    } else if !headers_index.contains(name) {
+                        headers_index.shift_remove(name);
+                    }
+                } else {
+                    headers_index.insert(name.to_vec());
+                }
+            }
+        }
+
+        if headers_index.is_empty() {
+            Err(
+                "concatenated files have no intersecting headers at all (when using -I/--intersection)!",
+            )?;
+        }
+
+        let masks = all_headers
+            .iter()
+            .map(|headers| {
+                headers_index
+                    .iter()
+                    .map(|name| headers.iter().position(|n| name == n))
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+
+        wtr.write_record(headers_index.iter())?;
+
+        for (mask, reader) in masks.into_iter().zip(readers.iter_mut()) {
+            while reader.read_byte_record(&mut record)? {
+                wtr.write_record(mask.iter().map(|i_opt| match i_opt {
+                    None => b"",
+                    Some(i) => &record[*i],
+                }))?;
             }
         }
 

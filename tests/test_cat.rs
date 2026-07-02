@@ -128,3 +128,71 @@ fn cat_cols_pad() {
     let got: Vec<Vec<String>> = run_cat("cat_cols_headers", "columns", rows1, rows2, pad);
     assert_eq!(got, expected);
 }
+
+#[test]
+fn cat_rows_intersection() {
+    let wrk = Workdir::new("cat_rows_intersection");
+    wrk.create(
+        "a.csv",
+        vec![
+            svec!["name", "surname"],
+            svec!["john", "landis"],
+            svec!["lucy", "sue"],
+        ],
+    );
+    wrk.create(
+        "b.csv",
+        vec![
+            svec!["age", "name"],
+            svec!["45", "carry"],
+            svec!["6", "kimmarc"],
+        ],
+    );
+
+    let mut cmd = wrk.command("cat");
+    cmd.arg("rows").arg("-I").arg("a.csv").arg("b.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["name", "surname"],
+        ["john", "landis"],
+        ["lucy", "sue"],
+        ["carry", ""],
+        ["kimmarc", ""],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn cat_rows_union() {
+    let wrk = Workdir::new("cat_rows_union");
+    wrk.create(
+        "a.csv",
+        vec![
+            svec!["name", "surname"],
+            svec!["john", "landis"],
+            svec!["lucy", "sue"],
+        ],
+    );
+    wrk.create(
+        "b.csv",
+        vec![
+            svec!["age", "name"],
+            svec!["45", "carry"],
+            svec!["6", "kimmarc"],
+        ],
+    );
+
+    let mut cmd = wrk.command("cat");
+    cmd.arg("rows").arg("-U").arg("a.csv").arg("b.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["name", "surname", "age"],
+        ["john", "landis", ""],
+        ["lucy", "sue", ""],
+        ["carry", "", "45"],
+        ["kimmarc", "", "6"],
+    ];
+    assert_eq!(got, expected);
+}
