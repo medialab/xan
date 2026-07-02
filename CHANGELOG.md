@@ -2,6 +2,10 @@
 
 ## 0.60.0 (provisional)
 
+*Breaking*
+
+* Renaming `xan from --path` to `--root`.
+
 *Features*
 
 * Adding `xan count -c/--check-alignment`.

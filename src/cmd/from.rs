@@ -131,7 +131,7 @@ JSON/TOML options:
                            [default: value]
     --single-object        Use if JSON only represents a single object that you want
                            to map to a single CSV row, instead of mapping to key,value columns.
-    --path <path>          Convert nested object found at path instead of root object. This path
+    --root <path>          Convert nested object found at path instead of root object. This path
                            must be given as a getter using the expression language. For instance
                            \"data\" or \"_.nodes[0].metadata\".
     --model <json>         Pass a dummy JSON object that will be used as the extraction \"model\".
@@ -166,7 +166,7 @@ struct Args {
     flag_value_column: String,
     flag_single_object: bool,
     flag_model: Option<String>,
-    flag_path: Option<String>,
+    flag_root: Option<String>,
     flag_column: Option<String>,
     flag_nth_table: isize,
 }
@@ -184,8 +184,8 @@ impl Args {
         }
     }
 
-    fn path(&self) -> CliResult<Option<JSONPath>> {
-        if let Some(path) = &self.flag_path {
+    fn root(&self) -> CliResult<Option<JSONPath>> {
+        if let Some(path) = &self.flag_root {
             Ok(Some(path.parse::<JSONPath>()?))
         } else {
             Ok(None)
@@ -303,7 +303,7 @@ impl Args {
     fn convert_ndjson(&self) -> CliResult<()> {
         use simd_json::Buffers;
 
-        let path_opt = self.path()?;
+        let path_opt = self.root()?;
 
         let mut buffers = Buffers::default();
 
@@ -373,7 +373,7 @@ impl Args {
             _ => unreachable!(),
         };
 
-        if let Some(path) = self.path()? {
+        if let Some(path) = self.root()? {
             value = value
                 .get_path_owned(&path)
                 .ok_or("could not extract value given to --path!")?;
