@@ -13,8 +13,6 @@ use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
 use crate::util;
 
-// TODO: limit allocations
-
 struct GroupReservoir {
     records: Vec<ByteRecord>,
     total: usize,
@@ -141,23 +139,26 @@ impl Args {
     }
 
     fn reservoir_sample(&self) -> CliResult<()> {
-        let sample_size = self.arg_sample_size;
-
-        let mut rdr = self.rconf().simd_reader()?;
-
-        let mut reservoir = Vec::with_capacity(sample_size as usize);
-        let mut records = rdr.byte_records().enumerate();
-        for (_, row) in records.by_ref().take(sample_size as usize) {
-            reservoir.push(row?);
-        }
-
+        let sample_size = self.arg_sample_size as usize;
         let mut rng = self.rng();
 
-        // Now do the sampling.
-        for (i, row) in records {
-            let random = rng.random_range(0..i + 1);
-            if random < sample_size as usize {
-                reservoir[random] = row?;
+        let mut rdr = self.rconf().simd_reader()?;
+        let mut record = ByteRecord::new();
+        let mut i: usize = 0;
+
+        let mut reservoir = Vec::with_capacity(sample_size as usize);
+
+        while rdr.read_byte_record(&mut record)? {
+            i += 1;
+
+            if reservoir.len() < sample_size {
+                reservoir.push(record.clone());
+            } else {
+                let random = rng.random_range(0..i);
+
+                if random < sample_size as usize {
+                    reservoir[random] = record.clone();
+                }
             }
         }
 
