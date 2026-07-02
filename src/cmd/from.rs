@@ -134,6 +134,9 @@ JSON/TOML options:
     --path <path>          Convert nested object found at path instead of root object. This path
                            must be given as a getter using the expression language. For instance
                            \"data\" or \"_.nodes[0].metadata\".
+    --model <json>         Pass a dummy JSON object that will be used as the extraction \"model\".
+                           Can be useful to avoid the need for sampling and/or restrict the extracted
+                           paths in the resulting output.
 
 Text lines & raw options:
     -c, --column <name>    Name of the column to create. Will default to \"line\" with -f=txt
@@ -162,6 +165,7 @@ struct Args {
     flag_key_column: String,
     flag_value_column: String,
     flag_single_object: bool,
+    flag_model: Option<String>,
     flag_path: Option<String>,
     flag_column: Option<String>,
     flag_nth_table: isize,
@@ -183,6 +187,14 @@ impl Args {
     fn path(&self) -> CliResult<Option<JSONPath>> {
         if let Some(path) = &self.flag_path {
             Ok(Some(path.parse::<JSONPath>()?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn model(&self) -> CliResult<Option<Value>> {
+        if let Some(model) = &self.flag_model {
+            Ok(Some(serde_json::from_str(model)?))
         } else {
             Ok(None)
         }
@@ -303,6 +315,10 @@ impl Args {
             tabularizer.reorder_keys();
         }
 
+        if let Some(model) = self.model()? {
+            tabularizer.set_model(&model);
+        }
+
         let mut tape = simd_json::Tape::null();
 
         while let Some(line) = rdr.read_line()? {
@@ -387,6 +403,10 @@ impl Args {
 
             if self.flag_sort_keys {
                 tabularizer.reorder_keys();
+            }
+
+            if let Some(model) = self.model()? {
+                tabularizer.set_model(&model);
             }
 
             for item in array.into_iter() {

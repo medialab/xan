@@ -641,6 +641,13 @@ impl<W: Write> JSONTabularizer<W> {
         }
     }
 
+    pub fn set_model(&mut self, model: &Value) {
+        self.sample_size = Some(0);
+        self.flushed = false;
+
+        merge_with_owned(&mut self.harmonized_value, model);
+    }
+
     pub fn reorder_keys(&mut self) {
         self.reorder_keys = true;
     }

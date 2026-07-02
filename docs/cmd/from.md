@@ -64,6 +64,9 @@ JSON/TOML options:
     --path <path>          Convert nested object found at path instead of root object. This path
                            must be given as a getter using the expression language. For instance
                            "data" or "_.nodes[0].metadata".
+    --model <json>         Pass a dummy JSON object that will be used as the extraction "model".
+                           Can be useful to avoid the need for sampling and/or restrict the extracted
+                           paths in the resulting output.
 
 Text lines & raw options:
     -c, --column <name>    Name of the column to create. Will default to "line" with -f=txt
