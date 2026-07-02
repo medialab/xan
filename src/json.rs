@@ -4,13 +4,57 @@ use std::io::{Read, Write};
 use std::num::NonZeroUsize;
 use std::rc::Rc;
 
-use serde::ser::{Serialize, SerializeMap, Serializer};
+use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 use serde_json::{Value, json};
 use simd_csv::{ByteRecord, StringRecord};
-use simd_json::BorrowedValue;
+use simd_json::{
+    prelude::{TypedValue, ValueAsScalar, ValueType},
+    tape::Value as TapeValue,
+};
 
 use crate::moonblade::{Path, Step};
 use crate::select::Selection;
+
+struct SerializableTapeValue<'tape, 'input>(TapeValue<'tape, 'input>);
+
+impl Serialize for SerializableTapeValue<'_, '_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self.0.value_type() {
+            ValueType::Null => serializer.serialize_unit(),
+            ValueType::Bool => serializer.serialize_bool(self.0.as_bool().unwrap()),
+            ValueType::String => serializer.serialize_str(self.0.as_str().unwrap()),
+            ValueType::I64 => serializer.serialize_i64(self.0.as_i64().unwrap()),
+            ValueType::U64 => serializer.serialize_u64(self.0.as_u64().unwrap()),
+            ValueType::F64 => serializer.serialize_f64(self.0.as_f64().unwrap()),
+            ValueType::Array => {
+                let array = self.0.as_array().unwrap();
+
+                let mut seq = serializer.serialize_seq(Some(array.len()))?;
+
+                for value in array.iter() {
+                    seq.serialize_element(&Self(value))?;
+                }
+
+                seq.end()
+            }
+            ValueType::Object => {
+                let object = self.0.as_object().unwrap();
+
+                let mut map = serializer.serialize_map(Some(object.len()))?;
+
+                for (k, v) in object.iter() {
+                    map.serialize_entry(k, &Self(v))?;
+                }
+
+                map.end()
+            }
+            _ => unreachable!(),
+        }
+    }
+}
 
 pub trait GetPathOwned {
     fn get_path_owned(self, path: &Path) -> Option<Self>
@@ -48,20 +92,14 @@ impl GetPathOwned for Value {
     }
 }
 
-pub trait GetPathBorrowed {
-    fn get_path_borrowed<'s>(&'s self, path: &Path) -> Option<&'s Self>
-    where
-        Self: Sized;
-}
-
-impl GetPathBorrowed for BorrowedValue<'_> {
-    fn get_path_borrowed<'s>(&'s self, path: &Path) -> Option<&'s Self> {
+impl GetPathOwned for TapeValue<'_, '_> {
+    fn get_path_owned(self, path: &Path) -> Option<Self> {
         let mut value = self;
 
         for step in path.iter() {
             match step {
                 &Step::Index(mut i) => {
-                    if let BorrowedValue::Array(array) = value {
+                    if let Some(array) = value.as_array() {
                         if i < 0 {
                             i += array.len() as isize;
                         }
@@ -72,7 +110,7 @@ impl GetPathBorrowed for BorrowedValue<'_> {
                     }
                 }
                 Step::Key(key) => {
-                    if let BorrowedValue::Object(object) = value {
+                    if let Some(object) = value.as_object() {
                         value = object.get(key.as_str())?;
                     } else {
                         return None;
@@ -84,6 +122,43 @@ impl GetPathBorrowed for BorrowedValue<'_> {
         Some(value)
     }
 }
+
+// pub trait GetPathBorrowed {
+//     fn get_path_borrowed<'s>(&'s self, path: &Path) -> Option<&'s Self>
+//     where
+//         Self: Sized;
+// }
+
+// impl GetPathBorrowed for BorrowedValue<'_> {
+//     fn get_path_borrowed<'s>(&'s self, path: &Path) -> Option<&'s Self> {
+//         let mut value = self;
+
+//         for step in path.iter() {
+//             match step {
+//                 &Step::Index(mut i) => {
+//                     if let BorrowedValue::Array(array) = value {
+//                         if i < 0 {
+//                             i += array.len() as isize;
+//                         }
+
+//                         value = array.get(i as usize)?;
+//                     } else {
+//                         return None;
+//                     }
+//                 }
+//                 Step::Key(key) => {
+//                     if let BorrowedValue::Object(object) = value {
+//                         value = object.get(key.as_str())?;
+//                     } else {
+//                         return None;
+//                     }
+//                 }
+//             }
+//         }
+
+//         Some(value)
+//     }
+// }
 
 #[derive(Default)]
 pub struct AttributeNameInterner {
@@ -327,14 +402,74 @@ where
     }
 }
 
-fn traverse_borrowed_value_with_stack<F>(
-    mut value: &BorrowedValue,
+// fn traverse_borrowed_value_with_stack<F>(
+//     mut value: &BorrowedValue,
+//     stack: &JSONTraversalStack,
+//     mut callback: F,
+// ) where
+//     F: FnMut(&BorrowedValue),
+// {
+//     let mut working_stack: Vec<&BorrowedValue> = vec![];
+
+//     let mut i: usize = 0;
+
+//     'outer: while i < stack.len() {
+//         let state = &stack[i];
+
+//         match state {
+//             JSONTraversalState::Delve(key, depth) => {
+//                 working_stack.push(value);
+
+//                 let as_object = match value {
+//                     BorrowedValue::Object(object) => Some(object),
+//                     _ => None,
+//                 };
+
+//                 match as_object.and_then(|o| o.get(key.as_str())) {
+//                     None => {
+//                         i += 1;
+
+//                         while i < stack.len() {
+//                             let next_state = &stack[i];
+
+//                             match next_state {
+//                                 JSONTraversalState::Emit => {
+//                                     callback(&BorrowedValue::Static(simd_json::StaticNode::Null))
+//                                 }
+//                                 JSONTraversalState::Pop(target_depth) if target_depth == depth => {
+//                                     continue 'outer;
+//                                 }
+//                                 _ => (),
+//                             };
+
+//                             i += 1;
+//                         }
+//                     }
+//                     Some(next_value) => {
+//                         value = next_value;
+//                     }
+//                 }
+//             }
+//             JSONTraversalState::Pop(_) => {
+//                 value = working_stack.pop().expect("cannot pop");
+//             }
+//             JSONTraversalState::Emit => {
+//                 callback(value);
+//             }
+//         }
+
+//         i += 1;
+//     }
+// }
+
+fn traverse_tape_value_with_stack<F>(
+    mut value: TapeValue,
     stack: &JSONTraversalStack,
     mut callback: F,
 ) where
-    F: FnMut(&BorrowedValue),
+    F: FnMut(TapeValue),
 {
-    let mut working_stack: Vec<&BorrowedValue> = vec![];
+    let mut working_stack: Vec<TapeValue> = vec![];
 
     let mut i: usize = 0;
 
@@ -345,12 +480,7 @@ fn traverse_borrowed_value_with_stack<F>(
             JSONTraversalState::Delve(key, depth) => {
                 working_stack.push(value);
 
-                let as_object = match value {
-                    BorrowedValue::Object(object) => Some(object),
-                    _ => None,
-                };
-
-                match as_object.and_then(|o| o.get(key.as_str())) {
+                match value.as_object().and_then(|o| o.get(key.as_str())) {
                     None => {
                         i += 1;
 
@@ -358,9 +488,7 @@ fn traverse_borrowed_value_with_stack<F>(
                             let next_state = &stack[i];
 
                             match next_state {
-                                JSONTraversalState::Emit => {
-                                    callback(&BorrowedValue::Static(simd_json::StaticNode::Null))
-                                }
+                                JSONTraversalState::Emit => callback(TapeValue::null()),
                                 JSONTraversalState::Pop(target_depth) if target_depth == depth => {
                                     continue 'outer;
                                 }
@@ -401,35 +529,73 @@ fn fill_record_from_value(value: &Value, record: &mut ByteRecord, stack: &JSONTr
     });
 }
 
+// #[inline]
+// fn fill_record_from_borrowed_value(
+//     value: &BorrowedValue,
+//     record: &mut ByteRecord,
+//     stack: &JSONTraversalStack,
+// ) {
+//     record.clear();
+
+//     traverse_borrowed_value_with_stack(value, stack, |v| match v {
+//         BorrowedValue::Static(simd_json::StaticNode::Null) => record.push_field(b""),
+//         BorrowedValue::Static(simd_json::StaticNode::Bool(b)) => {
+//             record.push_field(if *b { b"true" } else { b"false" });
+//         }
+//         BorrowedValue::String(s) => record.push_field(s.as_bytes()),
+//         BorrowedValue::Static(simd_json::StaticNode::F64(f)) => {
+//             record.fmt_field(f);
+//         }
+//         BorrowedValue::Static(simd_json::StaticNode::U64(i)) => {
+//             record.fmt_field(i);
+//         }
+//         BorrowedValue::Static(simd_json::StaticNode::I64(i)) => {
+//             record.fmt_field(i);
+//         }
+//         BorrowedValue::Array(l) => {
+//             record.write_field(|view| serde_json::to_writer(view, l).unwrap())
+//         }
+//         BorrowedValue::Object(o) => {
+//             record.write_field(|view| serde_json::to_writer(view, o).unwrap())
+//         }
+//     });
+// }
+
 #[inline]
-fn fill_record_from_borrowed_value(
-    value: &BorrowedValue,
+fn fill_record_from_tape_value(
+    value: TapeValue,
     record: &mut ByteRecord,
     stack: &JSONTraversalStack,
 ) {
     record.clear();
 
-    traverse_borrowed_value_with_stack(value, stack, |v| match v {
-        BorrowedValue::Static(simd_json::StaticNode::Null) => record.push_field(b""),
-        BorrowedValue::Static(simd_json::StaticNode::Bool(b)) => {
-            record.push_field(if *b { b"true" } else { b"false" });
+    // TODO: we could work on the Tape itself without bothering with clunky TapeValue
+    traverse_tape_value_with_stack(value, stack, |v| match v.value_type() {
+        ValueType::Null => {
+            record.push_field(b"");
         }
-        BorrowedValue::String(s) => record.push_field(s.as_bytes()),
-        BorrowedValue::Static(simd_json::StaticNode::F64(f)) => {
-            record.fmt_field(f);
+        ValueType::Bool => {
+            record.push_field(if v.as_bool().unwrap() {
+                b"true"
+            } else {
+                b"false"
+            });
         }
-        BorrowedValue::Static(simd_json::StaticNode::U64(i)) => {
-            record.fmt_field(i);
+        ValueType::String => {
+            record.push_field(v.as_str().unwrap().as_bytes());
         }
-        BorrowedValue::Static(simd_json::StaticNode::I64(i)) => {
-            record.fmt_field(i);
+        ValueType::F64 => {
+            record.fmt_field(&v.as_f64().unwrap());
         }
-        BorrowedValue::Array(l) => {
-            record.write_field(|view| serde_json::to_writer(view, l).unwrap())
+        ValueType::I64 => {
+            record.fmt_field(&v.as_i64().unwrap());
         }
-        BorrowedValue::Object(o) => {
-            record.write_field(|view| serde_json::to_writer(view, o).unwrap())
+        ValueType::U64 => {
+            record.fmt_field(&v.as_u64().unwrap());
         }
+        ValueType::Array | ValueType::Object => record
+            .write_field(|view| serde_json::to_writer(view, &SerializableTapeValue(v)).unwrap()),
+        _ => unreachable!(),
     });
 }
 
@@ -527,10 +693,19 @@ impl<W: Write> JSONTabularizer<W> {
         Ok(())
     }
 
-    pub fn process_borrowed_no_sampling(&mut self, value: &BorrowedValue) -> simd_csv::Result<()> {
+    // pub fn process_borrowed_no_sampling(&mut self, value: &BorrowedValue) -> simd_csv::Result<()> {
+    //     self.flush()?;
+
+    //     fill_record_from_borrowed_value(value, &mut self.output_record, &self.stack);
+    //     self.writer.write_byte_record(&self.output_record)?;
+
+    //     Ok(())
+    // }
+
+    pub fn process_tape_no_sampling(&mut self, value: TapeValue) -> simd_csv::Result<()> {
         self.flush()?;
 
-        fill_record_from_borrowed_value(value, &mut self.output_record, &self.stack);
+        fill_record_from_tape_value(value, &mut self.output_record, &self.stack);
         self.writer.write_byte_record(&self.output_record)?;
 
         Ok(())

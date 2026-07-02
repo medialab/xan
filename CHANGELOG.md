@@ -14,6 +14,7 @@
 *Performance*
 
 * Introducing a fast path for `xan sort -e` when input fits in a single chunk.
+* Faster `xan from -f=ndjson`.
 
 *Quality of Life*
 

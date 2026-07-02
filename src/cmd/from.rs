@@ -15,7 +15,7 @@ use simd_csv::ByteRecord;
 use crate::CliError;
 use crate::CliResult;
 use crate::config::Config;
-use crate::json::{GetPathBorrowed, GetPathOwned, JSONTabularizer};
+use crate::json::{GetPathOwned, JSONTabularizer};
 use crate::moonblade::Path as JSONPath;
 use crate::util::{self, ChunksIteratorExt};
 
@@ -303,6 +303,8 @@ impl Args {
             tabularizer.reorder_keys();
         }
 
+        let mut tape = simd_json::Tape::null();
+
         while let Some(line) = rdr.read_line()? {
             // Sshhh... it's alright, really.
             let line_mut =
@@ -321,17 +323,18 @@ impl Args {
 
                 tabularizer.process(value)?;
             } else {
-                let value = simd_json::borrowed::to_value_with_buffers(line_mut, &mut buffers)?;
+                simd_json::fill_tape(line_mut, &mut buffers, &mut tape)?;
+                let value = tape.as_value();
 
-                let mut nested = &value;
+                let mut nested = value;
 
                 if let Some(path) = &path_opt {
                     nested = nested
-                        .get_path_borrowed(path)
+                        .get_path_owned(path)
                         .ok_or("could not extract value given to --path!")?;
                 }
 
-                tabularizer.process_borrowed_no_sampling(nested)?;
+                tabularizer.process_tape_no_sampling(nested)?;
             }
         }
 
