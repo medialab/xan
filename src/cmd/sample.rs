@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::io;
+use std::num::NonZeroUsize;
 
 use rand::{Rng, RngExt};
 use simd_csv::ByteRecord;
@@ -63,6 +64,9 @@ sample options:
     --seed <number>        RNG seed.
     -w, --weight <column>  Column containing weights to bias the sample.
     -g, --groupby <cols>   Return a sample per group.
+    -S, --sorted           Use with -g/--groupby to indicate that input is sorted on group
+                           columns so the command can run faster and use memory proportional
+                           on sample size rather than group cardinality.
     -§, --cursed           Return a c̵̱̝͆̓ṳ̷̔r̶̡͇͓̍̇š̷̠̎e̶̜̝̿́d̸͔̈́̀ sample from a Lovecraftian kinda-uniform
                            distribution (source: trust me), without requiring to read
                            the whole file. Instead, we will randomly jump through it
@@ -89,13 +93,14 @@ Common options:
 #[derive(Deserialize)]
 struct Args {
     arg_input: Option<String>,
-    arg_sample_size: u64,
+    arg_sample_size: NonZeroUsize,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_seed: Option<usize>,
     flag_weight: Option<SelectedColumns>,
     flag_groupby: Option<SelectedColumns>,
+    flag_sorted: bool,
     flag_cursed: bool,
 }
 
@@ -139,14 +144,14 @@ impl Args {
     }
 
     fn reservoir_sample(&self) -> CliResult<()> {
-        let sample_size = self.arg_sample_size as usize;
+        let sample_size = self.arg_sample_size.get();
         let mut rng = self.rng();
 
         let mut rdr = self.rconf().simd_reader()?;
         let mut record = ByteRecord::new();
         let mut i: usize = 0;
 
-        let mut reservoir = Vec::with_capacity(sample_size as usize);
+        let mut reservoir = Vec::with_capacity(sample_size);
 
         while rdr.read_byte_record(&mut record)? {
             i += 1;
@@ -156,7 +161,7 @@ impl Args {
             } else {
                 let random = rng.random_range(0..i);
 
-                if random < sample_size as usize {
+                if random < sample_size {
                     reservoir[random] = record.clone();
                 }
             }
@@ -168,7 +173,7 @@ impl Args {
     }
 
     fn weighted_reservoir_sample(&self) -> CliResult<()> {
-        let sample_size = self.arg_sample_size;
+        let sample_size = self.arg_sample_size.get();
         let mut rng = self.rng();
 
         let mut rdr = self.rconf().simd_reader()?;
@@ -183,8 +188,7 @@ impl Args {
         // Using algorithm "A-Res" from:
         // 1. Pavlos S. Efraimidis, Paul G. Spirakis. "Weighted random sampling with a reservoir."
         // 2. Pavlos S. Efraimidis. "Weighted Random Sampling over Data Streams."
-        let mut reservoir: BinaryHeap<WeightedRow> =
-            BinaryHeap::with_capacity(sample_size as usize);
+        let mut reservoir: BinaryHeap<WeightedRow> = BinaryHeap::with_capacity(sample_size);
 
         for result in rdr.byte_records() {
             let record = result?;
@@ -195,7 +199,7 @@ impl Args {
             let score = rng.random::<f64>().powf(1.0 / weight);
             let weighted_row = WeightedRow(score, record);
 
-            if reservoir.len() < sample_size as usize {
+            if reservoir.len() < sample_size {
                 reservoir.push(weighted_row);
             } else if &weighted_row < reservoir.peek().unwrap() {
                 reservoir.pop();
@@ -209,7 +213,7 @@ impl Args {
     }
 
     fn grouped_reservoir_sample(&self) -> CliResult<()> {
-        let sample_size = self.arg_sample_size;
+        let sample_size = self.arg_sample_size.get();
 
         let mut rdr = self.rconf().simd_reader()?;
         let has_headers = rdr.has_headers();
@@ -234,11 +238,11 @@ impl Args {
                 total: 0,
             });
 
-            if reservoir.records.len() < sample_size as usize {
+            if reservoir.records.len() < sample_size {
                 reservoir.records.push(record);
             } else {
                 let random_index = rng.random_range(0..reservoir.total + 1);
-                if random_index < sample_size as usize {
+                if random_index < sample_size {
                     reservoir.records[random_index] = record;
                 }
             }
@@ -254,10 +258,73 @@ impl Args {
         Ok(())
     }
 
+    fn sorted_grouped_reservoir_sample(&self) -> CliResult<()> {
+        let sample_size = self.arg_sample_size.get();
+        let mut rng = self.rng();
+
+        let mut rdr = self.rconf().simd_reader()?;
+        let has_headers = rdr.has_headers();
+
+        let mut record = ByteRecord::new();
+
+        let mut wtr = self.wconf().simd_writer()?;
+
+        if has_headers {
+            wtr.write_byte_record(rdr.byte_headers()?)?;
+        }
+
+        let group_sel = self
+            .flag_groupby
+            .as_ref()
+            .unwrap()
+            .selection(rdr.byte_headers()?, has_headers)?;
+
+        let mut reservoir: Vec<ByteRecord> = Vec::with_capacity(sample_size);
+
+        let mut current_group_opt: Option<ByteRecord> = None;
+        let mut i: usize = 0;
+
+        while rdr.read_byte_record(&mut record)? {
+            i += 1;
+
+            let group = group_sel.select(&record).collect();
+
+            if current_group_opt.is_none()
+                || matches!(&current_group_opt, Some(current_group) if &group == current_group )
+            {
+                if reservoir.len() < sample_size {
+                    reservoir.push(record.clone());
+                } else {
+                    let random = rng.random_range(0..i);
+
+                    if random < sample_size {
+                        reservoir[random] = record.clone();
+                    }
+                }
+            } else {
+                for record in reservoir.iter() {
+                    wtr.write_byte_record(record)?;
+                }
+
+                reservoir.clear();
+                reservoir.push(record.clone());
+                i = 1;
+            }
+
+            current_group_opt = Some(group);
+        }
+
+        for record in reservoir.iter() {
+            wtr.write_byte_record(record)?;
+        }
+
+        Ok(wtr.flush()?)
+    }
+
     fn weighted_grouped_reservoir_sample(&self) -> CliResult<()> {
         let mut rng = self.rng();
 
-        let sample_size = self.arg_sample_size;
+        let sample_size = self.arg_sample_size.get();
 
         let mut rdr = self.rconf().simd_reader()?;
         let has_headers = rdr.has_headers();
@@ -291,7 +358,7 @@ impl Args {
             let score = rng.random::<f64>().powf(1.0 / weight);
             let weighted_row = WeightedRow(score, record);
 
-            if reservoir.len() < sample_size as usize {
+            if reservoir.len() < sample_size {
                 reservoir.push(weighted_row);
             } else if &weighted_row < reservoir.peek().unwrap() {
                 reservoir.pop();
@@ -313,19 +380,19 @@ impl Args {
     fn cursed_sample(&self) -> CliResult<()> {
         let mut rng = self.rng();
         let config = self.rconf();
-        let sample_size = self.arg_sample_size;
+        let sample_size = self.arg_sample_size.get();
 
         let mut seeker = config.simd_seeker()?.ok_or("Could not sample the file!")?;
 
         // If sample size is too large wrt whole file approximated number of records we fall back to
         // traditional reservoir sampling:
-        if sample_size > (seeker.approx_count() as f64 * 0.1).ceil() as u64 {
+        if sample_size as u64 > (seeker.approx_count() as f64 * 0.1).ceil() as u64 {
             return self.reservoir_sample();
         }
 
-        let mut records: HashMap<u64, ByteRecord> = HashMap::with_capacity(sample_size as usize);
+        let mut records: HashMap<u64, ByteRecord> = HashMap::with_capacity(sample_size);
 
-        'outer: while records.len() < sample_size as usize {
+        'outer: while records.len() < sample_size {
             // NOTE: we only attempt 5 times to find a not yet sampled record
             for _ in 0..5 {
                 let random_byte_offset = rng.random_range(seeker.range());
@@ -366,10 +433,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         return args.cursed_sample();
     }
 
-    match (args.flag_groupby.is_some(), args.flag_weight.is_some()) {
-        (false, false) => args.reservoir_sample(),
-        (false, true) => args.weighted_reservoir_sample(),
-        (true, false) => args.grouped_reservoir_sample(),
-        (true, true) => args.weighted_grouped_reservoir_sample(),
+    if args.flag_groupby.is_none() {
+        if args.flag_weight.is_none() {
+            args.reservoir_sample()
+        } else {
+            args.weighted_reservoir_sample()
+        }
+    } else if args.flag_sorted {
+        if args.flag_weight.is_some() {
+            Err("-S/--sorted is not yet implemented for -w/--weight!".into())
+        } else {
+            args.sorted_grouped_reservoir_sample()
+        }
+    } else if args.flag_weight.is_none() {
+        args.grouped_reservoir_sample()
+    } else {
+        args.weighted_grouped_reservoir_sample()
     }
 }

@@ -23,6 +23,9 @@ sample options:
     --seed <number>        RNG seed.
     -w, --weight <column>  Column containing weights to bias the sample.
     -g, --groupby <cols>   Return a sample per group.
+    -S, --sorted           Use with -g/--groupby to indicate that input is sorted on group
+                           columns so the command can run faster and use memory proportional
+                           on sample size rather than group cardinality.
     -§, --cursed           Return a c̵̱̝͆̓ṳ̷̔r̶̡͇͓̍̇š̷̠̎e̶̜̝̿́d̸͔̈́̀ sample from a Lovecraftian kinda-uniform
                            distribution (source: trust me), without requiring to read
                            the whole file. Instead, we will randomly jump through it

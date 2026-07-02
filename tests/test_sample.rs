@@ -51,6 +51,45 @@ fn sample_grouped() {
 }
 
 #[test]
+fn sample_sorted() {
+    let wrk = Workdir::new("sample_sorted");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["number", "group"],
+            svec!["1", "group1"],
+            svec!["2", "group1"],
+            svec!["3", "group1"],
+            svec!["4", "group2"],
+            svec!["5", "group3"],
+            svec!["6", "group3"],
+            svec!["7", "group3"],
+            svec!["8", "group3"],
+            svec!["9", "group3"],
+        ],
+    );
+    let mut cmd = wrk.command("sample");
+    cmd.arg("3")
+        .arg("data.csv")
+        .args(["--seed", "123"])
+        .args(["-g", "group"])
+        .arg("--sorted");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["number", "group"],
+        ["1", "group1"],
+        ["2", "group1"],
+        ["3", "group1"],
+        ["4", "group2"],
+        ["8", "group3"],
+        ["6", "group3"],
+        ["9", "group3"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn sample_weighted() {
     let wrk = Workdir::new("sample_weighted");
     wrk.create(
