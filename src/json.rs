@@ -480,7 +480,7 @@ fn traverse_tape_value_with_stack<F>(
             JSONTraversalState::Delve(key, depth) => {
                 working_stack.push(value);
 
-                match value.as_object().and_then(|o| o.get(key.as_str())) {
+                match value.get(key.as_str()) {
                     None => {
                         i += 1;
 
