@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::io;
 
-use rand::RngExt;
+use rand::{Rng, RngExt};
 use simd_csv::ByteRecord;
 
 use crate::CliError;
@@ -10,10 +10,41 @@ use crate::CliResult;
 use crate::collections::ClusteredInsertHashmap;
 use crate::collections::HashMap;
 use crate::config::{Config, Delimiter};
-use crate::select::{SelectedColumns, Selection};
+use crate::select::SelectedColumns;
 use crate::util;
 
+// TODO: limit allocations
+// TODO: use byterecord keys for groups
+
 type GroupKey = Vec<Vec<u8>>;
+
+struct GroupReservoir {
+    records: Vec<ByteRecord>,
+    total: usize,
+}
+
+#[derive(PartialEq)]
+struct WeightedRow(f64, ByteRecord);
+
+impl WeightedRow {
+    fn row(self) -> ByteRecord {
+        self.1
+    }
+}
+
+impl Eq for WeightedRow {}
+
+impl PartialOrd for WeightedRow {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for WeightedRow {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.partial_cmp(&other.0).unwrap().reverse()
+    }
+}
 
 static USAGE: &str = "
 Randomly samples CSV data uniformly using memory proportional to the size of
@@ -73,6 +104,259 @@ struct Args {
     flag_cursed: bool,
 }
 
+impl Args {
+    fn rconf(&self) -> Config {
+        let mut rconfig = Config::new(&self.arg_input)
+            .delimiter(self.flag_delimiter)
+            .no_headers(self.flag_no_headers);
+
+        if let Some(weight_column_selection) = self.flag_weight.clone() {
+            rconfig = rconfig.select(weight_column_selection);
+        }
+
+        rconfig
+    }
+
+    fn wconf(&self) -> Config {
+        Config::new(&self.flag_output)
+    }
+
+    fn rng(&self) -> Box<dyn Rng> {
+        util::acquire_rng(self.flag_seed)
+    }
+
+    fn write<R: io::Read>(
+        &self,
+        rdr: &mut simd_csv::Reader<R>,
+        records: impl Iterator<Item = ByteRecord>,
+    ) -> CliResult<()> {
+        let mut wtr = self.wconf().simd_writer()?;
+
+        if rdr.has_headers() {
+            wtr.write_byte_record(rdr.byte_headers()?)?;
+        }
+
+        for record in records {
+            wtr.write_byte_record(&record)?;
+        }
+
+        Ok(wtr.flush()?)
+    }
+
+    fn reservoir_sample(&self) -> CliResult<()> {
+        let sample_size = self.arg_sample_size;
+
+        let mut rdr = self.rconf().simd_reader()?;
+
+        let mut reservoir = Vec::with_capacity(sample_size as usize);
+        let mut records = rdr.byte_records().enumerate();
+        for (_, row) in records.by_ref().take(sample_size as usize) {
+            reservoir.push(row?);
+        }
+
+        let mut rng = self.rng();
+
+        // Now do the sampling.
+        for (i, row) in records {
+            let random = rng.random_range(0..i + 1);
+            if random < sample_size as usize {
+                reservoir[random] = row?;
+            }
+        }
+
+        self.write(&mut rdr, reservoir.into_iter())?;
+
+        Ok(())
+    }
+
+    fn weighted_reservoir_sample(&self) -> CliResult<()> {
+        let sample_size = self.arg_sample_size;
+        let mut rng = self.rng();
+
+        let mut rdr = self.rconf().simd_reader()?;
+        let has_headers = rdr.has_headers();
+
+        let weight_column_index = self
+            .flag_weight
+            .as_ref()
+            .unwrap()
+            .single_selection(rdr.byte_headers()?, has_headers)?;
+
+        // Using algorithm "A-Res" from:
+        // 1. Pavlos S. Efraimidis, Paul G. Spirakis. "Weighted random sampling with a reservoir."
+        // 2. Pavlos S. Efraimidis. "Weighted Random Sampling over Data Streams."
+        let mut reservoir: BinaryHeap<WeightedRow> =
+            BinaryHeap::with_capacity(sample_size as usize);
+
+        for result in rdr.byte_records() {
+            let record = result?;
+
+            let weight: f64 = fast_float::parse(&record[weight_column_index])
+                .map_err(|_| CliError::Other("could not parse weight as f64".to_string()))?;
+
+            let score = rng.random::<f64>().powf(1.0 / weight);
+            let weighted_row = WeightedRow(score, record);
+
+            if reservoir.len() < sample_size as usize {
+                reservoir.push(weighted_row);
+            } else if &weighted_row < reservoir.peek().unwrap() {
+                reservoir.pop();
+                reservoir.push(weighted_row);
+            }
+        }
+
+        self.write(&mut rdr, reservoir.into_iter().map(|record| record.row()))?;
+
+        Ok(())
+    }
+
+    fn grouped_reservoir_sample(&self) -> CliResult<()> {
+        let sample_size = self.arg_sample_size;
+
+        let mut rdr = self.rconf().simd_reader()?;
+        let has_headers = rdr.has_headers();
+
+        let group_sel = self
+            .flag_groupby
+            .as_ref()
+            .unwrap()
+            .selection(rdr.byte_headers()?, has_headers)?;
+
+        let mut global_reservoir: ClusteredInsertHashmap<GroupKey, GroupReservoir> =
+            ClusteredInsertHashmap::new();
+
+        let mut rng = self.rng();
+
+        for result in rdr.byte_records() {
+            let record = result?;
+            let group = group_sel.collect(&record);
+
+            let reservoir = global_reservoir.insert_with(group, || GroupReservoir {
+                records: Vec::with_capacity(1),
+                total: 0,
+            });
+
+            if reservoir.records.len() < sample_size as usize {
+                reservoir.records.push(record);
+            } else {
+                let random_index = rng.random_range(0..reservoir.total + 1);
+                if random_index < sample_size as usize {
+                    reservoir.records[random_index] = record;
+                }
+            }
+
+            reservoir.total += 1;
+        }
+
+        self.write(
+            &mut rdr,
+            global_reservoir.into_values().flat_map(|gr| gr.records),
+        )?;
+
+        Ok(())
+    }
+
+    fn weighted_grouped_reservoir_sample(&self) -> CliResult<()> {
+        let mut rng = self.rng();
+
+        let sample_size = self.arg_sample_size;
+
+        let mut rdr = self.rconf().simd_reader()?;
+        let has_headers = rdr.has_headers();
+
+        let group_sel = self
+            .flag_groupby
+            .as_ref()
+            .unwrap()
+            .selection(rdr.byte_headers()?, has_headers)?;
+
+        let weight_column_index = self
+            .flag_weight
+            .as_ref()
+            .unwrap()
+            .single_selection(rdr.byte_headers()?, has_headers)?;
+
+        let mut global_reservoir: ClusteredInsertHashmap<GroupKey, BinaryHeap<WeightedRow>> =
+            ClusteredInsertHashmap::new();
+
+        for result in rdr.byte_records() {
+            let record = result?;
+
+            let group_key = group_sel.collect(&record);
+
+            let weight: f64 = fast_float::parse(&record[weight_column_index])
+                .map_err(|_| CliError::Other("could not parse weight as f64".to_string()))?;
+
+            let reservoir =
+                global_reservoir.insert_with(group_key, || BinaryHeap::with_capacity(1));
+
+            let score = rng.random::<f64>().powf(1.0 / weight);
+            let weighted_row = WeightedRow(score, record);
+
+            if reservoir.len() < sample_size as usize {
+                reservoir.push(weighted_row);
+            } else if &weighted_row < reservoir.peek().unwrap() {
+                reservoir.pop();
+                reservoir.push(weighted_row);
+            }
+        }
+
+        self.write(
+            &mut rdr,
+            global_reservoir
+                .into_values()
+                .flatten()
+                .map(|record| record.row()),
+        )?;
+
+        Ok(())
+    }
+
+    fn cursed_sample(&self) -> CliResult<()> {
+        let mut rng = self.rng();
+        let config = self.rconf();
+        let sample_size = self.arg_sample_size;
+
+        let mut seeker = config.simd_seeker()?.ok_or("Could not sample the file!")?;
+
+        // If sample size is too large wrt whole file approximated number of records we fall back to
+        // traditional reservoir sampling:
+        if sample_size > (seeker.approx_count() as f64 * 0.1).ceil() as u64 {
+            return self.reservoir_sample();
+        }
+
+        let mut records: HashMap<u64, ByteRecord> = HashMap::with_capacity(sample_size as usize);
+
+        'outer: while records.len() < sample_size as usize {
+            // NOTE: we only attempt 5 times to find a not yet sampled record
+            for _ in 0..5 {
+                let random_byte_offset = rng.random_range(seeker.range());
+
+                if let Some((pos, record)) = seeker.find_record_after(random_byte_offset)? {
+                    records.insert(pos, record);
+                    continue 'outer;
+                } else {
+                    continue;
+                }
+            }
+
+            Err("Your data is not cursed enough!")?;
+        }
+
+        let mut wtr = self.wconf().simd_writer()?;
+
+        if seeker.has_headers() {
+            wtr.write_byte_record(seeker.byte_headers())?;
+        }
+
+        for record in records.values() {
+            wtr.write_byte_record(record)?;
+        }
+
+        Ok(wtr.flush()?)
+    }
+}
+
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
@@ -80,257 +364,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("-§/--cursed does not work with -g/--groubpy nor -w/--weight!")?;
     }
 
-    let mut rconfig = Config::new(&args.arg_input)
-        .delimiter(args.flag_delimiter)
-        .no_headers(args.flag_no_headers);
-
-    if let Some(weight_column_selection) = args.flag_weight.clone() {
-        rconfig = rconfig.select(weight_column_selection);
+    if args.flag_cursed {
+        return args.cursed_sample();
     }
 
-    let sample_size = args.arg_sample_size;
-
-    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
-
-    let mut rdr = rconfig.simd_reader()?;
-
-    let byte_headers = rdr.byte_headers()?.clone();
-
-    let group_sel_opt = args
-        .flag_groupby
-        .map(|s| s.selection(&byte_headers, !rconfig.no_headers))
-        .transpose()?;
-
-    let sampled = if args.flag_cursed {
-        sample_cursed(&rconfig, sample_size, args.flag_seed)?
-    } else if args.flag_weight.is_some() {
-        let weight_column_index = rconfig.single_selection(&byte_headers)?;
-
-        if let Some(group_sel) = group_sel_opt {
-            sample_weighted_reservoir_grouped(
-                &mut rdr,
-                sample_size,
-                args.flag_seed,
-                weight_column_index,
-                group_sel,
-            )?
-        } else {
-            sample_weighted_reservoir(&mut rdr, sample_size, args.flag_seed, weight_column_index)?
-        }
-    } else if let Some(group_sel) = group_sel_opt {
-        sample_reservoir_grouped(&mut rdr, sample_size, args.flag_seed, group_sel)?
-    } else {
-        sample_reservoir(&mut rdr, sample_size, args.flag_seed)?
-    };
-
-    if !rconfig.no_headers {
-        wtr.write_byte_record(&byte_headers)?;
+    match (args.flag_groupby.is_some(), args.flag_weight.is_some()) {
+        (false, false) => args.reservoir_sample(),
+        (false, true) => args.weighted_reservoir_sample(),
+        (true, false) => args.grouped_reservoir_sample(),
+        (true, true) => args.weighted_grouped_reservoir_sample(),
     }
-
-    for row in sampled.into_iter() {
-        wtr.write_byte_record(&row)?;
-    }
-
-    Ok(wtr.flush()?)
-}
-
-fn sample_reservoir<R: io::Read>(
-    rdr: &mut simd_csv::Reader<R>,
-    sample_size: u64,
-    seed: Option<usize>,
-) -> CliResult<Vec<ByteRecord>> {
-    // The following algorithm has been adapted from:
-    // https://en.wikipedia.org/wiki/Reservoir_sampling
-    let mut reservoir = Vec::with_capacity(sample_size as usize);
-    let mut records = rdr.byte_records().enumerate();
-    for (_, row) in records.by_ref().take(sample_size as usize) {
-        reservoir.push(row?);
-    }
-
-    // Seeding rng
-    let mut rng = util::acquire_rng(seed);
-
-    // Now do the sampling.
-    for (i, row) in records {
-        let random = rng.random_range(0..i + 1);
-        if random < sample_size as usize {
-            reservoir[random] = row?;
-        }
-    }
-    Ok(reservoir)
-}
-
-struct GroupReservoir {
-    records: Vec<ByteRecord>,
-    count: usize,
-}
-
-fn sample_reservoir_grouped<R: io::Read>(
-    rdr: &mut simd_csv::Reader<R>,
-    sample_size: u64,
-    seed: Option<usize>,
-    group_sel: Selection,
-) -> CliResult<Vec<ByteRecord>> {
-    let mut global_reservoir: ClusteredInsertHashmap<GroupKey, GroupReservoir> =
-        ClusteredInsertHashmap::new();
-
-    let mut rng = util::acquire_rng(seed);
-
-    for result in rdr.byte_records() {
-        let record = result?;
-        let group = group_sel.collect(&record);
-
-        let reservoir = global_reservoir.insert_with(group, || GroupReservoir {
-            records: Vec::with_capacity(1),
-            count: 0,
-        });
-
-        if reservoir.records.len() < sample_size as usize {
-            reservoir.records.push(record);
-        } else {
-            let random_index = rng.random_range(0..reservoir.count + 1);
-            if random_index < sample_size as usize {
-                reservoir.records[random_index] = record;
-            }
-        }
-
-        reservoir.count += 1;
-    }
-
-    Ok(global_reservoir
-        .into_values()
-        .flat_map(|gr| gr.records)
-        .collect())
-}
-
-#[derive(PartialEq)]
-struct WeightedRow(f64, ByteRecord);
-
-impl WeightedRow {
-    fn row(self) -> ByteRecord {
-        self.1
-    }
-}
-
-impl Eq for WeightedRow {}
-
-impl PartialOrd for WeightedRow {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for WeightedRow {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.0.partial_cmp(&other.0).unwrap().reverse()
-    }
-}
-
-fn sample_weighted_reservoir<R: io::Read>(
-    rdr: &mut simd_csv::Reader<R>,
-    sample_size: u64,
-    seed: Option<usize>,
-    weight_column_index: usize,
-) -> CliResult<Vec<ByteRecord>> {
-    // Seeding rng
-    let mut rng = util::acquire_rng(seed);
-
-    // Using algorithm "A-Res" from:
-    // 1. Pavlos S. Efraimidis, Paul G. Spirakis. "Weighted random sampling with a reservoir."
-    // 2. Pavlos S. Efraimidis. "Weighted Random Sampling over Data Streams."
-    let mut reservoir: BinaryHeap<WeightedRow> = BinaryHeap::with_capacity(sample_size as usize);
-
-    for result in rdr.byte_records() {
-        let record = result?;
-
-        let weight: f64 = fast_float::parse(&record[weight_column_index])
-            .map_err(|_| CliError::Other("could not parse weight as f64".to_string()))?;
-
-        let score = rng.random::<f64>().powf(1.0 / weight);
-        let weighted_row = WeightedRow(score, record);
-
-        if reservoir.len() < sample_size as usize {
-            reservoir.push(weighted_row);
-        } else if &weighted_row < reservoir.peek().unwrap() {
-            reservoir.pop();
-            reservoir.push(weighted_row);
-        }
-    }
-
-    Ok(reservoir.into_iter().map(|record| record.row()).collect())
-}
-
-fn sample_weighted_reservoir_grouped<R: io::Read>(
-    rdr: &mut simd_csv::Reader<R>,
-    sample_size: u64,
-    seed: Option<usize>,
-    weight_column_index: usize,
-    group_sel: Selection,
-) -> CliResult<Vec<ByteRecord>> {
-    let mut rng = util::acquire_rng(seed);
-
-    let mut global_reservoir: ClusteredInsertHashmap<GroupKey, BinaryHeap<WeightedRow>> =
-        ClusteredInsertHashmap::new();
-
-    for result in rdr.byte_records() {
-        let record = result?;
-
-        let group_key = group_sel.collect(&record);
-
-        let weight: f64 = fast_float::parse(&record[weight_column_index])
-            .map_err(|_| CliError::Other("could not parse weight as f64".to_string()))?;
-
-        let reservoir = global_reservoir.insert_with(group_key, || BinaryHeap::with_capacity(1));
-
-        let score = rng.random::<f64>().powf(1.0 / weight);
-        let weighted_row = WeightedRow(score, record);
-
-        if reservoir.len() < sample_size as usize {
-            reservoir.push(weighted_row);
-        } else if &weighted_row < reservoir.peek().unwrap() {
-            reservoir.pop();
-            reservoir.push(weighted_row);
-        }
-    }
-
-    Ok(global_reservoir
-        .into_values()
-        .flatten()
-        .map(|record| record.row())
-        .collect())
-}
-
-fn sample_cursed(
-    config: &Config,
-    sample_size: u64,
-    seed: Option<usize>,
-) -> CliResult<Vec<ByteRecord>> {
-    let mut seeker = config.simd_seeker()?.ok_or("Could not sample the file!")?;
-
-    // If sample size is too large wrt whole file approximated number of records we fall back to
-    // traditional reservoir sampling:
-    if sample_size > (seeker.approx_count() as f64 * 0.1).ceil() as u64 {
-        return sample_reservoir(&mut config.simd_reader()?, sample_size, seed);
-    }
-
-    let mut rng = util::acquire_rng(seed);
-    let mut records: HashMap<u64, ByteRecord> = HashMap::with_capacity(sample_size as usize);
-
-    'outer: while records.len() < sample_size as usize {
-        // NOTE: we only attempt 5 times to find a not yet sampled record
-        for _ in 0..5 {
-            let random_byte_offset = rng.random_range(seeker.range());
-
-            if let Some((pos, record)) = seeker.find_record_after(random_byte_offset)? {
-                records.insert(pos, record);
-                continue 'outer;
-            } else {
-                continue;
-            }
-        }
-
-        Err("Your data is not cursed enough!")?;
-    }
-
-    Ok(records.into_values().collect())
 }
