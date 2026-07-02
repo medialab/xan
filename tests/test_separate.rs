@@ -682,3 +682,34 @@ fn separate_filter() {
     let expected = vec![["last_name"], ["davis"]];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn separate_lines() {
+    let wrk = Workdir::new("separate_lines");
+    wrk.write("data.txt", "john landis\nlucy hammond");
+
+    let mut cmd = wrk.command("separate");
+    cmd.arg("-L")
+        .arg(" ")
+        .args(["--into", "name,surname"])
+        .arg("data.txt");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![["name", "surname"], ["john", "landis"], ["lucy", "hammond"]];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("separate");
+    cmd.arg("-L")
+        .arg(" ")
+        .arg("-k")
+        .args(["--into", "name,surname"])
+        .arg("data.txt");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["line", "name", "surname"],
+        ["john landis", "john", "landis"],
+        ["lucy hammond", "lucy", "hammond"],
+    ];
+    assert_eq!(got, expected);
+}

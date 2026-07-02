@@ -44,7 +44,7 @@ Examples:
     $ xan separate --into first_name,last_name ' ' data.csv
 
   Processing text lines
-    $ xan separate --txt ' ' --into first_name,last_name names.txt
+    $ xan separate --lines ' ' --into first_name,last_name names.txt
 
   Splitting a full name using a regular expression
     $ xan separate -r fullname '\s+' data.csv
@@ -71,7 +71,7 @@ Examples:
     $ xan separate date - --into year,,day dates.csv
 
 Usage:
-    xan separate --txt [options] <separator> [<input>]
+    xan separate --lines [options] <separator> [<input>]
     xan separate [options] <column> <separator> [<input>]
     xan separate --help
 
@@ -93,7 +93,7 @@ separate mode options:
                         comma-separated list of increasing, non-repeating integers).
 
 separate options:
-    -T, --txt              Indicate that input should be considered as text lines, instead
+    -L, --lines            Indicate that input should be considered as text lines, instead
                            of CSV data. If -k/--keep is used, the line will be kept in a
                            column of the output named "line".
     -M, --max <n>          Limit the number of cells splitted to at most <n>.

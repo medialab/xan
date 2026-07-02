@@ -13,14 +13,14 @@ use crate::util;
 
 enum GenericReader<R: Read> {
     Csv(simd_csv::Reader<R>, Vec<ByteRecord>),
-    Txt(simd_csv::LineReader<R>, Vec<Vec<u8>>),
+    Lines(simd_csv::LineReader<R>, Vec<Vec<u8>>),
 }
 
 impl<R: Read> GenericReader<R> {
     fn byte_headers(&mut self) -> simd_csv::Result<ByteRecord> {
         match self {
             Self::Csv(inner, _) => inner.byte_headers().cloned(),
-            Self::Txt(_, _) => {
+            Self::Lines(_, _) => {
                 let mut h = ByteRecord::new();
                 h.push_field(b"line");
                 Ok(h)
@@ -72,7 +72,7 @@ Examples:
     $ xan separate --into first_name,last_name ' ' data.csv
 
   Processing text lines
-    $ xan separate --txt ' ' --into first_name,last_name names.txt
+    $ xan separate --lines ' ' --into first_name,last_name names.txt
 
   Splitting a full name using a regular expression
     $ xan separate -r fullname '\s+' data.csv
@@ -99,7 +99,7 @@ Examples:
     $ xan separate date - --into year,,day dates.csv
 
 Usage:
-    xan separate --txt [options] <separator> [<input>]
+    xan separate --lines [options] <separator> [<input>]
     xan separate [options] <column> <separator> [<input>]
     xan separate --help
 
@@ -121,7 +121,7 @@ separate mode options:
                         comma-separated list of increasing, non-repeating integers).
 
 separate options:
-    -T, --txt              Indicate that input should be considered as text lines, instead
+    -L, --lines            Indicate that input should be considered as text lines, instead
                            of CSV data. If -k/--keep is used, the line will be kept in a
                            column of the output named "line".
     -M, --max <n>          Limit the number of cells splitted to at most <n>.
@@ -189,7 +189,7 @@ struct Args {
     flag_cuts: bool,
     flag_offsets: bool,
     flag_trim: bool,
-    flag_txt: bool,
+    flag_lines: bool,
     flag_filter: bool,
 }
 
@@ -547,8 +547,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
-    let mut rdr = if args.flag_txt {
-        GenericReader::Txt(
+    let mut rdr = if args.flag_lines {
+        GenericReader::Lines(
             simd_csv::LineReader::from_reader(rconf.io_reader()?),
             Vec::new(),
         )
@@ -699,7 +699,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     buffer.push(record);
                 }
             }
-            GenericReader::Txt(inner, buffer) => {
+            GenericReader::Lines(inner, buffer) => {
                 while let Some(line) = inner.read_line()? {
                     if line.is_empty() {
                         continue;
@@ -811,7 +811,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
             }
         }
-        GenericReader::Txt(inner, buffer) => {
+        GenericReader::Lines(inner, buffer) => {
             let mut process_line = |line: &[u8], output_record: &mut ByteRecord| -> CliResult<()> {
                 let is_match = splitter.split_cell_into(line, split_options, output_record)?;
 

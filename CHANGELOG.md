@@ -5,6 +5,7 @@
 *Breaking*
 
 * Renaming `xan from --path` to `--root`.
+* Renaming `xan separate -T/--txt` to `-L/--lines`.
 
 *Features*
 
