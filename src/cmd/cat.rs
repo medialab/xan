@@ -328,10 +328,10 @@ impl Args {
             .paths()?
             .map(
                 |p| -> CliResult<simd_csv::Reader<Box<dyn io::Read + Send>>> {
-                    Ok(Config::new(&Some(p?))
+                    Config::new(&Some(p?))
                         .delimiter(self.flag_delimiter)
                         .no_headers(self.flag_no_headers)
-                        .simd_reader()?)
+                        .simd_reader()
                 },
             )
             .collect::<Result<Vec<_>, _>>()?;

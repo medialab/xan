@@ -279,6 +279,13 @@ impl<T: Ord, V> TopKHeapMapWithTies<T, V> {
         false
     }
 
+    #[inline(always)]
+    pub fn pop(&mut self) -> Option<(T, V)> {
+        self.heap
+            .pop()
+            .map(|(Reverse(item), Arbitrary(value))| (item, value))
+    }
+
     pub fn into_sorted_vec(mut self) -> Vec<(T, V)> {
         let l = self.len();
         let hl = self.heap.len();

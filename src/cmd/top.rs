@@ -91,6 +91,13 @@ top options:
                              them as numbers.
     -g, --groupby <cols>     Return top n values per group, represented
                              by the values in given columns.
+    -S, --sorted             When used with -g/--groupby, indicates that the input
+                             is sorted on the group columns so the command can run
+                             faster and use memory proportional on -l/--limit rather
+                             than group cardinality. This does not indicate the file
+                             is sorted on scored column, because using `xan slice` on
+                             such a file would effectively do the same thing as `xan top`
+                             in this particular case.
     -r, --rank <col>         Name of a rank column to prepend.
     -T, --ties               Keep all rows tied for last. Will therefore
                              consume O(k + t) memory, t being the number of ties.
@@ -120,6 +127,7 @@ struct Args {
     flag_limit: NonZeroUsize,
     flag_reverse: bool,
     flag_groupby: Option<SelectedColumns>,
+    flag_sorted: bool,
     flag_rank: Option<String>,
     flag_ties: bool,
     flag_lexicographic: bool,
@@ -189,29 +197,87 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if let Some(sel) = &groupby_sel_opt {
         let mut record = ByteRecord::new();
-        let mut groups: ClusteredInsertHashmap<
-            ByteRecord,
-            TopKHeapMapWithTies<DynamicOrd<Value>, ByteRecord>,
-        > = ClusteredInsertHashmap::new();
 
-        while rdr.read_byte_record(&mut record)? {
-            if let Some(score) = args.new_value(&record[score_column]) {
-                let group = sel.select(&record).collect();
+        if args.flag_sorted {
+            let mut heap = TopKHeapMapWithTies::<DynamicOrd<Value>, ByteRecord>::with_capacity(
+                usize::from(args.flag_limit),
+                args.flag_ties,
+            );
+            let mut buffer: Vec<ByteRecord> = Vec::with_capacity(args.flag_limit.get());
 
-                let heap = groups.insert_with(group, || {
-                    TopKHeapMapWithTies::with_capacity(usize::from(args.flag_limit), args.flag_ties)
-                });
+            let mut flush = |heap: &mut TopKHeapMapWithTies<DynamicOrd<Value>, ByteRecord>,
+                             buffer: &mut Vec<ByteRecord>|
+             -> CliResult<()> {
+                buffer.clear();
 
-                heap.push_with(DynamicOrd::new(score, args.flag_reverse), || record.clone());
+                while let Some((_, record)) = heap.pop() {
+                    buffer.push(record);
+                }
+
+                buffer.reverse();
+
+                for (i, record) in buffer.iter().enumerate() {
+                    if args.flag_rank.is_some() {
+                        wtr.write_record(
+                            once((i + 1).to_string().as_bytes()).chain(record.iter()),
+                        )?;
+                    } else {
+                        wtr.write_byte_record(record)?;
+                    }
+                }
+
+                Ok(())
+            };
+
+            let mut current_group_opt: Option<ByteRecord> = None;
+
+            while rdr.read_byte_record(&mut record)? {
+                if let Some(score) = args.new_value(&record[score_column]) {
+                    let group: ByteRecord = sel.select(&record).collect();
+
+                    match &current_group_opt {
+                        Some(current_group) if current_group != &group => {
+                            flush(&mut heap, &mut buffer)?;
+                        }
+                        _ => (),
+                    };
+
+                    heap.push_with(DynamicOrd::new(score, args.flag_reverse), || record.clone());
+                    current_group_opt = Some(group);
+                }
             }
-        }
 
-        for heap in groups.into_values() {
-            for (i, (_, record)) in heap.into_sorted_vec().into_iter().enumerate() {
-                if args.flag_rank.is_some() {
-                    wtr.write_record(once((i + 1).to_string().as_bytes()).chain(record.iter()))?;
-                } else {
-                    wtr.write_byte_record(&record)?;
+            flush(&mut heap, &mut buffer)?;
+        } else {
+            let mut groups: ClusteredInsertHashmap<
+                ByteRecord,
+                TopKHeapMapWithTies<DynamicOrd<Value>, ByteRecord>,
+            > = ClusteredInsertHashmap::new();
+
+            while rdr.read_byte_record(&mut record)? {
+                if let Some(score) = args.new_value(&record[score_column]) {
+                    let group = sel.select(&record).collect();
+
+                    let heap = groups.insert_with(group, || {
+                        TopKHeapMapWithTies::with_capacity(
+                            usize::from(args.flag_limit),
+                            args.flag_ties,
+                        )
+                    });
+
+                    heap.push_with(DynamicOrd::new(score, args.flag_reverse), || record.clone());
+                }
+            }
+
+            for heap in groups.into_values() {
+                for (i, (_, record)) in heap.into_sorted_vec().into_iter().enumerate() {
+                    if args.flag_rank.is_some() {
+                        wtr.write_record(
+                            once((i + 1).to_string().as_bytes()).chain(record.iter()),
+                        )?;
+                    } else {
+                        wtr.write_byte_record(&record)?;
+                    }
                 }
             }
         }

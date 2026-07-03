@@ -62,6 +62,13 @@ top options:
                              them as numbers.
     -g, --groupby <cols>     Return top n values per group, represented
                              by the values in given columns.
+    -S, --sorted             When used with -g/--groupby, indicates that the input
+                             is sorted on the group columns so the command can run
+                             faster and use memory proportional on -l/--limit rather
+                             than group cardinality. This does not indicate the file
+                             is sorted on scored column, because using `xan slice` on
+                             such a file would effectively do the same thing as `xan top`
+                             in this particular case.
     -r, --rank <col>         Name of a rank column to prepend.
     -T, --ties               Keep all rows tied for last. Will therefore
                              consume O(k + t) memory, t being the number of ties.

@@ -146,6 +146,40 @@ fn top_groubpy() {
 }
 
 #[test]
+fn top_groubpy_sorted() {
+    let wrk = Workdir::new("top_groubpy_sorted");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["color", "score"],
+            svec!["red", "5"],
+            svec!["red", "1"],
+            svec!["red", "2"],
+            svec!["yellow", "2"],
+            svec!["blue", "1"],
+            svec!["blue", "2"],
+        ],
+    );
+
+    let mut cmd = wrk.command("top");
+    cmd.arg("score")
+        .args(["-g", "color"])
+        .arg("--sorted")
+        .args(["-l", "1"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+
+    let expected = vec![
+        ["color", "score"],
+        ["red", "5"],
+        ["yellow", "2"],
+        ["blue", "2"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn top_groubpy_rank() {
     let wrk = Workdir::new("top_groubpy_rank");
     wrk.create(
