@@ -159,6 +159,30 @@ fn map_plural_clause() {
 }
 
 #[test]
+fn map_plural_clause_no_flat_iter() {
+    let wrk = Workdir::new("map_plural_clause_no_flat_iter");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["full_name"],
+            svec!["john landis"],
+            svec!["béatrice babka"],
+        ],
+    );
+    let mut cmd = wrk.command("map");
+
+    cmd.arg("[[1, 2], 3] as (one_two, three)").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["full_name", "one_two", "three"],
+        ["john landis", "[1,2]", "3"],
+        ["béatrice babka", "[1,2]", "3"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn map_along_columns() {
     let wrk = Workdir::new("map_along_columns");
     wrk.create("data.csv", vec![svec!["a", "b"], svec!["1", "2"]]);

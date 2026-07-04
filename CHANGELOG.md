@@ -19,6 +19,7 @@
 *Fixes*
 
 * Fixing text wrapping across tool, especially `xan flatten -w` & `xan flatten -F`.
+* Fixing `xan select -e` & `xan map` plural clause flattening given list.
 
 *Performance*
 

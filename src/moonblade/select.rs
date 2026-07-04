@@ -125,9 +125,16 @@ impl SelectionProgram {
                 ExprName::Plural(names) => {
                     let mut count: usize = 0;
 
-                    for sub_value in value.flat_iter() {
-                        sub_value.push_field_to_record(output_record);
-                        count += 1;
+                    if let DynamicValue::List(items) = value {
+                        for sub_value in items.iter() {
+                            sub_value.push_field_to_record(output_record);
+                            count += 1;
+                        }
+                    } else {
+                        return Err(EvaluationError::Custom(
+                            "plural clause expects returned value to be a list".to_string(),
+                        )
+                        .anonymous());
                     }
 
                     if names.len() != count {
@@ -161,9 +168,16 @@ impl SelectionProgram {
                 ExprName::Plural(names) => {
                     let mut count: usize = 0;
 
-                    for sub_value in value.flat_iter() {
-                        sub_value.push_field_to_record(record);
-                        count += 1;
+                    if let DynamicValue::List(items) = value {
+                        for sub_value in items.iter() {
+                            sub_value.push_field_to_record(record);
+                            count += 1;
+                        }
+                    } else {
+                        return Err(EvaluationError::Custom(
+                            "plural clause expects returned value to be a list".to_string(),
+                        )
+                        .anonymous());
                     }
 
                     if names.len() != count {
