@@ -15,6 +15,7 @@
 * Adding `xan from -f=(json|ndjson) --model`.
 * Adding `xan cat rows -I/--intersection & -U/--union`.
 * Adding `xan top -g -S/--sorted`.
+* Adding the `flatten` moonblade function.
 
 *Fixes*
 

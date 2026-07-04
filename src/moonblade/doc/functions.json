@@ -444,6 +444,12 @@
         "help": "Drop all falsey values from given list."
       },
       {
+        "name": "flatten",
+        "arguments": ["list"],
+        "returns": "list",
+        "help": "Flatten a nested list."
+      },
+      {
         "name": "filter",
         "arguments": ["list", "lambda"],
         "returns": "list",

@@ -126,6 +126,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "filesize" => (io::filesize, FunctionArguments::unary()),
         "fingerprint" => (fuzzy::fingerprint, FunctionArguments::unary()),
         "first" => (sequences::first, FunctionArguments::unary()),
+        "flatten" => (sequences::flatten, FunctionArguments::unary()),
         "float" => (ops::parse_float, FunctionArguments::unary()),
         "floor" => (
             |args| ops::round_like_op(args, DynamicNumber::floor),

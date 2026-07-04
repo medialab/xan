@@ -329,3 +329,26 @@ pub fn compact(mut args: BoundArguments) -> FunctionResult {
         }
     })
 }
+
+pub fn flatten(mut args: BoundArguments) -> FunctionResult {
+    match args.pop1() {
+        BoundArgument::Cell(cell) => Err(EvaluationError::Cast {
+            from_value: cell.into(),
+            to_type: "list".to_string(),
+        }),
+        BoundArgument::Borrowed(value) => {
+            if let DynamicValue::List(_) = &value {
+                Ok(value.flat_iter().cloned().collect::<Vec<_>>().into())
+            } else {
+                Err(EvaluationError::from_cast(value, "list"))
+            }
+        }
+        BoundArgument::Owned(value) => {
+            if let DynamicValue::List(_) = &value {
+                Ok(value.into_flat_iter().collect::<Vec<_>>().into())
+            } else {
+                Err(EvaluationError::from_cast(&value, "list"))
+            }
+        }
+    }
+}
