@@ -22,17 +22,18 @@ Usage:
     xan count [options] [<input>]
 
 count options:
+    -H, --human-readable     Format the count so it is easier to read.
+    -a, --approx             Attempt to approximate a CSV file row count by sampling its
+                             first rows. Target must be seekable, which means this cannot
+                             work on a stream fed through stdin nor with gzipped data.
+    -c, --check-alignment    Use a slower parser validating that given CSV stream yields rows
+                             having the same number of columns.
     -p, --parallel           Whether to use parallelization to speed up counting.
                              Will automatically select a suitable number of threads to use
                              based on your number of cores. Use -t, --threads if you want to
                              indicate the number of threads yourself.
     -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
                              if you want the number of threads to be automatically chosen instead.
-    -a, --approx             Attempt to approximate a CSV file row count by sampling its
-                             first rows. Target must be seekable, which means this cannot
-                             work on a stream fed through stdin nor with gzipped data.
-    -c, --check-alignment    Use a slower parser validating that given CSV stream yields rows
-                             having the same number of columns.
 
 Common options:
     -h, --help             Display this message

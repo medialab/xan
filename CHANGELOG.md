@@ -9,7 +9,7 @@
 
 *Features*
 
-* Adding `xan count -c/--check-alignment`.
+* Adding `xan count -c/--check-alignment & -H/--human-readable`.
 * Adding `xan sort -e -z/--compress`.
 * Adding `xan sample -g -S/--sorted`.
 * Adding `xan from -f=(json|ndjson) --model`.
