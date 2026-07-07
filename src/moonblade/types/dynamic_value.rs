@@ -1,6 +1,6 @@
 use std::borrow::Cow;
+use std::cmp::Ordering;
 use std::fmt;
-
 use std::sync::Arc;
 
 use bstr::BString;
@@ -886,6 +886,29 @@ impl PartialEq for DynamicValue {
             (Self::Span(a), Self::Span(b)) => a.fieldwise() == b.fieldwise(),
             (Self::None, Self::None) => true,
             _ => false,
+        }
+    }
+}
+
+impl PartialOrd for DynamicValue {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match (self, other) {
+            (Self::Regex(a), Self::Regex(b)) => a.as_str().partial_cmp(b.as_str()),
+            (Self::Boolean(a), Self::Boolean(b)) => a.partial_cmp(b),
+            (Self::String(a), Self::String(b)) => a.partial_cmp(b),
+            (Self::Bytes(a), Self::Bytes(b)) => a.as_ref().partial_cmp(b.as_ref()),
+            (Self::String(a), Self::Bytes(b)) | (Self::Bytes(b), Self::String(a)) => {
+                a.as_bytes().partial_cmp(b.as_ref())
+            }
+            (Self::Float(a), Self::Float(b)) => a.partial_cmp(b),
+            (Self::Integer(a), Self::Integer(b)) => a.partial_cmp(b),
+            (Self::List(a), Self::List(b)) => a.partial_cmp(b),
+            (Self::Zoned(a), Self::Zoned(b)) => a.partial_cmp(b),
+            (Self::DateTime(a), Self::DateTime(b)) => a.partial_cmp(b),
+            (Self::Date(a), Self::Date(b)) => a.partial_cmp(b),
+            (Self::Time(a), Self::Time(b)) => a.partial_cmp(b),
+            (Self::None, Self::None) => Some(Ordering::Equal),
+            _ => None,
         }
     }
 }
