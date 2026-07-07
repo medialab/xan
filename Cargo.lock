@@ -1793,6 +1793,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b17da4150748086bd43352bc77372efa9b6e3dbd06a04831d2a98c041c225cfa"
 dependencies = [
  "ahash",
+ "base64",
  "brotli",
  "bytes",
  "chrono",
@@ -1804,6 +1805,7 @@ dependencies = [
  "num-bigint",
  "paste",
  "seq-macro",
+ "serde_json",
  "snap",
  "thrift",
  "twox-hash",

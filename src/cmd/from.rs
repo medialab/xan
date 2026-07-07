@@ -646,7 +646,6 @@ impl Args {
 
     #[cfg(feature = "parquet")]
     fn convert_parquet(&self) -> CliResult<()> {
-        use std::borrow::Cow;
         use std::fs::File;
 
         use parquet::file::reader::{FileReader, SerializedFileReader};
@@ -681,31 +680,29 @@ impl Args {
             let row = result.map_err(|_| "could not deserialize parquet row!")?;
 
             for (_, value) in row.get_column_iter() {
-                let serialized = match value {
-                    Field::Null => Cow::Borrowed("".as_bytes()),
-                    Field::Bool(b) => Cow::Borrowed((if *b { "true" } else { "false" }).as_bytes()),
-                    Field::Str(string) => Cow::Borrowed(string.as_bytes()),
-                    Field::Bytes(bytes) => Cow::Borrowed(
-                        bytes
-                            .as_utf8()
-                            .map_err(|_| "could not decode parquet byte array to utf-8!")?
-                            .as_bytes(),
-                    ),
-                    Field::UByte(f) => Cow::Owned(f.to_string().into_bytes()),
-                    Field::UShort(f) => Cow::Owned(f.to_string().into_bytes()),
-                    Field::UInt(f) => Cow::Owned(f.to_string().into_bytes()),
-                    Field::ULong(f) => Cow::Owned(f.to_string().into_bytes()),
-                    Field::Byte(f) => Cow::Owned(f.to_string().into_bytes()),
-                    Field::Short(f) => Cow::Owned(f.to_string().into_bytes()),
-                    Field::Int(f) => Cow::Owned(f.to_string().into_bytes()),
-                    Field::Long(f) => Cow::Owned(f.to_string().into_bytes()),
-                    Field::Float(f) => Cow::Owned(f.to_string().into_bytes()),
-                    Field::Float16(f) => Cow::Owned(f.to_string().into_bytes()),
-                    Field::Double(f) => Cow::Owned(f.to_string().into_bytes()),
+                match value {
+                    Field::Null => output_record.push_field(b""),
+                    Field::Bool(b) => output_record.push_field(if *b { b"true" } else { b"false" }),
+                    Field::Str(string) => output_record.push_field(string.as_bytes()),
+                    Field::Bytes(bytes) => output_record.push_field(bytes.data()),
+                    Field::UByte(f) => output_record.fmt_field(f),
+                    Field::UShort(f) => output_record.fmt_field(f),
+                    Field::UInt(f) => output_record.fmt_field(f),
+                    Field::ULong(f) => output_record.fmt_field(f),
+                    Field::Byte(f) => output_record.fmt_field(f),
+                    Field::Short(f) => output_record.fmt_field(f),
+                    Field::Int(f) => output_record.fmt_field(f),
+                    Field::Long(f) => output_record.fmt_field(f),
+                    Field::Float(f) => output_record.fmt_field(f),
+                    Field::Float16(f) => output_record.fmt_field(f),
+                    Field::Double(f) => output_record.fmt_field(f),
+                    Field::ListInternal(_) | Field::MapInternal(_) => {
+                        output_record.write_field(|view| {
+                            serde_json::to_writer(view, &value.to_json_value()).unwrap();
+                        })
+                    }
                     _ => Err("unsupported parquet value type!")?,
                 };
-
-                output_record.push_field(&serialized);
             }
 
             wtr.write_byte_record(&output_record)?;

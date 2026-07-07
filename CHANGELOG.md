@@ -16,6 +16,7 @@
 * Adding `xan cat rows -I/--intersection & -U/--union`.
 * Adding `xan top -g -S/--sorted`.
 * Adding the `flatten` & `flat_map` moonblade function.
+* Adding support for `list` & `map` columns when using `xan from -f=parquet`.
 
 *Fixes*
 
@@ -25,7 +26,7 @@
 *Performance*
 
 * Introducing a fast path for `xan sort -e` when input fits in a single chunk.
-* Faster `xan from -f=ndjson`.
+* Faster `xan from -f=ndjson & -f=parquet`.
 * Amortizing `xan sample` allocations.
 
 *Quality of Life*
