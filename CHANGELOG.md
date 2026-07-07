@@ -22,6 +22,7 @@
 
 * Fixing text wrapping across tool, especially `xan flatten -w` & `xan flatten -F`.
 * Fixing `xan select -e` & `xan map` plural clause flattening given list.
+* Fixing `xan from -f=parquet` not emitting correct column names for list & map columns.
 
 *Performance*
 

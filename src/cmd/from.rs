@@ -665,7 +665,9 @@ impl Args {
         let schema = reader.metadata().file_metadata().schema_descr();
 
         for column in schema.columns() {
-            output_record.push_field(column.name().as_bytes());
+            let path = column.path();
+            let logical_name = &path.parts()[0];
+            output_record.push_field(logical_name.as_bytes());
         }
 
         wtr.write_byte_record(&output_record)?;
