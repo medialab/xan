@@ -212,6 +212,7 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **filter**(*list*, *lambda*) -> `list`: Return a list containing only elements for which given lambda returned true.<br>For instance: `filter(names, name => name.startswith('A'))`
 - **find**(*list*, *lambda*) -> `any?`: Return the first item of a list for which given lambda returned true.<br>For instance: `find(names, name => name.startswith('A'))`
 - **find_index**(*list*, *lambda*) -> `int?`: Return the index of the first item of a list for which given lambda returned true.<br>For instance: `find_index(names, name => name.startswith('A'))`
+- **flat_map**(*list*, *lambda*) -> `list`: Return a flattened list with elements transformed by given lambda.<br>For instance: `map(numbers, n => [n, n + 1])`
 - **index_by**(*list*, *key*) -> `map`: Take a list of maps and a key name and return an indexed map from selected keys to the original maps.
 - **join**(*list*, *sep*) -> `string`: Join list by separator.
 - **map**(*list*, *lambda*) -> `list`: Return a list with elements transformed by given lambda.<br>For instance: `map(numbers, n => n + 3)`

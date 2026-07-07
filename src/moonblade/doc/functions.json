@@ -468,6 +468,12 @@
         "help": "Return the index of the first item of a list for which given lambda returned true.\nFor instance: `find_index(names, name => name.startswith('A'))`"
       },
       {
+        "name": "flat_map",
+        "arguments": ["list", "lambda"],
+        "returns": "list",
+        "help": "Return a flattened list with elements transformed by given lambda.\nFor instance: `map(numbers, n => [n, n + 1])`"
+      },
+      {
         "name": "index_by",
         "arguments": ["list", "key"],
         "returns": "map",

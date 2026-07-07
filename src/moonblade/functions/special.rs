@@ -313,6 +313,7 @@ pub fn get_special_function(
         // bind some values ahead of time.
         // NOTE: higher-order functions work fine with static evaluation
         "map" => higher_order_fn!("map", Map),
+        "flat_map" => higher_order_fn!("flat_map", FlatMap),
         "filter" => higher_order_fn!("filter", Filter),
         "find" => higher_order_fn!("find", Find),
         "find_index" => higher_order_fn!("find_index", FindIndex),
@@ -711,6 +712,7 @@ fn runtime_warn(context: &EvaluationContext, args: &[ConcreteExpr]) -> Evaluatio
 enum HigherOrderOperation {
     Filter,
     Map,
+    FlatMap,
     Find,
     FindIndex,
     All,
@@ -771,6 +773,36 @@ fn runtime_higher_order(
 
                         let result = lambda.evaluate(&context.with_lambda_variables(&variables))?;
                         new_list.push(result);
+                    }
+                }
+            }
+
+            Ok(DynamicValue::from(new_list))
+        }
+        HigherOrderOperation::FlatMap => {
+            let mut new_list = Vec::with_capacity(list.len());
+
+            match Arc::try_unwrap(list) {
+                Ok(owned_list) => {
+                    for item in owned_list {
+                        variables.set(item_arg_index, item);
+
+                        let result = lambda.evaluate(&context.with_lambda_variables(&variables))?;
+
+                        for item in result.into_flat_iter() {
+                            new_list.push(item);
+                        }
+                    }
+                }
+                Err(borrowed_list) => {
+                    for item in borrowed_list.iter() {
+                        variables.set(item_arg_index, item.clone());
+
+                        let result = lambda.evaluate(&context.with_lambda_variables(&variables))?;
+
+                        for item in result.into_flat_iter() {
+                            new_list.push(item);
+                        }
                     }
                 }
             }
