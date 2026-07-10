@@ -513,6 +513,12 @@
         "help": "Repeat target string or list n times."
       },
       {
+        "name": "sort",
+        "arguments": ["list", "reverse?"],
+        "returns": "list",
+        "help": "Sort given list in ascending order, or in descending order if `true` is given as second argument."
+      },
+      {
         "name": "sum",
         "arguments": ["numbers"],
         "returns": "number?",

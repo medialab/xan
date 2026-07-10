@@ -269,6 +269,10 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "shell" => (io::shell, FunctionArguments::unary()),
         "shlex_split" => (io::shlex_split, FunctionArguments::unary()),
         "slice" => (sequences::slice, FunctionArguments::with_range(2..=3)),
+        "sort" => (
+            sequences::sort,
+            FunctionArguments::complex(vec![Argument::Positional, Argument::with_name("reverse")]),
+        ),
         "soundex" => (
             |args| ops::abstract_unary_string_fn(args, |string| Cow::Owned(soundex(string))),
             FunctionArguments::unary(),

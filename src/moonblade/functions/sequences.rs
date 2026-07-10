@@ -1,4 +1,4 @@
-use std::cmp::max;
+use std::cmp::{Ordering, max};
 use std::sync::Arc;
 
 use crate::moonblade::error::EvaluationError;
@@ -350,5 +350,71 @@ pub fn flatten(mut args: BoundArguments) -> FunctionResult {
                 Err(EvaluationError::from_cast(&value, "list"))
             }
         }
+    }
+}
+
+fn sort_dynamic_values(list: &mut Vec<DynamicValue>, reverse: bool) -> Result<(), EvaluationError> {
+    let mut errored = false;
+
+    list.sort_by(|a, b| {
+        let ordering = match a.partial_cmp(b) {
+            None => {
+                errored = true;
+                Ordering::Equal
+            }
+            Some(ordering) => ordering,
+        };
+
+        if reverse {
+            ordering.reverse()
+        } else {
+            ordering
+        }
+    });
+
+    if errored {
+        Err(EvaluationError::Custom(
+                    "could not sort given list because it either contained mixed types (e.g. numbers & strings) or non-comparable types (regex, span etc.)".to_string(),
+                ))
+    } else {
+        Ok(())
+    }
+}
+
+pub fn sort(mut args: BoundArguments) -> FunctionResult {
+    let (target, reverse) = if args.len() == 1 {
+        (args.pop1(), false)
+    } else {
+        let (target_arg, reverse_arg) = args.pop2();
+
+        (target_arg, reverse_arg.is_truthy())
+    };
+
+    match target {
+        BoundArgument::Borrowed(DynamicValue::List(list)) => {
+            let mut copy = list.as_ref().clone();
+
+            sort_dynamic_values(&mut copy, reverse)?;
+
+            Ok(copy.into())
+        }
+        BoundArgument::Owned(DynamicValue::List(list)) => match Arc::try_unwrap(list) {
+            Ok(mut owned_list) => {
+                sort_dynamic_values(&mut owned_list, reverse)?;
+
+                Ok(owned_list.into())
+            }
+            Err(borrowed_list) => {
+                let mut copy = borrowed_list.as_ref().clone();
+
+                sort_dynamic_values(&mut copy, reverse)?;
+
+                Ok(copy.into())
+            }
+        },
+        arg => Err(EvaluationError::Cast {
+            from_value: arg.into_owned(),
+            to_type: "list".to_string(),
+        }),
     }
 }
