@@ -480,6 +480,11 @@ impl InputReader {
         self.config.simd_csv_splitter_from_reader(io_reader)
     }
 
+    fn take_simd_zero_copy_reader(&mut self) -> BoxedZeroCopyReader {
+        let io_reader = self.take();
+        self.config.simd_zero_copy_csv_reader_from_reader(io_reader)
+    }
+
     fn headers(&self, fallback: &ByteRecord) -> ByteRecord {
         if let Some(h) = &self.headers {
             h.clone()
@@ -719,6 +724,7 @@ pub struct Args {
 
 type BoxedReader = simd_csv::Reader<Box<dyn io::Read + Send>>;
 type BoxedSplitter = simd_csv::Splitter<Box<dyn io::Read + Send>>;
+type BoxedZeroCopyReader = simd_csv::ZeroCopyReader<Box<dyn io::Read + Send>>;
 
 impl Args {
     fn resolve(&mut self) -> CliResult<()> {
@@ -1361,7 +1367,7 @@ impl Args {
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
             let mut input_reader = self.io_reader(input)?;
             let progress_bar = process_manager.start(&input.name(), input_reader.take_children());
-            let mut csv_reader = input_reader.take_simd_csv_reader();
+            let mut csv_reader = input_reader.take_simd_zero_copy_reader();
             let headers = input_reader.headers(csv_reader.byte_headers()?);
 
             let sel = self.flag_select.selection(&headers, true)?;
@@ -1369,10 +1375,11 @@ impl Args {
             let mut freq_tables =
                 FrequencyTables::with_capacity(sel.select(&headers).collect(), counter_spec);
 
-            let mut record = ByteRecord::new();
-
-            while csv_reader.read_byte_record(&mut record)? {
-                for (counter, cell) in freq_tables.iter_mut().zip(sel.select(&record)) {
+            while let Some(record) = csv_reader.read_byte_record()? {
+                for (counter, cell) in freq_tables
+                    .iter_mut()
+                    .zip(sel.iter().map(|i| record.unescape(*i).unwrap()))
+                {
                     if let Some(sep) = &self.flag_sep {
                         for subcell in cell.split_str(sep) {
                             counter.add(subcell.to_vec());

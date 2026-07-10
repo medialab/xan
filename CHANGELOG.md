@@ -29,6 +29,7 @@
 * Introducing a fast path for `xan sort -e` when input fits in a single chunk.
 * Faster `xan from -f=ndjson & -f=parquet`.
 * Amortizing `xan sample` allocations.
+* Improving performance of `xan freq` & `xan p freq`.
 
 *Quality of Life*
 
