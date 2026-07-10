@@ -381,23 +381,24 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             let mut emitted: u64 = 0;
 
+            output_record.clear();
+            output_record.push_field(name);
+
             for (value, count) in items {
                 emitted += count;
 
-                output_record.clear();
-                output_record.push_field(name);
+                output_record.truncate(1);
                 output_record.push_field(&simd_csv::unescape(&value, rconf.quote));
-                output_record.push_field(count.to_string().as_bytes());
+                output_record.fmt_field(&count);
                 wtr.write_byte_record(&output_record)?;
             }
 
             let remaining = total - emitted;
 
             if !args.flag_no_extra && remaining > 0 {
-                output_record.clear();
-                output_record.push_field(name);
+                output_record.truncate(1);
                 output_record.push_field(b"<rest>");
-                output_record.push_field(remaining.to_string().as_bytes());
+                output_record.fmt_field(&remaining);
                 wtr.write_byte_record(&output_record)?;
             }
         }
