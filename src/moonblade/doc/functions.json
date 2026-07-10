@@ -514,9 +514,9 @@
       },
       {
         "name": "sort",
-        "arguments": ["list", "reverse?"],
+        "arguments": ["list", "reverse=false", "dedup=false"],
         "returns": "list",
-        "help": "Sort given list in ascending order, or in descending order if `true` is given as second argument."
+        "help": "Sort given list in ascending order, or in descending order if `true` is given as second argument. Can also optionally deduplicate the sorted list."
       },
       {
         "name": "sum",

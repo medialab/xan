@@ -353,7 +353,11 @@ pub fn flatten(mut args: BoundArguments) -> FunctionResult {
     }
 }
 
-fn sort_dynamic_values(list: &mut Vec<DynamicValue>, reverse: bool) -> Result<(), EvaluationError> {
+fn sort_dynamic_values(
+    list: &mut Vec<DynamicValue>,
+    reverse: bool,
+    dedup: bool,
+) -> Result<(), EvaluationError> {
     let mut errored = false;
 
     list.sort_by(|a, b| {
@@ -377,37 +381,38 @@ fn sort_dynamic_values(list: &mut Vec<DynamicValue>, reverse: bool) -> Result<()
                     "could not sort given list because it either contained mixed types (e.g. numbers & strings) or non-comparable types (regex, span etc.)".to_string(),
                 ))
     } else {
+        if dedup {
+            list.dedup();
+        }
+
         Ok(())
     }
 }
 
 pub fn sort(mut args: BoundArguments) -> FunctionResult {
-    let (target, reverse) = if args.len() == 1 {
-        (args.pop1(), false)
-    } else {
-        let (target_arg, reverse_arg) = args.pop2();
+    let (target_arg, reverse_arg, dedup_arg) = args.pop3();
 
-        (target_arg, reverse_arg.is_truthy())
-    };
+    let reverse = reverse_arg.is_truthy();
+    let dedup = dedup_arg.is_truthy();
 
-    match target {
+    match target_arg {
         BoundArgument::Borrowed(DynamicValue::List(list)) => {
             let mut copy = list.as_ref().clone();
 
-            sort_dynamic_values(&mut copy, reverse)?;
+            sort_dynamic_values(&mut copy, reverse, dedup)?;
 
             Ok(copy.into())
         }
         BoundArgument::Owned(DynamicValue::List(list)) => match Arc::try_unwrap(list) {
             Ok(mut owned_list) => {
-                sort_dynamic_values(&mut owned_list, reverse)?;
+                sort_dynamic_values(&mut owned_list, reverse, dedup)?;
 
                 Ok(owned_list.into())
             }
             Err(borrowed_list) => {
                 let mut copy = borrowed_list.as_ref().clone();
 
-                sort_dynamic_values(&mut copy, reverse)?;
+                sort_dynamic_values(&mut copy, reverse, dedup)?;
 
                 Ok(copy.into())
             }

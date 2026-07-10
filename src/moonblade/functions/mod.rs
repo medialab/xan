@@ -271,7 +271,11 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "slice" => (sequences::slice, FunctionArguments::with_range(2..=3)),
         "sort" => (
             sequences::sort,
-            FunctionArguments::complex(vec![Argument::Positional, Argument::with_name("reverse")]),
+            FunctionArguments::complex(vec![
+                Argument::Positional,
+                Argument::with_name("reverse"),
+                Argument::with_name("dedup"),
+            ]),
         ),
         "soundex" => (
             |args| ops::abstract_unary_string_fn(args, |string| Cow::Owned(soundex(string))),
