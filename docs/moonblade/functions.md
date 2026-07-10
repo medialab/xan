@@ -208,6 +208,7 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **all**(*list*, *lambda*) -> `bool`: Returns whether the given lambda returned true for all elements of the list.<br>For instance: `all(names, name.startswith('A'))`
 - **any**(*list*, *lambda*) -> `bool`: Returns whether the given lambda returned true for any element of the list.<br>For instance: `any(names, name.startswith('A'))`
 - **compact**(*list*) -> `list`: Drop all falsey values from given list.
+- **dedup**(*list*) -> `list`: Deduplicate given list, keeping deduplicated items in original order.
 - **flatten**(*list*) -> `list`: Flatten a nested list.
 - **filter**(*list*, *lambda*) -> `list`: Return a list containing only elements for which given lambda returned true.<br>For instance: `filter(names, name => name.startswith('A'))`
 - **find**(*list*, *lambda*) -> `any?`: Return the first item of a list for which given lambda returned true.<br>For instance: `find(names, name => name.startswith('A'))`

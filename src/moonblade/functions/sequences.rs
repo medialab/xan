@@ -389,6 +389,30 @@ fn sort_dynamic_values(
     }
 }
 
+fn argsort_dynamic_values(list: &[DynamicValue]) -> Result<Vec<usize>, EvaluationError> {
+    let mut indices = (0..list.len()).collect::<Vec<_>>();
+    let mut errored = false;
+
+    indices.sort_by(|a, b| match list[*a].partial_cmp(&list[*b]) {
+        None => {
+            errored = true;
+            Ordering::Equal
+        }
+        Some(ordering) => ordering,
+    });
+
+    if errored {
+        Err(EvaluationError::Custom(
+                    "could not sort given list because it either contained mixed types (e.g. numbers & strings) or non-comparable types (regex, span etc.)".to_string(),
+                ))
+    } else {
+        indices.dedup_by(|a, b| list[*a].eq(&list[*b]));
+        indices.sort();
+
+        Ok(indices)
+    }
+}
+
 pub fn sort(mut args: BoundArguments) -> FunctionResult {
     let (target_arg, reverse_arg, dedup_arg) = args.pop3();
 
@@ -417,6 +441,33 @@ pub fn sort(mut args: BoundArguments) -> FunctionResult {
                 Ok(copy.into())
             }
         },
+        arg => Err(EvaluationError::Cast {
+            from_value: arg.into_owned(),
+            to_type: "list".to_string(),
+        }),
+    }
+}
+
+pub fn dedup(mut args: BoundArguments) -> FunctionResult {
+    match args.pop1() {
+        BoundArgument::Borrowed(DynamicValue::List(list)) => {
+            let indices = argsort_dynamic_values(list)?;
+
+            Ok(indices
+                .into_iter()
+                .map(|i| list.as_ref()[i].clone())
+                .collect::<Vec<_>>()
+                .into())
+        }
+        BoundArgument::Owned(DynamicValue::List(list)) => {
+            let indices = argsort_dynamic_values(&list)?;
+
+            Ok(indices
+                .into_iter()
+                .map(|i| list.as_ref()[i].clone())
+                .collect::<Vec<_>>()
+                .into())
+        }
         arg => Err(EvaluationError::Cast {
             from_value: arg.into_owned(),
             to_type: "list".to_string(),

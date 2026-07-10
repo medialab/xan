@@ -15,7 +15,7 @@
 * Adding `xan from -f=(json|ndjson) --model`.
 * Adding `xan cat rows -I/--intersection & -U/--union`.
 * Adding `xan top -g -S/--sorted`.
-* Adding the `sort`, `flatten` & `flat_map` moonblade function.
+* Adding the `sort`, `dedup`, `flatten` & `flat_map` moonblade function.
 * Adding support for `list` & `map` columns when using `xan from -f=parquet`.
 
 *Fixes*

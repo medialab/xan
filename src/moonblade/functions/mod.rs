@@ -110,6 +110,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "count" => (strings::count, FunctionArguments::binary()),
         "date" => (temporal::date, FunctionArguments::with_range(1..=2)),
         "datetime" => (temporal::datetime, FunctionArguments::with_range(1..=2)),
+        "dedup" => (sequences::dedup, FunctionArguments::unary()),
         "dirname" => (io::dirname, FunctionArguments::unary()),
         "div" => (
             |args| ops::variadic_arithmetic_op(args, Div::div),

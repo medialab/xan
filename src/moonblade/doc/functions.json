@@ -444,6 +444,12 @@
         "help": "Drop all falsey values from given list."
       },
       {
+        "name": "dedup",
+        "arguments": ["list"],
+        "returns": "list",
+        "help": "Deduplicate given list, keeping deduplicated items in original order."
+      },
+      {
         "name": "flatten",
         "arguments": ["list"],
         "returns": "list",
