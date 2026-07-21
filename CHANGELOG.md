@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.60.1 (provisional)
+
+*Fixes*
+
+* Fixing `xan rename` with non-comma delimiters.
+
 ## 0.60.0
 
 *Breaking*

@@ -119,6 +119,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut peeker = rconfig.simd_peeker()?;
     let mut wtr_builder = wconfig.simd_csv_writer_builder();
     wtr_builder.crlf_newlines(peeker.has_crlf_newlines()?);
+    wtr_builder.delimiter(rconfig.delimiter);
     let mut wtr = wtr_builder.from_writer(wconfig.io_writer()?);
 
     if args.flag_no_headers {
