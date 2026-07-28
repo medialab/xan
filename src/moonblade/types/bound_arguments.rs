@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::fmt;
 
 use arrayvec::ArrayVec;
 use url::Url;
@@ -22,11 +23,20 @@ pub enum BoundStringLike<'a> {
     Bytes(&'a [u8]),
 }
 
-#[derive(Debug)]
 pub enum BoundArgument<'a> {
     Owned(DynamicValue),
     Borrowed(&'a DynamicValue),
     Cell(&'a [u8]),
+}
+
+impl fmt::Debug for BoundArgument<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Owned(v) => v.fmt(f),
+            Self::Borrowed(v) => v.fmt(f),
+            Self::Cell(c) => bstr::BStr::new(c).fmt(f),
+        }
+    }
 }
 
 impl BoundArgument<'_> {

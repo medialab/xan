@@ -6,6 +6,10 @@
 
 * Fixing `xan rename` with non-comma delimiters.
 
+*Quality of Life*
+
+* Better moonblade error messages when values are not yet materialized.
+
 ## 0.60.0
 
 *Breaking*
