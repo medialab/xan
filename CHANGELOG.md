@@ -9,6 +9,7 @@
 *Quality of Life*
 
 * Better moonblade error messages when values are not yet materialized.
+* Better `xan count -H/--human-readable`.
 
 ## 0.60.0
 

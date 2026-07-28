@@ -115,16 +115,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut writer = wconf.io_writer()?;
 
     if args.flag_human_readable {
-        let mut si_formatter = Formatter::default()
-            .scales(Scales::short())
-            .precision(Precision::Decimals(1));
+        if count < 10_000 {
+            writeln!(writer, "{}", util::format_number(count),)?;
+        } else {
+            let mut si_formatter = Formatter::default()
+                .scales(Scales::short())
+                .precision(Precision::Decimals(1));
 
-        writeln!(
-            writer,
-            "{} ({})",
-            util::format_number(count),
-            si_formatter.fmt2(count).replace(".0", "")
-        )?;
+            writeln!(
+                writer,
+                "{} ({})",
+                util::format_number(count),
+                si_formatter.fmt2(count).replace(".0", "")
+            )?;
+        }
     } else {
         writeln!(writer, "{}", count)?;
     }
