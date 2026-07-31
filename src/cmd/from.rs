@@ -698,6 +698,8 @@ impl Args {
                     Field::Float(f) => output_record.fmt_field(f),
                     Field::Float16(f) => output_record.fmt_field(f),
                     Field::Double(f) => output_record.fmt_field(f),
+                    Field::TimestampMicros(f) => output_record.fmt_field(f),
+                    Field::TimestampMillis(f) => output_record.fmt_field(f),
                     Field::ListInternal(_) | Field::MapInternal(_) => {
                         output_record.write_field(|view| {
                             serde_json::to_writer(view, &value.to_json_value()).unwrap();

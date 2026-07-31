@@ -5,6 +5,7 @@
 *Fixes*
 
 * Fixing `xan rename` with non-comma delimiters.
+* Fixing `xan from -f=parquet` not converting timestamp columns.
 
 *Quality of Life*
 
