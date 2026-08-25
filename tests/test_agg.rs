@@ -25,6 +25,13 @@ fn agg() {
     test_single_agg_function(&wrk, "sum(n) as sum", "sum", "10");
     test_single_agg_function(&wrk, "mean(n) as mean", "mean", "2.5");
     test_single_agg_function(&wrk, "avg(n) as mean", "mean", "2.5");
+    test_single_agg_function(
+        &wrk,
+        "geomean(n) as geomean",
+        "geomean",
+        "2.2133638394006434",
+    );
+    test_single_agg_function(&wrk, "harmean(n) as harmean", "harmean", "1.92");
     test_single_agg_function(&wrk, "min(n) as min", "min", "1");
     test_single_agg_function(&wrk, "max(n) as max", "max", "4");
     test_single_agg_function(&wrk, "median(n) as median", "median", "2.5");

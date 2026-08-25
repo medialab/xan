@@ -8,8 +8,8 @@ use simd_csv::ByteRecord;
 
 use super::aggregators::{
     AllAny, ApproxCardinality, ApproxQuantiles, ArgExtent, ArgTop, Count, CovarianceWelford, First,
-    Frequencies, Last, LexicographicExtent, MedianType, Numbers, NumericExtent, RMSWelford, Sum,
-    TemporalExtent, Type, Types, Values, Welford,
+    Frequencies, GeometricMeanWelford, HarmonicMeanWelford, Last, LexicographicExtent, MedianType,
+    Numbers, NumericExtent, RMSWelford, Sum, TemporalExtent, Type, Types, Values, Welford,
 };
 use crate::collections::{ClusteredInsertHashmap, IndexMap, new_index_map};
 use crate::moonblade::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
@@ -33,6 +33,8 @@ enum Aggregator {
     Values(Values),
     LexicographicExtent(LexicographicExtent),
     Frequencies(Box<Frequencies>),
+    GeometricMeanWelford(GeometricMeanWelford),
+    HarmonicMeanWelford(HarmonicMeanWelford),
     Numbers(Numbers),
     RMSWelford(RMSWelford),
     Sum(Sum),
@@ -59,6 +61,8 @@ impl Aggregator {
             Values(inner) => inner.clear(),
             LexicographicExtent(inner) => inner.clear(),
             Frequencies(inner) => inner.clear(),
+            GeometricMeanWelford(inner) => inner.clear(),
+            HarmonicMeanWelford(inner) => inner.clear(),
             Numbers(inner) => inner.clear(),
             RMSWelford(inner) => inner.clear(),
             Sum(inner) => inner.clear(),
@@ -87,6 +91,12 @@ impl Aggregator {
                 inner.merge(other_inner)
             }
             (Frequencies(inner), Frequencies(other_inner)) => inner.merge(*other_inner),
+            (GeometricMeanWelford(inner), GeometricMeanWelford(other_inner)) => {
+                inner.merge(other_inner)
+            }
+            (HarmonicMeanWelford(inner), HarmonicMeanWelford(other_inner)) => {
+                inner.merge(other_inner)
+            }
             (Numbers(inner), Numbers(other_inner)) => inner.merge(other_inner),
             (RMSWelford(inner), RMSWelford(other_inner)) => inner.merge(other_inner),
             (Sum(inner), Sum(other_inner)) => inner.merge(other_inner),
@@ -295,6 +305,12 @@ impl Aggregator {
                 ConcreteAggregationMethod::MostCommonValues(k, separator),
                 Self::Frequencies(inner),
             ) => DynamicValue::from(inner.most_common(*k).join(separator)),
+            (ConcreteAggregationMethod::GeometricMean, Self::GeometricMeanWelford(inner)) => {
+                DynamicValue::from(inner.geometric_mean())
+            }
+            (ConcreteAggregationMethod::HarmonicMean, Self::HarmonicMeanWelford(inner)) => {
+                DynamicValue::from(inner.harmonic_mean())
+            }
             (ConcreteAggregationMethod::Rms, Self::RMSWelford(inner)) => {
                 DynamicValue::from(inner.rms())
             }
@@ -507,6 +523,12 @@ impl CompositeAggregator {
             | ConcreteAggregationMethod::MostCommonValues(_, _) => {
                 upsert_boxed_aggregator!(Frequencies)
             }
+            ConcreteAggregationMethod::GeometricMean => {
+                upsert_aggregator!(GeometricMeanWelford)
+            }
+            ConcreteAggregationMethod::HarmonicMean => {
+                upsert_aggregator!(HarmonicMeanWelford)
+            }
             ConcreteAggregationMethod::Rms => {
                 upsert_aggregator!(RMSWelford)
             }
@@ -601,6 +623,16 @@ impl CompositeAggregator {
                     Aggregator::Numbers(numbers) => {
                         if !value.is_nullish() {
                             numbers.add(value.try_as_number()?);
+                        }
+                    }
+                    Aggregator::GeometricMeanWelford(inner) => {
+                        if !value.is_nullish() {
+                            inner.add(value.try_as_f64()?);
+                        }
+                    }
+                    Aggregator::HarmonicMeanWelford(inner) => {
+                        if !value.is_nullish() {
+                            inner.add(value.try_as_f64()?);
                         }
                     }
                     Aggregator::RMSWelford(inner) => {
@@ -812,6 +844,8 @@ fn get_function_arguments_parser(name: &str) -> Option<(FunctionArguments, Argum
         "min" => (FunctionArguments::unary(), |_| Ok(Min)),
         "max" => (FunctionArguments::unary(), |_| Ok(Max)),
         "avg" | "mean" => (FunctionArguments::unary(), |_| Ok(Mean)),
+        "geomean" => (FunctionArguments::unary(), |_| Ok(GeometricMean)),
+        "harmean" => (FunctionArguments::unary(), |_| Ok(HarmonicMean)),
         "median" => (FunctionArguments::unary(), |_| {
             Ok(Median(MedianType::Interpolation))
         }),
@@ -915,6 +949,8 @@ enum ConcreteAggregationMethod {
     Min,
     Max,
     Mean,
+    GeometricMean,
+    HarmonicMean,
     Median(MedianType),
     Mode,
     Modes(String),

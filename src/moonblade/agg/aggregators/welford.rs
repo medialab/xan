@@ -146,6 +146,62 @@ impl RMSWelford {
     }
 }
 
+// NOTE: geometric mean is computed as the exponential of the mean of the
+// logarithms, which stays numerically stable and lets us reuse Welford's
+// mergeable accumulator. Only defined for strictly positive numbers.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct GeometricMeanWelford(Welford);
+
+impl GeometricMeanWelford {
+    pub fn new() -> Self {
+        Self(Welford::new())
+    }
+
+    pub fn clear(&mut self) {
+        self.0.clear();
+    }
+
+    pub fn add(&mut self, value: f64) {
+        self.0.add(value.ln());
+    }
+
+    pub fn geometric_mean(&self) -> Option<f64> {
+        self.0.mean().map(|m| m.exp())
+    }
+
+    pub fn merge(&mut self, other: Self) {
+        self.0.merge(other.0);
+    }
+}
+
+// NOTE: harmonic mean is the reciprocal of the mean of the reciprocals, which
+// once again lets us lean on Welford's mergeable accumulator. Only defined for
+// strictly positive numbers.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct HarmonicMeanWelford(Welford);
+
+impl HarmonicMeanWelford {
+    pub fn new() -> Self {
+        Self(Welford::new())
+    }
+
+    pub fn clear(&mut self) {
+        self.0.clear();
+    }
+
+    pub fn add(&mut self, value: f64) {
+        self.0.add(value.recip());
+    }
+
+    pub fn harmonic_mean(&self) -> Option<f64> {
+        self.0.mean().map(|m| m.recip())
+    }
+
+    pub fn merge(&mut self, other: Self) {
+        self.0.merge(other.0);
+    }
+}
+
 // NOTE: https://stackoverflow.com/questions/45773857/merging-covariance-from-two-sets-to-create-new-covariance
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct CovarianceWelford {
@@ -275,6 +331,72 @@ impl CovarianceWelford {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn assert_close(got: Option<f64>, expected: f64) {
+        let got = got.expect("expected a value");
+        assert!(
+            (got - expected).abs() < 1e-12,
+            "got {}, expected {}",
+            got,
+            expected
+        );
+    }
+
+    #[test]
+    fn test_geometric_mean() {
+        let mut agg = GeometricMeanWelford::new();
+        assert_eq!(agg.geometric_mean(), None);
+
+        // geomean([1, 2, 4]) == cbrt(8) == 2
+        for x in [1.0, 2.0, 4.0] {
+            agg.add(x);
+        }
+        assert_close(agg.geometric_mean(), 2.0);
+
+        // Merging two halves must match the whole
+        let mut left = GeometricMeanWelford::new();
+        let mut right = GeometricMeanWelford::new();
+        let mut whole = GeometricMeanWelford::new();
+
+        for x in [3.0, 9.0] {
+            left.add(x);
+            whole.add(x);
+        }
+        for x in [27.0, 81.0] {
+            right.add(x);
+            whole.add(x);
+        }
+        left.merge(right);
+        assert_close(left.geometric_mean(), whole.geometric_mean().unwrap());
+    }
+
+    #[test]
+    fn test_harmonic_mean() {
+        let mut agg = HarmonicMeanWelford::new();
+        assert_eq!(agg.harmonic_mean(), None);
+
+        // harmean([1, 2, 4]) == 3 / (1 + 0.5 + 0.25) == 12/7
+        for x in [1.0, 2.0, 4.0] {
+            agg.add(x);
+        }
+        assert_close(agg.harmonic_mean(), 12.0 / 7.0);
+
+        // Merging two halves must match the whole
+        let mut left = HarmonicMeanWelford::new();
+        let mut right = HarmonicMeanWelford::new();
+        let mut whole = HarmonicMeanWelford::new();
+
+        for x in [2.0, 5.0] {
+            left.add(x);
+            whole.add(x);
+        }
+        for x in [8.0, 11.0] {
+            right.add(x);
+            whole.add(x);
+        }
+        left.merge(right);
+        assert_close(left.harmonic_mean(), whole.harmonic_mean().unwrap());
+    }
 
     #[test]
     fn test_welford_add_n() {
