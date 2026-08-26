@@ -44,8 +44,8 @@ the number of nodes in a graph represented by a CSV edge list.
 - **min**(*\<expr\>*) -> `number`: Minimum numerical value.
 - **max**(*\<expr\>*) -> `number`: Maximum numerical value.
 - **mean**(*\<expr\>*) -> `number`: Mean of numerical values. Same as `avg`.
-- **geomean**(*\<expr\>*) -> `number`: Geometric mean of numerical values. Only defined for positive numbers.
-- **harmean**(*\<expr\>*) -> `number`: Harmonic mean of numerical values. Only defined for positive numbers.
+- **geometric_mean**(*\<expr\>*) -> `number`: Geometric mean of numerical values. Only defined for positive numbers.
+- **harmonic_mean**(*\<expr\>*) -> `number`: Harmonic mean of numerical values. Only defined for positive numbers.
 - **median**(*\<expr\>*) -> `number`: Median of numerical values, interpolating on even counts.
 - **median_high**(*\<expr\>*) -> `number`: Median of numerical values, returning higher value on even counts.
 - **median_low**(*\<expr\>*) -> `number`: Median of numerical values, returning lower value on even counts.

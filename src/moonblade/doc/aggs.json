@@ -180,13 +180,13 @@
     "help": "Mean of numerical values. Same as `avg`."
   },
   {
-    "name": "geomean",
+    "name": "geometric_mean",
     "arguments": ["<expr>"],
     "returns": "number",
     "help": "Geometric mean of numerical values. Only defined for positive numbers."
   },
   {
-    "name": "harmean",
+    "name": "harmonic_mean",
     "arguments": ["<expr>"],
     "returns": "number",
     "help": "Harmonic mean of numerical values. Only defined for positive numbers."

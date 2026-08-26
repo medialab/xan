@@ -844,8 +844,8 @@ fn get_function_arguments_parser(name: &str) -> Option<(FunctionArguments, Argum
         "min" => (FunctionArguments::unary(), |_| Ok(Min)),
         "max" => (FunctionArguments::unary(), |_| Ok(Max)),
         "avg" | "mean" => (FunctionArguments::unary(), |_| Ok(Mean)),
-        "geomean" => (FunctionArguments::unary(), |_| Ok(GeometricMean)),
-        "harmean" => (FunctionArguments::unary(), |_| Ok(HarmonicMean)),
+        "geometric_mean" => (FunctionArguments::unary(), |_| Ok(GeometricMean)),
+        "harmonic_mean" => (FunctionArguments::unary(), |_| Ok(HarmonicMean)),
         "median" => (FunctionArguments::unary(), |_| {
             Ok(Median(MedianType::Interpolation))
         }),
