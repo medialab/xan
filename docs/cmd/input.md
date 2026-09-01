@@ -65,6 +65,9 @@ CSV-adjacent data format options:
            file from web archives. This is not needed when using xan on a file
            with `.cdx` extension because xan already knows how to handle them.
            https://iipc.github.io/warc-specifications/specifications/cdx-format/cdx-2015/
+    --mtx  Indicate that the given stream should be understood as a MTX (Matrix Market)
+           file. This is not needed when using xan on a file with `.mtx` extension because
+           xan already knows how to handle them.
 
 compression options:
     --gzip  Read a gzip-compressed stream or gzip-compressed file without the

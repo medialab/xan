@@ -69,6 +69,9 @@ CSV-adjacent data format options:
            file from web archives. This is not needed when using xan on a file
            with `.cdx` extension because xan already knows how to handle them.
            https://iipc.github.io/warc-specifications/specifications/cdx-format/cdx-2015/
+    --mtx  Indicate that the given stream should be understood as a MTX (Matrix Market)
+           file. This is not needed when using xan on a file with `.mtx` extension because
+           xan already knows how to handle them.
 
 compression options:
     --gzip  Read a gzip-compressed stream or gzip-compressed file without the
@@ -106,6 +109,7 @@ struct Args {
     flag_sam: bool,
     flag_bed: bool,
     flag_cdx: bool,
+    flag_mtx: bool,
 }
 
 impl Args {
@@ -147,10 +151,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         + args.flag_gff as u8
         + args.flag_sam as u8
         + args.flag_bed as u8
-        + args.flag_cdx as u8;
+        + args.flag_cdx as u8
+        + args.flag_mtx as u8;
 
     if formats > 1 {
-        Err("can only select one of --vcf, --gtf, -gff, --bed, --sam & --cdx!")?;
+        Err("can only select one of --vcf, --gtf, -gff, --bed, --sam, --cdx & --mtx!")?;
     }
 
     if args.flag_gzip && args.flag_zstd {
@@ -175,6 +180,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Some("file.bed")
     } else if args.flag_cdx {
         Some("file.cdx")
+    } else if args.flag_mtx {
+        Some("file.mtx")
     } else {
         None
     };

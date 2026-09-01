@@ -747,6 +747,7 @@ In addition, all commands expose a `-o/--output` flag that can be use to specify
 - `.gtf` & `.gff2` files ([Gene Transfert Format](https://en.wikipedia.org/wiki/Gene_transfer_format)) from bioinformatics are supported out of the box. They will be stripped of their header data and considered as headless & tab-delimited.
 - `.sam` files ([Sequence Alignment Map](https://en.wikipedia.org/wiki/SAM_(file_format))) from bioinformatics are supported out of the box. They will be stripped of their header data and considered as headless & tab-delimited.
 - `.bed` files ([Browser Extensible Data](https://en.wikipedia.org/wiki/BED_(file_format))) from bioinformatics are supported out of the box. They will be stripped of their header data and considered as headless & tab-delimited.
+- `.mtx` files ([Matrix Market Exchange format](https://math.nist.gov/MatrixMarket/formats.html)). They must be well formed and don't contain leading nor trailing whitespace. They will be stripped of their header & comments and considered as headless and space-delimited.
 
 Note that more exotic delimiters can always be handled using the ubiquitous `-d, --delimiter` flag.
 

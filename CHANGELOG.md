@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.60.1 (provisional)
+## 0.61.0 (provisional)
+
+*Features*
+
+* Support for `.mtx` (Matrix Market) files.
 
 *Fixes*
 

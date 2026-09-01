@@ -10,6 +10,7 @@ target
 *.cdx
 *.xan
 *.idx
+*.mtx
 *.npy
 *.ndjson
 *.jsonl
