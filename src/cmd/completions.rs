@@ -5,7 +5,7 @@ static USAGE: &str = "
 Print script parts necessary to activate xan completions, tailored
 to your current shell.
 
-Only support `bash` and `zsh` for now.
+Only support `bash`, `zsh` and `fish` for now.
 
 For `bash`, run:
     $ xan completions bash >> ~/.bashrc
@@ -23,12 +23,15 @@ Then add this before compinit in ~/.zshrc:
     autoload -Uz compinit
     compinit
 
+For `fish`, run:
+    $ xan completions fish > ~/.config/fish/completions/xan.fish
+
 You will need to reload your shell or source your main shell
 configuration file (`source ~/.bashrc` for bash, for instance) for
 the completions to be activated (this is only required once).
 
 Usage:
-    xan completions (bash | zsh)
+    xan completions (bash | zsh | fish)
     xan completions --help
 
 Common options:
@@ -65,10 +68,35 @@ else
 fi
 "#;
 
+static FISH_COMPLETE_FUNCTION: &str = r#"# Xan completions
+function __xan_compgen
+    set -l tokens (commandline -opc)
+    set -l current (commandline -ct)
+
+    # The word before the cursor is what selects the completion mode. It is
+    # the right one for the flags taking a column selector, but on
+    # `xan select file.csv <TAB>` it is the file name rather than the
+    # subcommand, so fall back to the subcommand when it matches nothing.
+    set -l previous $tokens[-1]
+
+    if not contains -- $previous -s --select -g --groupby
+        and set -q tokens[2]
+        and test "$previous" != "$tokens[2]"
+        set previous $tokens[2]
+    end
+
+    COMP_LINE="$tokens $current" xan compgen $tokens[1] "$current" "$previous"
+end
+
+# No -f, so that fish still completes file names when xan returns nothing.
+complete -c xan -a '(__xan_compgen)'
+"#;
+
 #[derive(Deserialize)]
 struct Args {
     cmd_bash: bool,
     cmd_zsh: bool,
+    cmd_fish: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -78,6 +106,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         println!("{}", BASH_COMPLETE_FUNCTION.trim_end());
     } else if args.cmd_zsh {
         println!("{}", ZSH_COMPLETE_FUNCTION.trim_end());
+    } else if args.cmd_fish {
+        println!("{}", FISH_COMPLETE_FUNCTION.trim_end());
     }
 
     Ok(())

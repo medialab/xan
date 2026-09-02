@@ -201,6 +201,12 @@ autoload -Uz compinit
 compinit
 ```
 
+For `fish`, you can add the completion file to your completions directory, where it will be autoloaded:
+
+```bash
+xan completions fish > ~/.config/fish/completions/xan.fish
+```
+
 ## Quick tour
 
 Let's learn about the most commonly used `xan` commands by exploring a corpus of French medias:

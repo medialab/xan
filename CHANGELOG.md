@@ -5,6 +5,7 @@
 *Features*
 
 * Support for `.mtx` (Matrix Market) files.
+* Added `xan completions fish`.
 
 *Fixes*
 
