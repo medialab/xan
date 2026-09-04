@@ -24,4 +24,6 @@ pub use sum::Sum;
 pub use temporal::TemporalExtent;
 pub use types::{Type, Types};
 pub use values::Values;
-pub use welford::{CovarianceWelford, RMSWelford, Welford};
+pub use welford::{
+    CovarianceWelford, GeometricMeanWelford, HarmonicMeanWelford, RMSWelford, Welford,
+};
