@@ -12,6 +12,10 @@
 * Fixing `xan rename` with non-comma delimiters.
 * Fixing `xan from -f=parquet` not converting timestamp columns.
 
+*Performance*
+
+* Improving performance of `xan freq` & `xan p freq`.
+
 *Quality of Life*
 
 * Better moonblade error messages when values are not yet materialized.

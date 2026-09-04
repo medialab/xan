@@ -56,13 +56,15 @@ impl<K: Eq + Hash + Send + Ord> ExactCounter<K> {
     }
 
     pub fn into_total_and_top(self, k: usize, parallel: bool) -> (u64, Vec<(K, u64)>) {
-        if k < (self.map.len() as f64 / 2.0).floor() as usize {
+        // If k represents more than half of the values, we sort
+        if k > (self.map.len() as f64 / 2.0).floor() as usize {
             let (total, mut items) = self.into_total_and_sorted_vec(parallel);
             items.truncate(k);
 
             return (total, items);
         }
 
+        // Else, we use a heap
         let mut heap: TopKHeap<(u64, Reverse<K>)> = TopKHeap::with_capacity(k);
         let mut total: u64 = 0;
 
