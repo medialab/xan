@@ -317,26 +317,26 @@ webentity_id                      2
 ### Searching for rows
 
 ```bash
-xan search -s outreach internationale medias.csv | xan view
+xan search -s outreach internationale medias.csv | xan view -s name,outreach
 ```
 
 ```
-Displaying 4/20 cols from 10 first rows of <stdin>
-┌───┬──────────────┬────────────────────┬───┬─────────────┬──────────┐
-│ - │ webentity_id │ name               │ … │ has_paywall │ inactive │
-├───┼──────────────┼────────────────────┼───┼─────────────┼──────────┤
-│ 0 │ 25           │ Businessinsider.fr │ … │ false       │ <empty>  │
-│ 1 │ 59           │ Europe-Israel.org  │ … │ false       │ <empty>  │
-│ 2 │ 66           │ France 24          │ … │ false       │ <empty>  │
-│ 3 │ 220          │ RFI                │ … │ false       │ <empty>  │
-│ 4 │ 231          │ fr.Sott.net        │ … │ false       │ <empty>  │
-│ 5 │ 246          │ Voltairenet.org    │ … │ true        │ <empty>  │
-│ 6 │ 254          │ Afp.com /fr        │ … │ false       │ <empty>  │
-│ 7 │ 265          │ Euronews FR        │ … │ false       │ <empty>  │
-│ 8 │ 333          │ Arte.tv            │ … │ false       │ <empty>  │
-│ 9 │ 341          │ I24News.tv         │ … │ false       │ <empty>  │
-│ … │ …            │ …                  │ … │ …           │ …        │
-└───┴──────────────┴────────────────────┴───┴─────────────┴──────────┘
+Displaying 2 cols from 10 first rows of <stdin>
+┌───┬────────────────────┬────────────────┐
+│ - │ name               │ outreach       │
+├───┼────────────────────┼────────────────┤
+│ 0 │ Businessinsider.fr │ internationale │
+│ 1 │ Europe-Israel.org  │ internationale │
+│ 2 │ France 24          │ internationale │
+│ 3 │ RFI                │ internationale │
+│ 4 │ fr.Sott.net        │ internationale │
+│ 5 │ Voltairenet.org    │ internationale │
+│ 6 │ Afp.com /fr        │ internationale │
+│ 7 │ Euronews FR        │ internationale │
+│ 8 │ Arte.tv            │ internationale │
+│ 9 │ I24News.tv         │ internationale │
+│ … │ …                  │ …              │
+└───┴────────────────────┴────────────────┘
 ```
 
 ### Selecting some columns
