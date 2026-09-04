@@ -627,12 +627,30 @@ impl CompositeAggregator {
                     }
                     Aggregator::GeometricMeanWelford(inner) => {
                         if !value.is_nullish() {
-                            inner.add(value.try_as_f64()?);
+                            let n = value.try_as_f64()?;
+
+                            if n <= 0.0 {
+                                Err(format!(
+                                    "geometric_mean only accepts numbers > 0 but got {}",
+                                    n
+                                ))?;
+                            }
+
+                            inner.add(n);
                         }
                     }
                     Aggregator::HarmonicMeanWelford(inner) => {
                         if !value.is_nullish() {
-                            inner.add(value.try_as_f64()?);
+                            let n = value.try_as_f64()?;
+
+                            if n <= 0.0 {
+                                Err(format!(
+                                    "harmonic_mean only accepts numbers > 0 but got {}",
+                                    n
+                                ))?;
+                            }
+
+                            inner.add(n);
                         }
                     }
                     Aggregator::RMSWelford(inner) => {

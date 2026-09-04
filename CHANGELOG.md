@@ -5,6 +5,7 @@
 *Features*
 
 * Support for `.mtx` (Matrix Market) files.
+* Adding `geometric_mean` & `harmonic_mean` aggregation functions.
 
 *Fixes*
 

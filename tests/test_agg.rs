@@ -31,7 +31,12 @@ fn agg() {
         "geometric_mean",
         "2.2133638394006434",
     );
-    test_single_agg_function(&wrk, "harmonic_mean(n) as harmonic_mean", "harmonic_mean", "1.92");
+    test_single_agg_function(
+        &wrk,
+        "harmonic_mean(n) as harmonic_mean",
+        "harmonic_mean",
+        "1.92",
+    );
     test_single_agg_function(&wrk, "min(n) as min", "min", "1");
     test_single_agg_function(&wrk, "max(n) as max", "max", "4");
     test_single_agg_function(&wrk, "median(n) as median", "median", "2.5");
