@@ -1087,6 +1087,16 @@ mod tests {
             eval_code("slice('abcde', 10, -20)"),
             Ok(DynamicValue::from(""))
         );
+        assert_eq!(
+            eval_code("range(10)[5:]"),
+            Ok(DynamicValue::from(vec![
+                DynamicValue::Integer(5),
+                DynamicValue::Integer(6),
+                DynamicValue::Integer(7),
+                DynamicValue::Integer(8),
+                DynamicValue::Integer(9)
+            ]))
+        )
     }
 
     #[test]

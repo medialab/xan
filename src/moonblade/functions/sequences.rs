@@ -1,4 +1,4 @@
-use std::cmp::{Ordering, max};
+use std::cmp::Ordering;
 use std::sync::Arc;
 
 use crate::moonblade::error::EvaluationError;
@@ -132,104 +132,45 @@ pub fn last(mut args: BoundArguments) -> FunctionResult {
 
 pub fn slice(args: BoundArguments) -> FunctionResult {
     let target = args.get(0).unwrap();
+    let start = args.get(1).unwrap().try_as_i64()?;
+    let end = args.get(2).map(|v| v.try_as_i64()).transpose()?;
+
+    fn normalize_index(index: i64, len: usize) -> usize {
+        let len = len as i64;
+
+        if index < 0 {
+            (len + index).max(0) as usize
+        } else {
+            index.min(len) as usize
+        }
+    }
 
     if let Some(list) = target.as_list() {
-        let mut lo = args.get(1).unwrap().try_as_i64()?;
-        let opt_hi = args.get(2);
+        let len = list.len();
 
-        let sublist: Vec<DynamicValue> = match opt_hi {
-            None => {
-                if lo < 0 {
-                    let l = list.len();
-                    lo = max(0, l as i64 + lo);
+        let start = normalize_index(start, len);
+        let end = end.map(|index| normalize_index(index, len)).unwrap_or(len);
 
-                    list[..lo as usize].to_vec()
-                } else if lo >= list.len() as i64 {
-                    Vec::new()
-                } else {
-                    list[..lo as usize].to_vec()
-                }
-            }
-            Some(hi_value) => {
-                let mut hi = hi_value.try_as_i64()?;
-
-                if lo >= list.len() as i64 {
-                    Vec::new()
-                } else if lo < 0 {
-                    let l = list.len();
-
-                    lo = max(0, l as i64 + lo);
-
-                    if hi < 0 {
-                        hi = max(0, l as i64 + hi);
-                    }
-
-                    if hi <= lo {
-                        Vec::new()
-                    } else {
-                        list[lo as usize..hi.min(list.len() as i64) as usize].to_vec()
-                    }
-                } else {
-                    if hi < 0 {
-                        let l = list.len();
-                        hi = max(0, l as i64 + hi);
-                    }
-
-                    if hi <= lo {
-                        Vec::new()
-                    } else {
-                        list[lo as usize..hi.min(list.len() as i64) as usize].to_vec()
-                    }
-                }
-            }
+        let sublist = if end <= start {
+            Vec::new()
+        } else {
+            list[start..end].to_vec()
         };
 
         return Ok(DynamicValue::from(sublist));
     }
 
     let string = target.try_as_str()?;
+    let chars: Vec<char> = string.chars().collect();
+    let len = chars.len();
 
-    let mut lo = args.get(1).unwrap().try_as_i64()?;
-    let opt_hi = args.get(2);
+    let start = normalize_index(start, len);
+    let end = end.map(|index| normalize_index(index, len)).unwrap_or(len);
 
-    let chars = string.chars();
-
-    let substring: String = match opt_hi {
-        None => {
-            if lo < 0 {
-                let l = string.chars().count();
-                lo = max(0, l as i64 + lo);
-
-                chars.skip(lo as usize).collect()
-            } else {
-                chars.skip(lo as usize).collect()
-            }
-        }
-        Some(hi_value) => {
-            let mut hi = hi_value.try_as_i64()?;
-
-            if lo < 0 {
-                let l = string.chars().count();
-                lo = max(0, l as i64 + lo);
-
-                if hi < 0 {
-                    hi = max(0, l as i64 + hi);
-                }
-
-                if hi <= lo {
-                    "".to_string()
-                } else {
-                    chars.skip(lo as usize).take((hi - lo) as usize).collect()
-                }
-            } else {
-                if hi < 0 {
-                    let l = string.chars().count();
-                    hi = max(0, l as i64 + hi);
-                }
-
-                chars.skip(lo as usize).take((hi - lo) as usize).collect()
-            }
-        }
+    let substring: String = if end <= start {
+        String::new()
+    } else {
+        chars[start..end].iter().collect()
     };
 
     Ok(DynamicValue::from(substring))

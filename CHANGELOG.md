@@ -11,6 +11,7 @@
 
 * Fixing `xan rename` with non-comma delimiters.
 * Fixing `xan from -f=parquet` not converting timestamp columns.
+* Fixing open-ended moonblade slicing.
 
 *Performance*
 

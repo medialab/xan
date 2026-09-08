@@ -377,6 +377,7 @@ impl BoundArgument<'_> {
 
 pub const BOUND_ARGUMENTS_CAPACITY: usize = 8;
 
+#[derive(Debug)]
 pub struct BoundArguments<'a> {
     stack: ArrayVec<BoundArgument<'a>, BOUND_ARGUMENTS_CAPACITY>,
 }
