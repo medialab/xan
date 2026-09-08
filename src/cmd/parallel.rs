@@ -744,7 +744,9 @@ impl Args {
     }
 
     fn has_preprocessing(&self) -> bool {
-        self.flag_preprocess.is_some() || self.flag_shell_preprocess.is_some()
+        self.flag_preprocess.is_some()
+            || self.flag_shell_preprocess.is_some()
+            || self.flag_run.is_some()
     }
 
     pub fn single_file(path: &Option<String>, threads: Option<NonZeroUsize>) -> CliResult<Self> {
@@ -1175,7 +1177,7 @@ impl Args {
     fn cat(self, inputs: Vec<Input>) -> CliResult<()> {
         if !self.has_preprocessing() {
             Err(
-                "`xan parallel cat` without -P/--preprocess or -H/--shell-preprocess is counterproductive!\n`xan cat rows` will be faster.",
+                "`xan parallel cat` without -P/--preprocess, -H/--shell-preprocess or -R/--run is counterproductive!\n`xan cat rows` will be faster.",
             )?
         }
 
@@ -1606,7 +1608,7 @@ impl Args {
     fn map(self, inputs: Vec<Input>) -> CliResult<()> {
         if !self.has_preprocessing() {
             Err(
-                "`xan parallel map` without -P/--preprocess or -H/--shell-preprocess is pointless ;).",
+                "`xan parallel map` without -P/--preprocess, -H/--shell-preprocess or -R/--run is pointless ;).",
             )?;
         }
 

@@ -12,6 +12,8 @@
 * Fixing `xan rename` with non-comma delimiters.
 * Fixing `xan from -f=parquet` not converting timestamp columns.
 * Fixing open-ended moonblade slicing.
+* Fixing `xan parallel (cat|map)` not working with `-R/--run`.
+* Fixing `xan parallel -R/--run` not spawning checker thread.
 
 *Performance*
 
