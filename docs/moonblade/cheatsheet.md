@@ -53,6 +53,10 @@ fmt("{} {}", first_name, last_name)
 split(mimetype, "/")[0]
 ```
 
+When testing membership against a list, `in` and `not in` use strict equality:
+both value and type must match. Cast string-typed cells explicitly when comparing
+against typed list literals, for instance `int(b) not in [1, 2, 3]`.
+
 A common pitfall is to forget that string operators are different than numerical
 ones, like in Perl. String equality is actually `eq`, not `==`, and string
 concatenation would be `++` not `+`. Read the design choices section if you
