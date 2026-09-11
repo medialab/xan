@@ -327,18 +327,23 @@ impl Args {
         let mut readers = self
             .paths()?
             .map(
-                |p| -> CliResult<simd_csv::Reader<Box<dyn io::Read + Send>>> {
-                    Config::new(&Some(p?))
-                        .delimiter(self.flag_delimiter)
-                        .no_headers(self.flag_no_headers)
-                        .simd_reader()
+                |r| -> CliResult<(String, simd_csv::Reader<Box<dyn io::Read + Send>>)> {
+                    let path = r?;
+
+                    Ok((
+                        path.clone(),
+                        Config::new(&Some(path))
+                            .delimiter(self.flag_delimiter)
+                            .no_headers(self.flag_no_headers)
+                            .simd_reader()?,
+                    ))
                 },
             )
             .collect::<Result<Vec<_>, _>>()?;
 
         let all_headers = readers
             .iter_mut()
-            .map(|reader| reader.byte_headers().cloned())
+            .map(|(_, reader)| reader.byte_headers().cloned())
             .collect::<Result<Vec<_>, _>>()?;
 
         let mut headers_index = new_index_set::<Vec<u8>>();
@@ -373,14 +378,28 @@ impl Args {
             })
             .collect::<Vec<_>>();
 
-        wtr.write_record(headers_index.iter())?;
+        if let Some(source_column_name) = &self.flag_source_column {
+            wtr.write_record(
+                [source_column_name.as_bytes()]
+                    .into_iter()
+                    .chain(headers_index.iter().map(|name| name.as_slice())),
+            )?;
+        } else {
+            wtr.write_record(headers_index.iter())?;
+        }
 
-        for (mask, reader) in masks.into_iter().zip(readers.iter_mut()) {
+        for (mask, (path, reader)) in masks.into_iter().zip(readers.iter_mut()) {
             while reader.read_byte_record(&mut record)? {
-                wtr.write_record(mask.iter().map(|i_opt| match i_opt {
+                let cells = mask.iter().map(|i_opt| match i_opt {
                     None => b"",
                     Some(i) => &record[*i],
-                }))?;
+                });
+
+                if self.flag_source_column.is_some() {
+                    wtr.write_record([path.as_bytes()].into_iter().chain(cells))?;
+                } else {
+                    wtr.write_record(cells)?;
+                }
             }
         }
 

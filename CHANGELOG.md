@@ -14,6 +14,7 @@
 * Fixing open-ended moonblade slicing.
 * Fixing `xan parallel (cat|map)` not working with `-R/--run`.
 * Fixing `xan parallel -R/--run` not spawning checker thread.
+* Fixing `xan cat rows (-I|-U) -S/--source-column`.
 
 *Performance*
 
