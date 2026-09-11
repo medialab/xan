@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.61.0 (provisional)
+## 0.61.0
 
 *Features*
 
