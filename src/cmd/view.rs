@@ -551,7 +551,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                             if let Some(fmt) = number_formatter.as_mut() {
                                 if let Ok(f) = cell.parse::<f64>() {
-                                    cell = util::format_number_with_formatter(fmt, f);
+                                    cell = util::format_number_with_formatter(fmt, f).to_string();
                                 }
                             }
 

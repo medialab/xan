@@ -375,20 +375,20 @@ thread_local! {
     );
 }
 
-pub fn format_number_with_formatter<T: Numeric>(formatter: &mut numfmt::Formatter, x: T) -> String {
-    let mut string = formatter.fmt2(x).to_string();
+pub fn format_number_with_formatter<T: Numeric>(formatter: &mut numfmt::Formatter, x: T) -> &str {
+    let formatted = formatter.fmt2(x);
 
-    if let Some(i) = string.find('.') {
-        if string[i + 1..].chars().all(|c| c == '0') {
-            string.truncate(i);
+    if let Some(i) = formatted.find('.') {
+        if formatted[i + 1..].as_bytes().iter().all(|b| *b == b'0') {
+            return &formatted[..i];
         }
     }
 
-    string
+    formatted
 }
 
 pub fn format_number<T: Numeric>(x: T) -> String {
-    NUMBER_FORMATTER.with_borrow_mut(|f| format_number_with_formatter(f, x))
+    NUMBER_FORMATTER.with_borrow_mut(|f| format_number_with_formatter(f, x).to_string())
 }
 
 pub fn could_be_url(string: &str) -> bool {

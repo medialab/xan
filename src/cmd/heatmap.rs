@@ -617,7 +617,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             let body = match formatter.as_mut() {
                                 Some(fmt) if i == midpoint => {
                                     let formatted = util::unicode_aware_ellipsis(
-                                        &util::format_number_with_formatter(
+                                        util::format_number_with_formatter(
                                             fmt,
                                             if args.flag_show_normalized {
                                                 percent_opt.unwrap()

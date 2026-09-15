@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.61.1 (provisional)
+
+*Performance*
+
+* Improving performance related to pretty-printing numbers.
+
 ## 0.61.0
 
 *Features*
