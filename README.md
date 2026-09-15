@@ -41,6 +41,7 @@ Finally, `xan` can be used to display CSV files in the terminal, for easy explor
   * [Arch Linux](#arch-linux)
   * [NetBSD](#netbsd)
   * [Nix](#nix)
+  * [Guix](#guix)
   * [Pixi](#pixi-linux-macos-windows)
   * [Conda Forge](#conda-forge)
   * [Pre-built binaries](#pre-built-binaries)
@@ -140,6 +141,13 @@ use `nix-shell` to enter an ephemeral shell.
 
 ```bash
 nix-shell -p xan
+```
+### Guix
+
+`xan` is packaged for [Guix](https://guix.gnu.org/). To install it run :
+
+```bash
+guix install xan
 ```
 
 ### Pixi (Linux, macOS, Windows)
