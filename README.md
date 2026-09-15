@@ -480,6 +480,14 @@ xan filter 'batch > 1' medias.csv | xan count
 130
 ```
 
+Note that the expression language distinguishes between arithmetic & string operators. Filtering on the `media` column which contains strings, for instance, you would rather use the `eq` operator than the `==` one that should be used for numbers:
+
+```bash
+xan filter 'edito eq "plateforme"'
+```
+
+This said, for this particular use-case you should often stick to `xan search` instead.
+
 To access the expression language's [cheatsheet](./docs/moonblade/cheatsheet.md), run `xan help cheatsheet`. To display the full list of available [functions](./docs/moonblade/functions.md), run `xan help functions`.
 
 ### Evaluating an expression to create a new column based on other ones
