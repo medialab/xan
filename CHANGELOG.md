@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.61.1 (provisional)
+## 0.62.0 (provisional)
+
+*Breaking*
+
+* Bumping MSRV to `1.88.0`.
 
 *Performance*
 
