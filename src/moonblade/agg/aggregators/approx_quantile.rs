@@ -50,7 +50,7 @@ impl ApproxQuantiles {
     }
 
     pub fn get(&self, q: f64) -> f64 {
-        self.digest.as_ref().unwrap().estimate_quantile(q)
+        self.digest.as_ref().unwrap().estimate_quantile(q).unwrap()
     }
 
     pub fn merge(&mut self, other: Self) {

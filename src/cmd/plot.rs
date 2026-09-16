@@ -956,7 +956,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     args.flag_grid,
                     args.flag_hide_x_axis,
                 );
-            })?;
+            });
         }
         Some(grid_cols) => {
             let grid_cols = grid_cols.get();
@@ -1094,7 +1094,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                         color_i += 1;
                     }
-                })?;
+                });
             }
         }
     }

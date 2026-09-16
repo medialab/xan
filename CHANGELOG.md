@@ -10,6 +10,7 @@
 *Performance*
 
 * Improving performance related to pretty-printing numbers.
+* Faster JSON parsing.
 
 ## 0.61.0
 

@@ -1,5 +1,3 @@
-use std::io::Result;
-
 use colored::{ColoredString, Colorize};
 
 use ratatui::backend::TestBackend;
@@ -79,17 +77,15 @@ fn print_buffer_to_stdout(buffer: &Buffer, cols: usize) {
     }
 }
 
-pub fn print_ratatui_frame_to_stdout<F>(cols: usize, rows: usize, callback: F) -> Result<()>
+pub fn print_ratatui_frame_to_stdout<F>(cols: usize, rows: usize, callback: F)
 where
     F: FnOnce(&mut Frame),
 {
-    let mut terminal = Terminal::new(TestBackend::new(cols as u16, rows as u16))?;
+    let mut terminal = Terminal::new(TestBackend::new(cols as u16, rows as u16)).unwrap();
 
-    terminal.draw(callback)?;
+    terminal.draw(callback).unwrap();
 
     let buffer = terminal.backend().buffer();
 
     print_buffer_to_stdout(buffer, cols);
-
-    Ok(())
 }
