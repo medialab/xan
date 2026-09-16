@@ -4,17 +4,19 @@
 
 `xan` is a command line tool that can be used to process CSV files directly from the shell.
 
-It has been written in Rust to be as fast as possible, use as little memory as possible, and can very easily handle large CSV files (Gigabytes). It leverages a novel [SIMD](https://en.wikipedia.org/wiki/Single_instruction,_multiple_data) CSV [parser](https://docs.rs/simd-csv) and is also able to parallelize some computations (through multithreading) to make some tasks complete as fast as your computer can allow.
+It has been written in Rust to be as fast as possible, use as little memory as possible, and can very easily handle large CSV files (gigabytes to terabytes). It leverages a novel [SIMD](https://en.wikipedia.org/wiki/Single_instruction,_multiple_data) CSV [parser](https://docs.rs/simd-csv) and is also able to parallelize some computations (through multithreading) to make some tasks complete as fast as your hardware will allow.
 
-It can easily preview, filter, slice, aggregate, sort, join CSV files, and exposes a large collection of composable commands that can be chained together to perform a wide variety of typical tasks.
+It can easily preview, filter, slice, aggregate, sort, join CSV files, and exposes a large collection of composable commands that can be chained together to perform a wide variety of typical tabular data processing tasks.
 
-`xan` also offers its own expression language so you can perform complex tasks that cannot be done by relying on the simplest commands. This minimalistic language has been tailored for CSV data and is *way* faster than evaluating typical dynamically-typed languages such as Python, Lua, JavaScript etc.
+`xan` also offers its own expression language so you can perform complex tasks that cannot be done by relying on the simplest commands. This minimalistic language has been tailored for CSV data and is *way* faster than evaluating typical script languages such as Python, Lua, JavaScript etc.
 
 Note that this tool is originally a fork of [BurntSushi](https://github.com/BurntSushi)'s [`xsv`](https://github.com/BurntSushi/xsv), but has been nearly entirely rewritten at that point, to fit [SciencesPo's médialab](https://github.com/medialab) use-cases, rooted in web data collection and analysis geared towards social sciences (you might think CSV is outdated by now, but read our [love letter](./docs/LOVE_LETTER.md) to the format before judging too quickly).
 
 `xan` therefore goes beyond typical data manipulation and expose utilities related to lexicometry, graph theory and even scraping.
 
 Beyond CSV data, `xan` is able to process a large variety of CSV-adjacent data formats from many different disciplines such as web archival (`.cdx`) or bioinformatics (`.vcf`, `.gtf`, `.sam`, `.bed` etc.). `xan` is also able to convert to & from many data formats such as json, excel files, numpy arrays etc. using [`xan to`](./docs/cmd/to.md) and [`xan from`](./docs/cmd/from.md). See [this](#supported-file-formats) section for more detail.
+
+Then, even though `xan` is fundamentally geared towards streams of row-oriented tabular data, it can sometimes leverage the benefits of the popular `parquet` file format to offer better performance. See [this](#regarding-parquet-files) section for more detail.
 
 Finally, `xan` can be used to display CSV files in the terminal, for easy exploration, and can even be used to draw basic data visualisations:
 
@@ -55,6 +57,7 @@ Finally, `xan` can be used to display CSV files in the terminal, for easy explor
   * [Regarding stdin](#regarding-stdin)
   * [Regarding stdout](#regarding-stdout)
   * [Supported file formats](#supported-file-formats)
+  * [Regarding parquet files](#regarding-parquet-files)
   * [Compressed files](#compressed-files)
   * [Regarding color](#regarding-color)
 * [Expression language reference](#expression-language-reference)
@@ -747,6 +750,21 @@ Note that more exotic delimiters can always be handled using the ubiquitous `-d,
 Some additional formats (e.g. `.gff`, `.gff3`) are also supported but must first be normalized using the `xan input` command because their cells must be trimmed or because they have comment lines to be skipped.
 
 Note also that UTF-8 BOMs ara always stripped from the data when processed.
+
+### Regarding parquet files
+
+`xan` is first and foremost a tool geared towards processing row-oriented streams of tabular data. As such it is not well aligned with the philosophy of the popular `parquet` file format.
+
+This said, `xan` knows how to efficiently stream a `parquet` file as CSV data using `xan from`:
+
+```bash
+# `xan from` lets you stream any parquet file as the start of a pipeline:
+xan from data.parquet | xan search -s title French | xan count
+```
+
+Then, some `xan` commands offer better `parquet` integration when they can leverage the benefits of the file format itself:
+
+* `xan count` knows how to access the number of rows of a `parquet` file in constant time by reading its footer.
 
 ### Compressed files
 
