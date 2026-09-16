@@ -392,22 +392,12 @@ impl Config {
         self.path.is_none()
     }
 
-    // pub fn mmap(&self) -> io::Result<Option<Mmap>> {
-    //     if self.is_std() || self.is_compressed() {
-    //         return Ok(None);
+    // pub fn is_parquet(&self) -> bool {
+    //     if let Some(p) = &self.path {
+    //         matches!(p.extension(), Some(ext) if ext == "parquet")
+    //     } else {
+    //         false
     //     }
-
-    //     let file = fs::File::open(self.path.as_ref().unwrap())?;
-
-    //     let map = unsafe { Mmap::map(&file)? };
-
-    //     #[cfg(unix)]
-    //     {
-    //         map.advise(memmap2::Advice::Sequential)?;
-    //         map.advise(memmap2::Advice::WillNeed)?;
-    //     }
-
-    //     Ok(Some(map))
     // }
 
     pub fn selection<'a, H>(&self, first_record: H) -> Result<Selection, String>
