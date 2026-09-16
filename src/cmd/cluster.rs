@@ -119,10 +119,7 @@ impl Cluster {
         writeln!(&mut writer, "values = [")?;
 
         for (value, count) in self.values.iter() {
-            writeln!(
-                &mut writer,
-                "  {{ value = {value:?}, count = {count} }},"
-            )?;
+            writeln!(&mut writer, "  {{ value = {value:?}, count = {count} }},")?;
         }
 
         writeln!(&mut writer, "]")?;

@@ -968,9 +968,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             foreach: args
                 .flag_foreach
                 .as_ref()
-                .map(|css| {
-                    Selector::parse(css).map_err(|_| format!("invalid CSS selector: {css}"))
-                })
+                .map(|css| Selector::parse(css).map_err(|_| format!("invalid CSS selector: {css}")))
                 .transpose()?,
         })
     };

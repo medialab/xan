@@ -610,9 +610,7 @@ impl Series {
     #[inline]
     fn try_push_float(&mut self, scale_type: ScaleType, x: f64) -> CliResult<()> {
         if x != 0.0 && !scale_type.accepts(x) {
-            Err(format!(
-                "given --scale encountered an illegal value ({x})!"
-            ))?;
+            Err(format!("given --scale encountered an illegal value ({x})!"))?;
         }
 
         self.push(x);

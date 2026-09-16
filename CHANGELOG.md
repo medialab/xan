@@ -5,6 +5,7 @@
 *Breaking*
 
 * Bumping MSRV to `1.88.0`.
+* Dropping the `parquet` feature. Parquet integration is now a default.
 
 *Performance*
 

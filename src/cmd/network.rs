@@ -37,9 +37,7 @@ impl TryFrom<String> for OutputFormat {
             "components" => Self::Components,
             "stats" => Self::Stats,
             _ => {
-                return Err(format!(
-                    "unknown \"{value}\" format given to -f/--format!"
-                ));
+                return Err(format!("unknown \"{value}\" format given to -f/--format!"));
             }
         })
     }

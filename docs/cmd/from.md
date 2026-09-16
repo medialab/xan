@@ -9,19 +9,17 @@ Usage:
     xan from --help
 
 Supported formats:
-    - ods: OpenOffice spreadsheet
-    - xls, xlsb, xlsx: Excel spreadsheet
-    - json: JSON array or object
-    - ndjson, jsonl: newline-delimited JSON data
-    - toml: TOML configuration
-    - txt: text lines
-    - npy: numpy array
-    - tar: tarball archive
-    - md, markdown: Markdown table
-    - raw: read whole input as a single CSV cell
-
-Optionally supported formats (requires `xan` to be compiled using optional features):
-    - parquet: Parquet frame (requires the `parquet` feature)
+    - `ods`: OpenOffice spreadsheet
+    - `xls`, `xlsb`, `xlsx`: Excel spreadsheet
+    - `json`: JSON array or object
+    - `ndjson`, `jsonl`: newline-delimited JSON data
+    - `parquet`: Parquet dataframe
+    - `toml`: TOML configuration
+    - `txt`: text lines
+    - `npy`: numpy array
+    - `tar`: tarball archive
+    - `md`, `markdown`: Markdown table
+    - `raw`: read whole input as a single CSV cell
 
 Some formats can be streamed, some others require the full file to be loaded into
 memory. The streamable formats are `ndjson`, `jsonl`, `parquet`, `tar`,`txt` and `npy`.
