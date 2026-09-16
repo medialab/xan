@@ -141,11 +141,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         let rename_as = if let Some(prefix) = &args.flag_prefix {
             (0..expected_len)
-                .map(|i| format!("{}{}", prefix, i))
+                .map(|i| format!("{prefix}{i}"))
                 .collect()
         } else if let Some(suffix) = &args.flag_suffix {
             (0..expected_len)
-                .map(|i| format!("{}{}", i, suffix))
+                .map(|i| format!("{i}{suffix}"))
                 .collect()
         } else {
             util::str_to_csv_byte_record(&args.arg_columns.unwrap())

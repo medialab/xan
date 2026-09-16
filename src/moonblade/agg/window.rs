@@ -459,7 +459,7 @@ impl ConcreteWindowAggregation {
                     Some(last_string) => {
                         let i = first_mismatch_index(&string, last_string);
 
-                        let result = DynamicValue::from(format!("{} ", i) + &string[i..]);
+                        let result = DynamicValue::from(format!("{i} ") + &string[i..]);
 
                         *last_string_opt = Some(string);
 
@@ -552,7 +552,7 @@ impl ConcreteWindowAggregation {
 
                 Ok(match decimals {
                     None => DynamicValue::from(frac),
-                    Some(d) => DynamicValue::from(frac.map(|f| format!("{:.p$}", f, p = d))),
+                    Some(d) => DynamicValue::from(frac.map(|f| format!("{f:.d$}"))),
                 })
             }
             Self::Ranking(Ranking { output, .. }) => {

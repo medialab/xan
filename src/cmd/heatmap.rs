@@ -322,8 +322,7 @@ impl Args {
                     match n.parse::<NonZeroUsize>() {
                         Ok(i) => Ok(Some(i.get())),
                         Err(_) => Err(From::from(format!(
-                            "expected --repeat-headers to be \"auto\" or a positive integer but got {}!",
-                            n
+                            "expected --repeat-headers to be \"auto\" or a positive integer but got {n}!"
                         ))),
                     }
                 }
@@ -495,7 +494,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     let write_headers = || -> CliResult<()> {
-        write!(&out, "{}", left_padding)?;
+        write!(&out, "{left_padding}")?;
         for (i, col_label) in matrix.column_labels.iter().enumerate() {
             let label = if !actually_cram {
                 (i + 1).to_string()
@@ -568,7 +567,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     }
                 )?;
             } else {
-                write!(&out, "{}", left_padding)?;
+                write!(&out, "{left_padding}")?;
             }
 
             for (col_i, cell) in row.iter().enumerate() {
@@ -641,13 +640,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                                     match args.flag_align {
                                         Alignment::Left => {
-                                            format!("{:<width$}", colored_number, width = width)
+                                            format!("{colored_number:<width$}")
                                         }
                                         Alignment::Center => {
-                                            format!("{:^width$}", colored_number, width = width)
+                                            format!("{colored_number:^width$}")
                                         }
                                         Alignment::Right => {
-                                            format!("{:>width$}", colored_number, width = width)
+                                            format!("{colored_number:>width$}")
                                         }
                                     }
                                 }

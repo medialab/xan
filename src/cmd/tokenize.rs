@@ -21,7 +21,7 @@ fn get_stemmer(name: &str) -> Result<fn(&str) -> Cow<str>, String> {
     Ok(match name {
         "carry" => |n: &str| Cow::Owned(carry_stemmer(n)),
         "s" => s_stemmer,
-        _ => return Err(format!("unknown stemmer \"{}\"", name)),
+        _ => return Err(format!("unknown stemmer \"{name}\"")),
     })
 }
 
@@ -288,7 +288,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .as_ref()
         .map(|expr| {
             Program::parse_with_globals(
-                &format!("token | {}", expr),
+                &format!("token | {expr}"),
                 &headers,
                 rconfig.no_headers,
                 &["token", "token_type"],

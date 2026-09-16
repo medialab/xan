@@ -27,7 +27,7 @@ impl TryFrom<String> for TimeZoneArg {
         if let Ok(tz) = TimeZone::get(&value) {
             Ok(Self(tz))
         } else {
-            Err(format!("unknown timezone \"{}\"", value))
+            Err(format!("unknown timezone \"{value}\""))
         }
     }
 }
@@ -317,10 +317,10 @@ impl AnyTemporal {
 impl fmt::Display for AnyTemporal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            AnyTemporal::Zoned(zoned) => write!(f, "{}", zoned),
-            AnyTemporal::DateTime(datetime) => write!(f, "{}", datetime),
-            AnyTemporal::Date(date) => write!(f, "{}", date),
-            AnyTemporal::Time(time) => write!(f, "{}", time),
+            AnyTemporal::Zoned(zoned) => write!(f, "{zoned}"),
+            AnyTemporal::DateTime(datetime) => write!(f, "{datetime}"),
+            AnyTemporal::Date(date) => write!(f, "{date}"),
+            AnyTemporal::Time(time) => write!(f, "{time}"),
         }
     }
 }
@@ -636,7 +636,7 @@ mod tests {
         ];
 
         for (string, expected) in tests {
-            assert_eq!(parse_partial_date(string), expected, "{}", string);
+            assert_eq!(parse_partial_date(string), expected, "{string}");
         }
     }
 

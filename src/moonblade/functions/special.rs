@@ -701,8 +701,8 @@ fn runtime_warn(context: &EvaluationContext, args: &[ConcreteExpr]) -> Evaluatio
     let msg = msg_arg.try_as_str().map_err(|err| err.specify("warn"))?;
 
     match context.row_index() {
-        Some(i) => eprintln!("Row index {}: {}", i, msg),
-        None => eprintln!("{}", msg),
+        Some(i) => eprintln!("Row index {i}: {msg}"),
+        None => eprintln!("{msg}"),
     };
 
     Ok(DynamicValue::None)

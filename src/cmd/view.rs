@@ -198,7 +198,7 @@ impl FromStr for ViewTheme {
             "rounded" => Self::rounded(),
             "slim" => Self::slim(),
             "striped" => Self::striped(),
-            _ => return Err(format!("unknown \"{}\" theme!", s)),
+            _ => return Err(format!("unknown \"{s}\" theme!")),
         })
     }
 }
@@ -804,7 +804,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             if dimmed {
                 write!(out, "{}", cell.clone().reversed())?;
             } else {
-                write!(out, "{}", cell)?;
+                write!(out, "{cell}")?;
             }
 
             if !all_columns_shown && Some(i) == displayed_columns.split_point() {

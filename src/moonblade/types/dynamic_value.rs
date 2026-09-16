@@ -260,7 +260,7 @@ impl DynamicValue {
         let name = self.try_as_str()?;
 
         TimeZone::get(&name).map_err(|_| {
-            EvaluationError::TimeRelated(format!("\"{}\" is not a valid timezone", name))
+            EvaluationError::TimeRelated(format!("\"{name}\" is not a valid timezone"))
         })
     }
 
@@ -305,8 +305,7 @@ impl DynamicValue {
                 Ok(temporal) => temporal,
                 Err(_) => {
                     return Err(EvaluationError::TimeRelated(format!(
-                        "could not parse {} as a temporal value",
-                        string
+                        "could not parse {string} as a temporal value"
                     )));
                 }
             },
@@ -314,8 +313,7 @@ impl DynamicValue {
                 Ok(temporal) => temporal,
                 Err(_) => {
                     return Err(EvaluationError::TimeRelated(format!(
-                        "could not parse {} as a temporal value",
-                        bytes
+                        "could not parse {bytes} as a temporal value"
                     )));
                 }
             },
@@ -330,8 +328,7 @@ impl DynamicValue {
 
         let mismatch_err = || {
             EvaluationError::TimeRelated(format!(
-                "this operation requires given datetime {:?} to have timezone information but it has none. You can use `with_timezone` or `with_local_timezone` to indicate it if you know the correct one beforehand.",
-                self
+                "this operation requires given datetime {self:?} to have timezone information but it has none. You can use `with_timezone` or `with_local_timezone` to indicate it if you know the correct one beforehand."
             ))
         };
 
@@ -339,14 +336,12 @@ impl DynamicValue {
             Self::DateTime(_) => return Err(mismatch_err()),
             Self::Date(date) => {
                 return Err(EvaluationError::TimeRelated(format!(
-                    "this operation cannot work on a bare date ({})",
-                    date
+                    "this operation cannot work on a bare date ({date})"
                 )));
             }
             Self::Time(time) => {
                 return Err(EvaluationError::TimeRelated(format!(
-                    "this operation cannot work on a bare time ({})",
-                    time
+                    "this operation cannot work on a bare time ({time})"
                 )));
             }
             _ => (),

@@ -1141,8 +1141,8 @@ impl Cooccurrences {
     fn register_token(&mut self, token: Rc<TokenRef>) -> TokenID {
         match self.token_ids.entry(token.clone()) {
             Entry::Occupied(entry) => {
-                let id = *entry.get();
-                id
+                
+                *entry.get()
             }
             Entry::Vacant(entry) => {
                 let id = self.token_entries.len();

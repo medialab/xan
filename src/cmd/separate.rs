@@ -322,6 +322,7 @@ impl<'c> Iterator for Split<'c, '_> {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 enum SplitN<'c, 'r> {
     Substring(bstr::SplitN<'c, 'r>),
     Regex(regex::bytes::SplitN<'r, 'c>),

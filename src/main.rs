@@ -256,9 +256,9 @@ Please choose one of the following commands/flags:\n{}",
             }
             Err(CliError::Help(usage, exit_code)) => {
                 if exit_code == 0 {
-                    println!("{}", usage);
+                    println!("{usage}");
                 } else {
-                    eprintln!("{}", usage);
+                    eprintln!("{usage}");
                 }
                 process::exit(exit_code);
             }
@@ -535,10 +535,9 @@ impl From<regex::Error> for CliError {
     fn from(err: regex::Error) -> Self {
         match err {
             regex::Error::CompiledTooBig(size) => Self::Other(format!(
-                "attempted to create too large a regex ({} bytes)! regexes are probably not the answer here, sorry :'(.",
-                size
+                "attempted to create too large a regex ({size} bytes)! regexes are probably not the answer here, sorry :'(."
             )),
-            _ => Self::Other(format!("{:?}", err)),
+            _ => Self::Other(format!("{err:?}")),
         }
     }
 }
@@ -547,11 +546,10 @@ impl From<regex_automata::meta::BuildError> for CliError {
     fn from(err: regex_automata::meta::BuildError) -> Self {
         if let Some(size) = err.size_limit() {
             Self::Other(format!(
-                "attempted to create too large a regex ({} bytes)! regexes are probably not the answer here, sorry :'(.",
-                size
+                "attempted to create too large a regex ({size} bytes)! regexes are probably not the answer here, sorry :'(."
             ))
         } else {
-            Self::Other(format!("{:?}", err))
+            Self::Other(format!("{err:?}"))
         }
     }
 }

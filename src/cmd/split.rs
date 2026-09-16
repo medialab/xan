@@ -167,7 +167,7 @@ impl Args {
             Some(out_dir) => Path::new(out_dir),
             None => Path::new(""),
         };
-        let path = dir.join(self.flag_filename.filename(&format!("{}", id)));
+        let path = dir.join(self.flag_filename.filename(&format!("{id}")));
         let spath = Some(path.display().to_string());
         let mut wtr = Config::new(&spath).simd_writer()?;
         if !self.rconfig().no_headers {

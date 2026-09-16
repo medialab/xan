@@ -140,8 +140,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let err_msg = |err: String| {
         format!(
-            "{}\nxan hist expects a field?,value,count CSV input (typically produced by `xan freq` or `xan bins`)!\nSee xan hist --help for more info.",
-            err
+            "{err}\nxan hist expects a field?,value,count CSV input (typically produced by `xan freq` or `xan bins`)!\nSee xan hist --help for more info."
         )
     };
 

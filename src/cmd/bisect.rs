@@ -39,8 +39,8 @@ impl std::fmt::Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Number(n) => match n {
-                Number::Int(i) => write!(f, "{}", i),
-                Number::Float(fl) => write!(f, "{}", fl),
+                Number::Int(i) => write!(f, "{i}"),
+                Number::Float(fl) => write!(f, "{fl}"),
             },
             Self::String(s) => write!(f, "{}", std::str::from_utf8(s).unwrap()),
         }
@@ -216,8 +216,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     // File does not seem to be correctly sorted
     if args.cmp(&first_value, &last_value).is_gt() {
         Err(format!(
-            "input is not sorted in specified order!\nSee first and last values: {} and {}",
-            first_value, last_value
+            "input is not sorted in specified order!\nSee first and last values: {first_value} and {last_value}"
         ))?;
     }
 

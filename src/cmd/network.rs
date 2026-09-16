@@ -38,8 +38,7 @@ impl TryFrom<String> for OutputFormat {
             "stats" => Self::Stats,
             _ => {
                 return Err(format!(
-                    "unknown \"{}\" format given to -f/--format!",
-                    value
+                    "unknown \"{value}\" format given to -f/--format!"
                 ));
             }
         })
@@ -354,15 +353,13 @@ impl Args {
 
                 if source_id > max {
                     Err(format!(
-                        "found a source id {} that is greater than max {} given to --range!",
-                        source_id, max
+                        "found a source id {source_id} that is greater than max {max} given to --range!"
                     ))?;
                 }
 
                 if target_id > max {
                     Err(format!(
-                        "found a target id {} that is greater than max {} given to --range!",
-                        target_id, max
+                        "found a target id {target_id} that is greater than max {max} given to --range!"
                     ))?;
                 }
 

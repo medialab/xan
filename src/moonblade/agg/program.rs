@@ -631,8 +631,7 @@ impl CompositeAggregator {
 
                             if n <= 0.0 {
                                 Err(format!(
-                                    "geometric_mean only accepts numbers > 0 but got {}",
-                                    n
+                                    "geometric_mean only accepts numbers > 0 but got {n}"
                                 ))?;
                             }
 
@@ -645,8 +644,7 @@ impl CompositeAggregator {
 
                             if n <= 0.0 {
                                 Err(format!(
-                                    "harmonic_mean only accepts numbers > 0 but got {}",
-                                    n
+                                    "harmonic_mean only accepts numbers > 0 but got {n}"
                                 ))?;
                             }
 

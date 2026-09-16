@@ -53,8 +53,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let sel_index = rconf.single_selection(headers)?;
 
     let key_expr = match &args.flag_key {
-        Some(expr) => format!("col({}) | {}", sel_index, expr),
-        None => format!("col({})", sel_index),
+        Some(expr) => format!("col({sel_index}) | {expr}"),
+        None => format!("col({sel_index})"),
     };
 
     let program = Program::parse(&key_expr, headers, rconf.no_headers)?;
@@ -121,8 +121,7 @@ impl Cluster {
         for (value, count) in self.values.iter() {
             writeln!(
                 &mut writer,
-                "  {{ value = {:?}, count = {} }},",
-                value, count
+                "  {{ value = {value:?}, count = {count} }},"
             )?;
         }
 

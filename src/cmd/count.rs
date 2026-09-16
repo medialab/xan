@@ -130,7 +130,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             )?;
         }
     } else {
-        writeln!(writer, "{}", count)?;
+        writeln!(writer, "{count}")?;
     }
 
     Ok(())

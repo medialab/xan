@@ -37,8 +37,7 @@ pub fn datetime(mut args: BoundArguments) -> FunctionResult {
             parse_maybe_zoned_with_format(format, string)
                 .map_err(|err| {
                     EvaluationError::TimeRelated(format!(
-                        "{} (value: {:?}, format: {:?})",
-                        err, arg, format_arg
+                        "{err} (value: {arg:?}, format: {format_arg:?})"
                     ))
                 })
                 .map(|maybe| match maybe {
@@ -60,8 +59,7 @@ pub fn datetime(mut args: BoundArguments) -> FunctionResult {
 
             match parse_maybe_zoned(string) {
                 Err(err) => Err(EvaluationError::TimeRelated(format!(
-                    "{} (value: {:?})",
-                    err, arg,
+                    "{err} (value: {arg:?})",
                 ))),
                 Ok(maybe) => Ok(match maybe {
                     MaybeZoned::Civil(datetime) => DynamicValue::from(datetime),
@@ -95,8 +93,7 @@ pub fn date(mut args: BoundArguments) -> FunctionResult {
 
             match Date::strptime(format, string) {
                 Err(_) => Err(EvaluationError::TimeRelated(format!(
-                    "could not parse {:?} as a date using format {:?}",
-                    arg, format_arg
+                    "could not parse {arg:?} as a date using format {format_arg:?}"
                 ))),
                 Ok(date) => Ok(DynamicValue::from(date)),
             }
@@ -123,8 +120,7 @@ pub fn date(mut args: BoundArguments) -> FunctionResult {
 
             match DEFAULT_DATETIME_PARSER.parse_date(string) {
                 Err(_) => Err(EvaluationError::TimeRelated(format!(
-                    "could not parse {:?} as a date",
-                    arg
+                    "could not parse {arg:?} as a date"
                 ))),
                 Ok(date) => Ok(DynamicValue::from(date)),
             }
@@ -155,8 +151,7 @@ pub fn time(mut args: BoundArguments) -> FunctionResult {
 
             match Time::strptime(format, string) {
                 Err(_) => Err(EvaluationError::TimeRelated(format!(
-                    "could not parse {:?} as a time using format {:?}",
-                    arg, format_arg
+                    "could not parse {arg:?} as a time using format {format_arg:?}"
                 ))),
                 Ok(time) => Ok(DynamicValue::from(time)),
             }
@@ -183,8 +178,7 @@ pub fn time(mut args: BoundArguments) -> FunctionResult {
 
             match DEFAULT_DATETIME_PARSER.parse_time(string) {
                 Err(_) => Err(EvaluationError::TimeRelated(format!(
-                    "could not parse {:?} as a time",
-                    arg
+                    "could not parse {arg:?} as a time"
                 ))),
                 Ok(time) => Ok(DynamicValue::from(time)),
             }
@@ -197,8 +191,7 @@ pub fn span(args: BoundArguments) -> FunctionResult {
 
     match string.parse::<Span>() {
         Err(_) => Err(EvaluationError::Custom(format!(
-            "could not parse {} as a span",
-            string
+            "could not parse {string} as a span"
         ))),
         Ok(span) => Ok(DynamicValue::from(span)),
     }
@@ -210,8 +203,7 @@ pub fn without_timezone(mut args: BoundArguments) -> FunctionResult {
     match arg.try_as_maybe_zoned() {
         Ok(MaybeZoned::Zoned(zoned)) => Ok(DynamicValue::from(zoned.datetime())),
         Ok(MaybeZoned::Civil(datetime)) => Err(EvaluationError::TimeRelated(format!(
-            "can only remove its timezone to a datetime having one, but got {:?}",
-            datetime
+            "can only remove its timezone to a datetime having one, but got {datetime:?}"
         ))),
         Err(err) => Err(err),
     }
@@ -222,8 +214,7 @@ pub fn with_timezone(mut args: BoundArguments) -> FunctionResult {
 
     match arg.try_as_maybe_zoned() {
         Ok(MaybeZoned::Zoned(zoned)) => Err(EvaluationError::TimeRelated(format!(
-            "can only add a timezone to a datetime that does not have one already: {:?}. To convert a date to another timezone use `to_timezone` or `to_local_timezone` instead.",
-            zoned
+            "can only add a timezone to a datetime that does not have one already: {zoned:?}. To convert a date to another timezone use `to_timezone` or `to_local_timezone` instead."
         ))),
         Ok(MaybeZoned::Civil(datetime)) => {
             let tz = tz_arg.try_as_timezone()?;
@@ -244,8 +235,7 @@ pub fn with_local_timezone(mut args: BoundArguments) -> FunctionResult {
 
     match arg.try_as_maybe_zoned() {
         Ok(MaybeZoned::Zoned(zoned)) => Err(EvaluationError::TimeRelated(format!(
-            "can only add a timezone to a datetime that does not have one already: {:?}. To convert a date to another timezone use `to_timezone` or `to_local_timezone` instead.",
-            zoned
+            "can only add a timezone to a datetime that does not have one already: {zoned:?}. To convert a date to another timezone use `to_timezone` or `to_local_timezone` instead."
         ))),
         Ok(MaybeZoned::Civil(datetime)) => datetime
             .to_zoned(TimeZone::system())
@@ -292,8 +282,7 @@ pub fn custom_strftime(mut args: BoundArguments, format: &str) -> FunctionResult
     match arg.try_as_any_temporal()?.try_strftime(format) {
         Ok(string) => Ok(DynamicValue::from(string)),
         Err(reason) => Err(EvaluationError::TimeRelated(format!(
-            "could not format {:?} using {:?} format. {}",
-            arg, format, reason
+            "could not format {arg:?} using {format:?} format. {reason}"
         ))),
     }
 }
@@ -306,8 +295,7 @@ pub fn strftime(mut args: BoundArguments) -> FunctionResult {
     match arg.try_as_any_temporal()?.try_strftime(format) {
         Ok(string) => Ok(DynamicValue::from(string)),
         Err(reason) => Err(EvaluationError::TimeRelated(format!(
-            "could not format {:?} using {:?} format. {}",
-            arg, format_arg, reason
+            "could not format {arg:?} using {format_arg:?} format. {reason}"
         ))),
     }
 }
@@ -322,16 +310,14 @@ pub fn from_timestamp(mut args: BoundArguments) -> FunctionResult {
     match number {
         DynamicNumber::Integer(seconds) => match Timestamp::from_second(seconds) {
             Err(_) => Err(EvaluationError::TimeRelated(format!(
-                "invalid timestamp {}",
-                seconds
+                "invalid timestamp {seconds}"
             ))),
             Ok(timestamp) => Ok(DynamicValue::from(timestamp.to_zoned(TimeZone::UTC))),
         },
         DynamicNumber::Float(fractional_seconds) => {
             match Timestamp::from_secs_f64(fractional_seconds) {
                 Err(_) => Err(EvaluationError::TimeRelated(format!(
-                    "invalid timestamp {}",
-                    fractional_seconds
+                    "invalid timestamp {fractional_seconds}"
                 ))),
                 Ok(timestamp) => Ok(DynamicValue::from(timestamp.to_zoned(TimeZone::UTC))),
             }
@@ -344,8 +330,7 @@ pub fn from_timestamp_ms(mut args: BoundArguments) -> FunctionResult {
 
     match Timestamp::from_millisecond(milliseconds) {
         Err(_) => Err(EvaluationError::TimeRelated(format!(
-            "invalid timestamp {}",
-            milliseconds
+            "invalid timestamp {milliseconds}"
         ))),
         Ok(timestamp) => Ok(DynamicValue::from(timestamp.to_zoned(TimeZone::UTC))),
     }

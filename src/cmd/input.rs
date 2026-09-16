@@ -207,19 +207,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     // Skipping header lines?
     let io_reader = if let Some(limit) = args.flag_skip_lines {
         read::consume_lines(rconfig.io_reader()?, limit)?
-            .ok_or_else(|| format!("-L/--skip-lines {}: not enough lines to skip!", limit))
+            .ok_or_else(|| format!("-L/--skip-lines {limit}: not enough lines to skip!"))
             .map(|(_, r)| Box::new(r))?
     } else if let Some(pattern) = args.flag_skip_until.as_ref() {
         let pattern = Regex::new(pattern)?;
 
         read::consume_header_until(rconfig.io_reader()?, &pattern)?
-            .ok_or_else(|| format!("-U/--skip-until {}: skipped everything!", pattern))
+            .ok_or_else(|| format!("-U/--skip-until {pattern}: skipped everything!"))
             .map(|(_, r)| Box::new(r))?
     } else if let Some(pattern) = args.flag_skip_while.as_ref() {
         let pattern = Regex::new(pattern)?;
 
         read::consume_header_while(rconfig.io_reader()?, &pattern)?
-            .ok_or_else(|| format!("-U/--skip-while {}: skipped everything!", pattern))
+            .ok_or_else(|| format!("-U/--skip-while {pattern}: skipped everything!"))
             .map(|(_, r)| Box::new(r))?
     } else {
         rconfig.io_reader()?

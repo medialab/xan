@@ -336,9 +336,7 @@ mod tests {
         let got = got.expect("expected a value");
         assert!(
             (got - expected).abs() < 1e-12,
-            "got {}, expected {}",
-            got,
-            expected
+            "got {got}, expected {expected}"
         );
     }
 

@@ -24,7 +24,7 @@ impl FromStr for TaggedUrl {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if !s.starts_with("https://") && !s.starts_with("http://") {
-            Url::parse(&format!("https://{}", s)).map(|url| Self {
+            Url::parse(&format!("https://{s}")).map(|url| Self {
                 has_scheme: false,
                 url,
             })
@@ -472,7 +472,7 @@ mod tests {
         ];
 
         for (url, expected) in tests {
-            assert_eq!(should_follow_href(url), expected, "{}", url);
+            assert_eq!(should_follow_href(url), expected, "{url}");
         }
     }
 

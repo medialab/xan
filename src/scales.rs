@@ -730,7 +730,7 @@ impl TryFrom<String> for ScaleType {
                 if let Ok(base) = base_str.parse::<f64>() {
                     Self::Logarithmic(LogBase::Custom(base))
                 } else {
-                    return Err(format!("could not parse log base \"{}\"", base_str));
+                    return Err(format!("could not parse log base \"{base_str}\""));
                 }
             }
             "pow" => Self::Power(PowerExponent::Two),
@@ -743,7 +743,7 @@ impl TryFrom<String> for ScaleType {
                 } else if let Ok(exponent) = exponent_str.parse::<f64>() {
                     Self::Power(PowerExponent::Float(exponent))
                 } else {
-                    return Err(format!("could not parse pow exponent \"{}\"", exponent_str));
+                    return Err(format!("could not parse pow exponent \"{exponent_str}\""));
                 }
             }
             _ => return Err(format!("unknown scale type \"{}\"", &value)),
@@ -760,12 +760,12 @@ impl fmt::Display for ScaleType {
                 LogBase::Base10 => write!(f, "log10"),
                 LogBase::Natural => write!(f, "log"),
                 LogBase::Ln1p => write!(f, "ln_1p"),
-                LogBase::Custom(base) => write!(f, "log({})", base),
+                LogBase::Custom(base) => write!(f, "log({base})"),
             },
             Self::Power(exponent) => match exponent {
                 PowerExponent::Two => write!(f, "pow"),
-                PowerExponent::Int(i) => write!(f, "pow({})", i),
-                PowerExponent::Float(e) => write!(f, "pow({})", e),
+                PowerExponent::Int(i) => write!(f, "pow({i})"),
+                PowerExponent::Float(e) => write!(f, "pow({e})"),
                 PowerExponent::Sqrt => write!(f, "sqrt"),
             },
         }

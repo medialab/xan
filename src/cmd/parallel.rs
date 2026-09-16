@@ -34,13 +34,11 @@ fn get_spinner_style(path: ColoredString, unspecified: bool) -> ProgressStyle {
     ProgressStyle::with_template(
         &(if unspecified {
             format!(
-                "{{spinner}} {{decimal_bytes:>11}} of {} in {{elapsed}} ({{decimal_bytes_per_sec}})",
-                path
+                "{{spinner}} {{decimal_bytes:>11}} of {path} in {{elapsed}} ({{decimal_bytes_per_sec}})"
             )
         } else {
             format!(
-                "{{spinner}} {{human_pos:>11}} rows of {} in {{elapsed}} ({{per_sec}})",
-                path
+                "{{spinner}} {{human_pos:>11}} rows of {path} in {{elapsed}} ({{per_sec}})"
             )
         }),
     )
@@ -64,7 +62,7 @@ impl Bars {
         let multi = MultiProgress::new();
         multi.add(main.clone());
 
-        main.set_prefix(format!("(t={}) ", threads));
+        main.set_prefix(format!("(t={threads}) "));
 
         let bars = Bars {
             main,
@@ -1193,8 +1191,7 @@ impl Args {
             if !no_headers {
                 match expected {
                     Some(expected_headers) if headers != expected_headers => Err(format!(
-                        "found inconsistent headers as soon as \"{}\"!\nExpected: {:?}\nGot: {:?}",
-                        path, headers, expected_headers
+                        "found inconsistent headers as soon as \"{path}\"!\nExpected: {headers:?}\nGot: {expected_headers:?}"
                     ))?,
                     None => {
                         *expected = Some(headers.clone());

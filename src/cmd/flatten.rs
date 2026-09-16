@@ -290,7 +290,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         if args.flag_row_separator.is_none() {
-            writeln!(&output, "{}", format!("Row n°{}", record_index).bold())?;
+            writeln!(&output, "{}", format!("Row n°{record_index}").bold())?;
             writeln!(&output, "{}", "─".repeat(cols).dimmed())?;
         }
 
@@ -304,14 +304,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             {
                 let mut first: bool = true;
 
-                write!(&output, "{}", header)?;
+                write!(&output, "{header}")?;
 
                 for sub_cell in cell.split(&args.flag_sep) {
                     let sub_cell = prepare_cell(i, sub_cell, 2);
 
                     if first {
                         first = false;
-                        writeln!(&output, "- {}", sub_cell)?;
+                        writeln!(&output, "- {sub_cell}")?;
                     } else {
                         writeln!(
                             &output,
@@ -331,10 +331,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let cell = prepare_cell(i, cell, 0);
 
             if args.flag_flatter {
-                writeln!(&output, "{}", header)?;
-                writeln!(&output, "{}\n", cell)?;
+                writeln!(&output, "{header}")?;
+                writeln!(&output, "{cell}\n")?;
             } else {
-                writeln!(&output, "{}{}", header, cell)?;
+                writeln!(&output, "{header}{cell}")?;
             }
         }
 

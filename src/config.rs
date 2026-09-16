@@ -39,9 +39,8 @@ impl TryFrom<String> for Delimiter {
             s => {
                 if s.len() != 1 {
                     let msg = format!(
-                        "Could not convert '{}' to a single \
-                                       ASCII character.",
-                        s
+                        "Could not convert '{s}' to a single \
+                                       ASCII character."
                     );
                     return Err(msg);
                 }
@@ -50,9 +49,8 @@ impl TryFrom<String> for Delimiter {
                     Ok(Delimiter(c as u8))
                 } else {
                     let msg = format!(
-                        "Could not convert '{}' \
-                                       to ASCII delimiter.",
-                        c
+                        "Could not convert '{c}' \
+                                       to ASCII delimiter."
                     );
                     Err(msg)
                 }
@@ -111,7 +109,7 @@ impl TryFrom<String> for Compression {
         Ok(match value.as_str() {
             "gz" | "gzip" => Self::Gzip,
             "zst" | "zstd" => Self::Zstd,
-            _ => return Err(format!("unknown compression format \"{}\"", value)),
+            _ => return Err(format!("unknown compression format \"{value}\"")),
         })
     }
 }

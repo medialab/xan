@@ -35,9 +35,9 @@ pub fn version() -> String {
     match (maj, min, pat, pre) {
         (Some(maj), Some(min), Some(pat), Some(pre)) => {
             if pre.is_empty() {
-                format!("{}.{}.{}", maj, min, pat)
+                format!("{maj}.{min}.{pat}")
             } else {
-                format!("{}.{}.{}-{}", maj, min, pat, pre)
+                format!("{maj}.{min}.{pat}-{pre}")
             }
         }
         _ => "".to_owned(),
@@ -190,9 +190,8 @@ pub fn range(start: Idx, end: Idx, len: Idx, index: Idx) -> Result<(usize, usize
             let s = start.unwrap_or(0);
             if s > e {
                 Err(format!(
-                    "The end of the range ({}) must be greater than or\n\
-                             equal to the start of the range ({}).",
-                    e, s
+                    "The end of the range ({e}) must be greater than or\n\
+                             equal to the start of the range ({s})."
                 ))
             } else {
                 Ok((s, e))
@@ -379,7 +378,7 @@ pub fn format_number_with_formatter<T: Numeric>(formatter: &mut numfmt::Formatte
     let formatted = formatter.fmt2(x);
 
     if let Some(i) = formatted.find('.') {
-        if formatted[i + 1..].as_bytes().iter().all(|b| *b == b'0') {
+        if formatted.as_bytes()[i + 1..].iter().all(|b| *b == b'0') {
             return &formatted[..i];
         }
     }

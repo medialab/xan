@@ -220,7 +220,7 @@ impl Args {
             let mut wtr = Config::new(&self.flag_output).io_writer()?;
 
             for sheet_name in workbook.sheet_names() {
-                writeln!(&mut wtr, "{}", sheet_name)?;
+                writeln!(&mut wtr, "{sheet_name}")?;
             }
 
             return Ok(());
@@ -480,7 +480,7 @@ impl Args {
 
         let mut wtr = self.writer()?;
 
-        wtr.write_record_no_quoting((0..columns).map(|i| format!("dim_{}", i)))?;
+        wtr.write_record_no_quoting((0..columns).map(|i| format!("dim_{i}")))?;
 
         macro_rules! process {
             ($type: ty) => {

@@ -73,7 +73,7 @@ fn print_buffer_to_stdout(buffer: &Buffer, cols: usize) {
             })
             .collect::<String>();
 
-        println!("{}", line);
+        println!("{line}");
 
         i += cols;
     }

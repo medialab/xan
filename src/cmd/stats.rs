@@ -626,7 +626,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .enumerate()
             .map(|(i, name)| {
                 if rconf.no_headers {
-                    ColumnEstimator::new(format!("Column n°{}", i).as_bytes())
+                    ColumnEstimator::new(format!("Column n°{i}").as_bytes())
                 } else {
                     ColumnEstimator::new(name)
                 }
@@ -663,7 +663,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             )?;
 
             if args.flag_color.is_never() {
-                writeln!(&mut out, "{}", sep)?;
+                writeln!(&mut out, "{sep}")?;
             }
 
             writeln!(&mut out, "{}", column_type.as_str())?;
@@ -773,7 +773,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         Some(&color_overrides),
                     );
 
-                    writeln!(&mut out, "\n{}", sparkline_renderer)?;
+                    writeln!(&mut out, "\n{sparkline_renderer}")?;
 
                     for i in 0..top.len() {
                         write!(&mut out, "{:^3}", (i + 1).to_string().dimmed())?;
@@ -807,7 +807,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     let mut sparkline_renderer = sparkline_renderer_options.build();
                     sparkline_renderer.render(&sparkline_scale, &series.numbers);
 
-                    writeln!(&mut out, "\n{}", sparkline_renderer)?;
+                    writeln!(&mut out, "\n{sparkline_renderer}")?;
                 }
                 ColumnType::Numerical {
                     extent,
@@ -952,7 +952,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             length_extent.min().to_string().blue(),
                             length_extent.max().to_string().red()
                         )?;
-                        writeln!(&mut out, "{}", sparkline_renderer)?;
+                        writeln!(&mut out, "{sparkline_renderer}")?;
                     }
                 }
             };

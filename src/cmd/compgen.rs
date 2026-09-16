@@ -130,56 +130,56 @@ pub fn run() {
         if !to_complete.starts_with('-') {
             for command in COMMANDS {
                 if command.starts_with(to_complete) {
-                    println!("{}", command);
+                    println!("{command}");
                 }
             }
         }
     } else if word_before == "help" && !to_complete.starts_with('-') {
         for subcommand in HELP_SUBCOMMANDS {
             if subcommand.starts_with(to_complete) {
-                println!("{}", subcommand);
+                println!("{subcommand}");
             }
         }
     } else if word_before == "cat" && !to_complete.starts_with('-') {
         for subcommand in CAT_SUBCOMMANDS {
             if subcommand.starts_with(to_complete) {
-                println!("{}", subcommand);
+                println!("{subcommand}");
             }
         }
     } else if word_before == "matrix" && !to_complete.starts_with('-') {
         for subcommand in MATRIX_SUBCOMMANDS {
             if subcommand.starts_with(to_complete) {
-                println!("{}", subcommand);
+                println!("{subcommand}");
             }
         }
     } else if word_before == "network" && !to_complete.starts_with('-') {
         for subcommand in NETWORK_SUBCOMMANDS {
             if subcommand.starts_with(to_complete) {
-                println!("{}", subcommand);
+                println!("{subcommand}");
             }
         }
     } else if word_before == "parallel" && !to_complete.starts_with('-') {
         for subcommand in PARALLEL_SUBCOMMANDS {
             if subcommand.starts_with(to_complete) {
-                println!("{}", subcommand);
+                println!("{subcommand}");
             }
         }
     } else if word_before == "vocab" && !to_complete.starts_with('-') {
         for subcommand in VOCAB_SUBCOMMANDS {
             if subcommand.starts_with(to_complete) {
-                println!("{}", subcommand);
+                println!("{subcommand}");
             }
         }
     } else if word_before == "scrape" && !to_complete.starts_with('-') {
         for subcommand in SCRAPE_SUBCOMMANDS {
             if subcommand.starts_with(to_complete) {
-                println!("{}", subcommand);
+                println!("{subcommand}");
             }
         }
     } else if word_before == "tokenize" && !to_complete.starts_with('-') {
         for subcommand in TOKENIZE_SUBCOMMANDS {
             if subcommand.starts_with(to_complete) {
-                println!("{}", subcommand);
+                println!("{subcommand}");
             }
         }
     }

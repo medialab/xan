@@ -61,7 +61,7 @@ fn abstract_read(
     let path = path.try_as_str()?;
 
     let mut file = match File::open(path.as_ref()) {
-        Err(_) => return Err(EvaluationError::IO(format!("cannot read file {}", path))),
+        Err(_) => return Err(EvaluationError::IO(format!("cannot read file {path}"))),
         Ok(f) => f,
     };
 
@@ -82,10 +82,10 @@ fn abstract_read(
             if path.ends_with(".gz") {
                 let mut gz = MultiGzDecoder::new(file);
                 gz.read_to_end(&mut buffer)
-                    .map_err(|_| EvaluationError::IO(format!("cannot read file {}", path)))?;
+                    .map_err(|_| EvaluationError::IO(format!("cannot read file {path}")))?;
             } else {
                 file.read_to_end(&mut buffer)
-                    .map_err(|_| EvaluationError::IO(format!("cannot read file {}", path)))?;
+                    .map_err(|_| EvaluationError::IO(format!("cannot read file {path}")))?;
             }
 
             encoding
@@ -98,10 +98,10 @@ fn abstract_read(
             if path.ends_with(".gz") {
                 let mut gz = MultiGzDecoder::new(file);
                 gz.read_to_string(&mut buffer)
-                    .map_err(|_| EvaluationError::IO(format!("cannot read file {}", path)))?;
+                    .map_err(|_| EvaluationError::IO(format!("cannot read file {path}")))?;
             } else {
                 file.read_to_string(&mut buffer)
-                    .map_err(|_| EvaluationError::IO(format!("cannot read file {}", path)))?;
+                    .map_err(|_| EvaluationError::IO(format!("cannot read file {path}")))?;
             }
 
             buffer
@@ -122,7 +122,7 @@ pub fn read(args: BoundArguments) -> FunctionResult {
 pub fn read_json(args: BoundArguments) -> FunctionResult {
     let contents = abstract_read(args.get1(), None, None)?;
     serde_json::from_str(&contents)
-        .map_err(|_| EvaluationError::JSONParseError(format!("{:?}", contents)))
+        .map_err(|_| EvaluationError::JSONParseError(format!("{contents:?}")))
 }
 
 pub fn read_csv(args: BoundArguments) -> FunctionResult {
@@ -279,8 +279,7 @@ pub fn filesize(args: BoundArguments) -> FunctionResult {
     match fs::metadata(path.as_ref()) {
         Ok(size) => Ok(DynamicValue::from(size.len() as i64)),
         Err(_) => Err(EvaluationError::IO(format!(
-            "cannot access file metadata for {}",
-            path
+            "cannot access file metadata for {path}"
         ))),
     }
 }
@@ -329,14 +328,12 @@ pub fn cmd(mut args: BoundArguments) -> FunctionResult {
             Ok(DynamicValue::from_owned_bytes(output.stdout))
         } else {
             Err(EvaluationError::Custom(format!(
-                "\"{}\" failed!",
-                command_name
+                "\"{command_name}\" failed!"
             )))
         }
     } else {
         Err(EvaluationError::Custom(format!(
-            "error while spawning \"{}\"",
-            command_name
+            "error while spawning \"{command_name}\""
         )))
     }
 }
@@ -362,14 +359,12 @@ pub fn shell(args: BoundArguments) -> FunctionResult {
             Ok(DynamicValue::from_owned_bytes(output.stdout))
         } else {
             Err(EvaluationError::Custom(format!(
-                "shell pipeline \"{}\" failed!",
-                pipeline
+                "shell pipeline \"{pipeline}\" failed!"
             )))
         }
     } else {
         Err(EvaluationError::Custom(format!(
-            "error while running shell pipeline \"{}\"",
-            pipeline
+            "error while running shell pipeline \"{pipeline}\""
         )))
     }
 }

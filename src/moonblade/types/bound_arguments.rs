@@ -274,8 +274,7 @@ impl BoundArgument<'_> {
             Self::Cell(cell) => match parse_maybe_zoned(cell) {
                 Ok(maybe_zoned) => match maybe_zoned {
                     MaybeZoned::Civil(_) => Err(EvaluationError::TimeRelated(format!(
-                        "this operation requires given datetime {:?} to have timezone information but it has none. You can use `with_timezone` or `with_local_timezone` to indicate it if you know the correct one beforehand.",
-                        self
+                        "this operation requires given datetime {self:?} to have timezone information but it has none. You can use `with_timezone` or `with_local_timezone` to indicate it if you know the correct one beforehand."
                     ))),
                     MaybeZoned::Zoned(zoned) => Ok(zoned),
                 },

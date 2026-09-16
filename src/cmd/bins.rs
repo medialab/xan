@@ -163,18 +163,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         match args.flag_label {
                             LabelOption::Full => match bins_iter.peek() {
                                 None => format!(
-                                    ">= {:lower_width$} <= {:upper_width$}",
-                                    lower_bound,
-                                    upper_bound,
-                                    lower_width = max_lower_bound_width,
-                                    upper_width = max_upper_bound_width
+                                    ">= {lower_bound:max_lower_bound_width$} <= {upper_bound:max_upper_bound_width$}"
                                 ),
                                 Some(_) => format!(
-                                    ">= {:lower_width$} <  {:upper_width$}",
-                                    lower_bound,
-                                    upper_bound,
-                                    lower_width = max_lower_bound_width,
-                                    upper_width = max_upper_bound_width
+                                    ">= {lower_bound:max_lower_bound_width$} <  {upper_bound:max_upper_bound_width$}"
                                 ),
                             },
                             LabelOption::Upper => upper_bound,

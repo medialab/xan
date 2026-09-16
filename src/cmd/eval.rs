@@ -74,7 +74,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         writeln!(&mut out)?;
     } else {
         writeln!(&mut out, "{} ", "result".cyan())?;
-        writeln!(&mut out, "{:#?}", value)?;
+        writeln!(&mut out, "{value:#?}")?;
     }
 
     Ok(())

@@ -214,7 +214,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             sel.select(&record)
                                 .map(|cell| { str::from_utf8(cell).unwrap().red().bold() })
                         )
-                        .map(|(h, v)| format!("{} {}", h, v))
+                        .map(|(h, v)| format!("{h} {v}"))
                         .collect::<Vec<_>>()
                         .join("\n"),
                 );

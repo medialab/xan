@@ -38,6 +38,6 @@ pub fn parse_regex(args: BoundArguments) -> FunctionResult {
     let string = args.get1_str()?;
 
     Ok(DynamicValue::from(Regex::new(&string).map_err(|_| {
-        EvaluationError::Custom(format!("could not parse \"{}\" as regex", string))
+        EvaluationError::Custom(format!("could not parse \"{string}\" as regex"))
     })?))
 }

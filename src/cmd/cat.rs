@@ -265,8 +265,7 @@ impl Args {
 
                         if current_headers != headers {
                             Err(format!(
-                                "found inconsistent headers as soon as \"{}\"!\nExpected: {:?}\nGot: {:?}",
-                                path, headers, current_headers
+                                "found inconsistent headers as soon as \"{path}\"!\nExpected: {headers:?}\nGot: {current_headers:?}"
                             ))?;
                         }
                     }

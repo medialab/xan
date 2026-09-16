@@ -129,7 +129,7 @@ impl TryFrom<String> for ApproxCounterAlgorithm {
         Ok(match value.as_str() {
             "spacesaving" | "space_saving" | "space-saving" | "ss" => Self::SpaceSaving,
             "heavykeeper" | "heavy_keeper" | "heavy-keeper" | "hk" => Self::HeavyKeeper,
-            _ => return Err(format!("unknown --approx-method {}", value)),
+            _ => return Err(format!("unknown --approx-method {value}")),
         })
     }
 }

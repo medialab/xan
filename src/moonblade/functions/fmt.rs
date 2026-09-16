@@ -212,7 +212,7 @@ pub fn to_fixed(mut args: BoundArguments) -> FunctionResult {
     let n = arg1.try_as_f64()?;
     let p = arg2.try_as_usize()?.min(16);
 
-    let formatted = format!("{:.precision$}", n, precision = p);
+    let formatted = format!("{n:.p$}");
 
     Ok(DynamicValue::from(formatted))
 }

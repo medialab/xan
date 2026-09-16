@@ -255,7 +255,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                                                 }
                                             }))
                                     )
-                                    .map(|(h, (l, c))| format!("{} {} {}", h, l, c))
+                                    .map(|(h, (l, c))| format!("{h} {l} {c}"))
                                     .collect::<Vec<_>>()
                                     .join("\n")
                             );

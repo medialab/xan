@@ -49,8 +49,7 @@ pub fn get_progress_style(
                     .to_string()
             } else {
                 format!(
-                    "{{prefix}}{{human_pos}} {} {{spinner}} in {{elapsed}} ({{per_sec}})",
-                    unit
+                    "{{prefix}}{{human_pos}} {unit} {{spinner}} in {{elapsed}} ({{per_sec}})"
                 )
             }
         }

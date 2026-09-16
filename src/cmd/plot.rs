@@ -54,7 +54,7 @@ impl TryFrom<String> for Marker {
             "halfblock" => symbols::Marker::HalfBlock,
             "block" => symbols::Marker::Block,
             "bar" => symbols::Marker::Bar,
-            _ => return Err(format!("unknown marker type \"{}\"!", value)),
+            _ => return Err(format!("unknown marker type \"{value}\"!")),
         }))
     }
 }
@@ -145,7 +145,7 @@ impl TryFrom<String> for Granularity {
             "hour" | "hours" => Unit::Hour,
             "minute" | "minutes" => Unit::Minute,
             "second" | "seconds" => Unit::Second,
-            _ => return Err(format!("invalid granularity \"{}\"!", value)),
+            _ => return Err(format!("invalid granularity \"{value}\"!")),
         }))
     }
 }

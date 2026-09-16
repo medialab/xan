@@ -14,7 +14,7 @@ fn format_column_indexation_error(
         (ColumIndexationBy::Name(name), false) => {
             write!(f, "cannot find column \"{}\"", BStr::new(name))
         }
-        (ColumIndexationBy::Pos(pos), _) => write!(f, "column {} out of range", pos),
+        (ColumIndexationBy::Pos(pos), _) => write!(f, "column {pos} out of range"),
         (ColumIndexationBy::NameAndNth(name, nth), false) => {
             write!(f, "cannot find column (\"{}\", {})", BStr::new(name), nth)
         }
@@ -47,17 +47,17 @@ impl Display for ConcretizationError {
             Self::ColumnNotFound(indexation, headless) => {
                 format_column_indexation_error(f, indexation, *headless)
             }
-            Self::UnknownFunction(name) => write!(f, "unknown function \"{}\"", name),
-            Self::UnknownArgumentName(arg_name) => write!(f, "unknown argument \"{}\"", arg_name),
-            Self::ParseError(err) => write!(f, "could not parse expression: {}", err),
-            Self::InvalidRegex(pattern) => write!(f, "invalid regex {}", pattern),
-            Self::InvalidArity(name, arity) => write!(f, "{}: {}", name, arity),
+            Self::UnknownFunction(name) => write!(f, "unknown function \"{name}\""),
+            Self::UnknownArgumentName(arg_name) => write!(f, "unknown argument \"{arg_name}\""),
+            Self::ParseError(err) => write!(f, "could not parse expression: {err}"),
+            Self::InvalidRegex(pattern) => write!(f, "invalid regex {pattern}"),
+            Self::InvalidArity(name, arity) => write!(f, "{name}: {arity}"),
             Self::TooManyArguments(actual) => {
-                write!(f, "got {} arguments. Cannot exceed 8.", actual)
+                write!(f, "got {actual} arguments. Cannot exceed 8.")
             }
-            Self::InvalidCSSSelector(css) => write!(f, "invalid css selector: {}", css),
+            Self::InvalidCSSSelector(css) => write!(f, "invalid css selector: {css}"),
             Self::StaticEvaluationError(error) => error.fmt(f),
-            Self::Custom(msg) => write!(f, "{}", msg),
+            Self::Custom(msg) => write!(f, "{msg}"),
             Self::NotStaticallyAnalyzable => write!(f, "not statically analyzable"),
         }
     }
@@ -207,9 +207,9 @@ impl Display for EvaluationError {
             Self::InvalidPath => write!(f, "invalid posix path"),
             Self::InvalidArity(arity) => arity.fmt(f),
             Self::InvalidLambda => write!(f, "provided argument is not a lambda"),
-            Self::IO(msg) => write!(f, "{}", msg),
-            Self::TimeRelated(msg) => write!(f, "{}", msg),
-            Self::Custom(msg) => write!(f, "{}", msg),
+            Self::IO(msg) => write!(f, "{msg}"),
+            Self::TimeRelated(msg) => write!(f, "{msg}"),
+            Self::Custom(msg) => write!(f, "{msg}"),
             Self::Cast {
                 from_value,
                 to_type,
@@ -221,14 +221,13 @@ impl Display for EvaluationError {
                 to_type
             ),
             Self::NotImplemented(t) => {
-                write!(f, "not implemented for values of type \"{}\" as of yet", t)
+                write!(f, "not implemented for values of type \"{t}\" as of yet")
             }
-            Self::UnsupportedEncoding(name) => write!(f, "unsupported encoding \"{}\"", name),
+            Self::UnsupportedEncoding(name) => write!(f, "unsupported encoding \"{name}\""),
             Self::UnsupportedDecoderTrap(name) => {
                 write!(
                     f,
-                    "unsupported encoder trap \"{}\". Must be one of strict, replace, ignore.",
-                    name
+                    "unsupported encoder trap \"{name}\". Must be one of strict, replace, ignore."
                 )
             }
             Self::ColumnNotFound(indexation, headless) => {
@@ -236,15 +235,14 @@ impl Display for EvaluationError {
             }
             Self::RelativeColumnNotFound(from_index, offset) => write!(
                 f,
-                "column at offset {} from {} is out of range",
-                from_index, offset
+                "column at offset {from_index} from {offset} is out of range"
             ),
-            Self::ColumnOutOfRange(idx) => write!(f, "column {} is out of range", idx),
+            Self::ColumnOutOfRange(idx) => write!(f, "column {idx} is out of range"),
             Self::GlobalVariableOutOfRange(idx) => {
-                write!(f, "global variable index={} is out of range", idx)
+                write!(f, "global variable index={idx} is out of range")
             }
             Self::UnicodeDecodeError => write!(f, "unicode decode error"),
-            Self::JSONParseError(msg) => write!(f, "cannot parse {} as json", msg),
+            Self::JSONParseError(msg) => write!(f, "cannot parse {msg} as json"),
             Self::UnfillableUnderscore => write!(
                 f,
                 "some underscore `_` was not fillable because it is not downstream of a pipe"

@@ -127,7 +127,7 @@ impl fmt::Debug for SelectedColumns {
             let strs: Vec<_> = self
                 .selectors
                 .iter()
-                .map(|sel| format!("{:?}", sel))
+                .map(|sel| format!("{sel:?}"))
                 .collect();
             write!(f, "{}", strs.join(", "))
         }
@@ -289,7 +289,7 @@ impl SelectorParser {
             }
         }
         FromStr::from_str(&idx)
-            .map_err(|err| format!("Could not convert '{}' to an integer: {}", idx, err))
+            .map_err(|err| format!("Could not convert '{idx}' to an integer: {err}"))
     }
 
     fn cur(&self) -> Option<char> {
@@ -361,7 +361,7 @@ impl Selector {
 
                         Ok(())
                     }
-                    _ => Err(format!("'{}' contains more than one \"*\" wildcard", name)),
+                    _ => Err(format!("'{name}' contains more than one \"*\" wildcard")),
                 }
             }
             Self::Range(start, end) => {
@@ -446,9 +446,8 @@ impl Selector {
                 if let Some(pos) = pos_opt {
                     if !use_names {
                         return Err(format!(
-                            "Cannot use '*[{}]' in selection \
-                                        with --no-headers set.",
-                            pos
+                            "Cannot use '*[{pos}]' in selection \
+                                        with --no-headers set."
                         ));
                     }
 
@@ -458,7 +457,7 @@ impl Selector {
                     map.for_each(pos, |_| true, |i| inds.push(i));
 
                     if inds.is_empty() {
-                        return Err(format!("'*[{}]' selected nothing.", pos));
+                        return Err(format!("'*[{pos}]' selected nothing."));
                     }
 
                     Ok(inds)
@@ -488,9 +487,8 @@ impl Selector {
                 if let Some(pos) = pos_opt {
                     if !use_names {
                         return Err(format!(
-                            "Cannot use prefix ('{}*[{}]') in selection \
-                                        with --no-headers set.",
-                            prefix, pos
+                            "Cannot use prefix ('{prefix}*[{pos}]') in selection \
+                                        with --no-headers set."
                         ));
                     }
 
@@ -504,16 +502,15 @@ impl Selector {
                     );
 
                     if inds.is_empty() {
-                        return Err(format!("Prefix '{}*[{}]' selected nothing.", prefix, pos));
+                        return Err(format!("Prefix '{prefix}*[{pos}]' selected nothing."));
                     }
 
                     Ok(inds)
                 } else {
                     if !use_names {
                         return Err(format!(
-                            "Cannot use prefix ('{}*') in selection \
-                                        with --no-headers set.",
-                            prefix
+                            "Cannot use prefix ('{prefix}*') in selection \
+                                        with --no-headers set."
                         ));
                     }
 
@@ -530,7 +527,7 @@ impl Selector {
                         .collect();
 
                     if inds.is_empty() {
-                        return Err(format!("Prefix '{}*' selected nothing.", prefix));
+                        return Err(format!("Prefix '{prefix}*' selected nothing."));
                     }
 
                     Ok(inds)
@@ -540,9 +537,8 @@ impl Selector {
                 if let Some(pos) = pos_opt {
                     if !use_names {
                         return Err(format!(
-                            "Cannot use suffix ('*{}[{}]') in selection \
-                                        with --no-headers set.",
-                            suffix, pos
+                            "Cannot use suffix ('*{suffix}[{pos}]') in selection \
+                                        with --no-headers set."
                         ));
                     }
 
@@ -556,16 +552,15 @@ impl Selector {
                     );
 
                     if inds.is_empty() {
-                        return Err(format!("Suffix '*{}[{}]' selected nothing.", suffix, pos));
+                        return Err(format!("Suffix '*{suffix}[{pos}]' selected nothing."));
                     }
 
                     Ok(inds)
                 } else {
                     if !use_names {
                         return Err(format!(
-                            "Cannot use suffix ('*{}') in selection \
-                                        with --no-headers set.",
-                            suffix
+                            "Cannot use suffix ('*{suffix}') in selection \
+                                        with --no-headers set."
                         ));
                     }
 
@@ -582,7 +577,7 @@ impl Selector {
                         .collect();
 
                     if inds.is_empty() {
-                        return Err(format!("Suffix '*{}' selected nothing.", suffix));
+                        return Err(format!("Suffix '*{suffix}' selected nothing."));
                     }
 
                     Ok(inds)
@@ -592,9 +587,8 @@ impl Selector {
                 if let Some(pos) = pos_opt {
                     if !use_names {
                         return Err(format!(
-                            "Cannot use inner wildcard ('{}*{}[{}]') in selection \
-                                        with --no-headers set.",
-                            prefix, suffix, pos
+                            "Cannot use inner wildcard ('{prefix}*{suffix}[{pos}]') in selection \
+                                        with --no-headers set."
                         ));
                     }
 
@@ -611,8 +605,7 @@ impl Selector {
 
                     if inds.is_empty() {
                         return Err(format!(
-                            "Inner wildcard '{}*{}[{}]' selected nothing.",
-                            prefix, suffix, pos
+                            "Inner wildcard '{prefix}*{suffix}[{pos}]' selected nothing."
                         ));
                     }
 
@@ -620,9 +613,8 @@ impl Selector {
                 } else {
                     if !use_names {
                         return Err(format!(
-                            "Cannot use inner wildcard ('{}*{}') in selection \
-                                        with --no-headers set.",
-                            prefix, suffix
+                            "Cannot use inner wildcard ('{prefix}*{suffix}') in selection \
+                                        with --no-headers set."
                         ));
                     }
 
@@ -640,8 +632,7 @@ impl Selector {
 
                     if inds.is_empty() {
                         return Err(format!(
-                            "Inner wildcard '{}*{}' selected nothing.",
-                            prefix, suffix
+                            "Inner wildcard '{prefix}*{suffix}' selected nothing."
                         ));
                     }
 
@@ -694,9 +685,8 @@ impl OneSelector {
 
                 if !use_names {
                     return Err(format!(
-                        "Cannot use names ('{}') in selection \
-                                        with --no-headers set.",
-                        s
+                        "Cannot use names ('{s}') in selection \
+                                        with --no-headers set."
                     ));
                 }
                 let mut num_found = 0;
@@ -723,16 +713,14 @@ impl OneSelector {
 
                 if num_found == 0 {
                     Err(format!(
-                        "'{}' does not exist \
+                        "'{s}' does not exist \
                                  as a named header in the given CSV \
-                                 data.",
-                        s
+                                 data."
                     ))
                 } else if sidx < 0 {
                     Err(format!(
-                        "index '{}' for '{}' is \
-                                     out of bounds. Must be between -{} and -1.",
-                        sidx, s, num_found
+                        "index '{sidx}' for '{s}' is \
+                                     out of bounds. Must be between -{num_found} and -1."
                     ))
                 } else {
                     Err(format!(
@@ -753,19 +741,19 @@ impl fmt::Debug for Selector {
         match *self {
             Selector::All(pos_opt) => {
                 if let Some(pos) = pos_opt {
-                    write!(f, "All[{}]", pos)
+                    write!(f, "All[{pos}]")
                 } else {
                     write!(f, "All")
                 }
             }
             Selector::One(ref sel) => sel.fmt(f),
-            Selector::Range(ref s, ref e) => write!(f, "Range({:?}, {:?})", s, e),
+            Selector::Range(ref s, ref e) => write!(f, "Range({s:?}, {e:?})"),
             Selector::GlobPrefix(ref prefix, pos_opt) => write!(
                 f,
                 "Prefix({:?}){}",
                 prefix,
                 if let Some(pos) = pos_opt {
-                    format!("[{}]", pos)
+                    format!("[{pos}]")
                 } else {
                     "".to_string()
                 }
@@ -775,7 +763,7 @@ impl fmt::Debug for Selector {
                 "Suffix({:?}){}",
                 suffix,
                 if let Some(pos) = pos_opt {
-                    format!("[{}]", pos)
+                    format!("[{pos}]")
                 } else {
                     "".to_string()
                 }
@@ -787,7 +775,7 @@ impl fmt::Debug for Selector {
                     prefix,
                     suffix,
                     if let Some(pos) = pos_opt {
-                        format!("[{}]", pos)
+                        format!("[{pos}]")
                     } else {
                         "".to_string()
                     }
@@ -802,10 +790,10 @@ impl fmt::Debug for OneSelector {
         match *self {
             OneSelector::Start => write!(f, "Start"),
             OneSelector::End => write!(f, "End"),
-            OneSelector::Index(idx) => write!(f, "Index({})", idx),
+            OneSelector::Index(idx) => write!(f, "Index({idx})"),
             OneSelector::IndexedName(ref s, idx, _) => match idx {
-                None => write!(f, "IndexedName({})", s),
-                Some(i) => write!(f, "IndexedName({}[{}])", s, i),
+                None => write!(f, "IndexedName({s})"),
+                Some(i) => write!(f, "IndexedName({s}[{i}])"),
             },
         }
     }

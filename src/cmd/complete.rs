@@ -172,8 +172,7 @@ fn check_type(expected_value_type: &mut Option<ValueType>, value_type: ValueType
             Ok(())
         } else {
             Err(format!(
-                "Inconsistent value units: first seen was {:?} and then found {:?}",
-                expected, value_type,
+                "Inconsistent value units: first seen was {expected:?} and then found {value_type:?}",
             ))?
         }
     } else {

@@ -382,7 +382,7 @@ impl SparklineRenderer {
                         } else {
                             x / denominator * 100.0
                         };
-                        format!("{:3.0}%", percentage)
+                        format!("{percentage:3.0}%")
                     } else {
                         util::format_number(x)
                     }),
@@ -611,8 +611,7 @@ impl Series {
     fn try_push_float(&mut self, scale_type: ScaleType, x: f64) -> CliResult<()> {
         if x != 0.0 && !scale_type.accepts(x) {
             Err(format!(
-                "given --scale encountered an illegal value ({})!",
-                x
+                "given --scale encountered an illegal value ({x})!"
             ))?;
         }
 
@@ -1328,7 +1327,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     series.try_push_cell(args.flag_scale, cell)?;
                 }
 
-                pool.push((format!("Row n°{}", index), series));
+                pool.push((format!("Row n°{index}"), series));
             } else {
                 let category_opt =
                     if let Some((category_column_index, color_map)) = categories_opt.as_mut() {
@@ -1822,7 +1821,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                 small_multiples_buffer.push(sparkline);
             } else {
-                writeln!(&mut out, "{}", sparkline_renderer)?;
+                writeln!(&mut out, "{sparkline_renderer}")?;
             }
 
             offset += chunk.len();
@@ -1855,7 +1854,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
         }
 
-        write!(&mut out, "{}", output_buffer)?;
+        write!(&mut out, "{output_buffer}")?;
     }
 
     Ok(())

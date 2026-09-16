@@ -918,7 +918,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .flag_encoding
         .as_ref()
         .map(|name| {
-            encoding_from_whatwg_label(name).ok_or_else(|| format!("unknown {} encoding!", name))
+            encoding_from_whatwg_label(name).ok_or_else(|| format!("unknown {name} encoding!"))
         })
         .transpose()?;
 
@@ -969,7 +969,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 .flag_foreach
                 .as_ref()
                 .map(|css| {
-                    Selector::parse(css).map_err(|_| format!("invalid CSS selector: {}", css))
+                    Selector::parse(css).map_err(|_| format!("invalid CSS selector: {css}"))
                 })
                 .transpose()?,
         })

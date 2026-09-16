@@ -585,8 +585,8 @@ pub enum ParseError {
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Pest(err) => write!(f, "{}", err),
-            Self::Custom(msg) => write!(f, "{}", msg),
+            Self::Pest(err) => write!(f, "{err}"),
+            Self::Custom(msg) => write!(f, "{msg}"),
         }
     }
 }

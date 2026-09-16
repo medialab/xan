@@ -406,7 +406,7 @@ impl Args {
             "\\caption{{{}}}",
             self.flag_caption.as_deref().unwrap_or("")
         )?;
-        writeln!(&mut writer, "\\begin{{tabular}}{{|{}|}}", col_spec)?;
+        writeln!(&mut writer, "\\begin{{tabular}}{{|{col_spec}|}}")?;
         writeln!(&mut writer, "\\hline")?;
 
         if !rconf.no_headers {
@@ -415,7 +415,7 @@ impl Args {
                 if i > 0 {
                     write!(&mut writer, " & ")?;
                 }
-                write!(&mut writer, "\\textbf{{{}}}", escaped_h)?;
+                write!(&mut writer, "\\textbf{{{escaped_h}}}")?;
             }
             writeln!(&mut writer, " \\\\")?;
             writeln!(&mut writer, "\\hline")?;
