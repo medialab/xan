@@ -1,0 +1,30 @@
+use parquet::record::Field;
+use simd_csv::ByteRecord;
+
+pub fn push_parquet_field(record: &mut ByteRecord, field: &Field) -> Result<(), String> {
+    match field {
+        Field::Null => record.push_field(b""),
+        Field::Bool(b) => record.push_field(if *b { b"true" } else { b"false" }),
+        Field::Str(string) => record.push_field(string.as_bytes()),
+        Field::Bytes(bytes) => record.push_field(bytes.data()),
+        Field::UByte(f) => record.fmt_field(f),
+        Field::UShort(f) => record.fmt_field(f),
+        Field::UInt(f) => record.fmt_field(f),
+        Field::ULong(f) => record.fmt_field(f),
+        Field::Byte(f) => record.fmt_field(f),
+        Field::Short(f) => record.fmt_field(f),
+        Field::Int(f) => record.fmt_field(f),
+        Field::Long(f) => record.fmt_field(f),
+        Field::Float(f) => record.fmt_field(f),
+        Field::Float16(f) => record.fmt_field(f),
+        Field::Double(f) => record.fmt_field(f),
+        Field::TimestampMicros(f) => record.fmt_field(f),
+        Field::TimestampMillis(f) => record.fmt_field(f),
+        Field::ListInternal(_) | Field::MapInternal(_) => record.write_field(|view| {
+            serde_json::to_writer(view, &field.to_json_value()).unwrap();
+        }),
+        _ => Err("unsupported parquet value type!")?,
+    };
+
+    Ok(())
+}

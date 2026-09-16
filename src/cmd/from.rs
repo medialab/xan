@@ -639,15 +639,13 @@ impl Args {
         use std::fs::File;
 
         use parquet::file::reader::{FileReader, SerializedFileReader};
-        use parquet::record::Field;
 
         if self.arg_input.is_none() {
             Err("xan from -f parquet does not work on stdin!")?;
         }
 
         let file = File::open(self.arg_input.as_ref().unwrap())?;
-        let reader =
-            SerializedFileReader::new(file).map_err(|_| "could not open a parquet reader!")?;
+        let reader = SerializedFileReader::new(file)?;
 
         let mut wtr = self.writer()?;
         let mut output_record = ByteRecord::new();
@@ -662,41 +660,15 @@ impl Args {
 
         wtr.write_byte_record(&output_record)?;
 
-        let iter = reader
-            .get_row_iter(None)
-            .map_err(|_| "could not instantiate a parquet row iterator!")?;
+        let iter = reader.get_row_iter(None)?;
 
         for result in iter {
             output_record.clear();
 
-            let row = result.map_err(|_| "could not deserialize parquet row!")?;
+            let row = result?;
 
-            for (_, value) in row.get_column_iter() {
-                match value {
-                    Field::Null => output_record.push_field(b""),
-                    Field::Bool(b) => output_record.push_field(if *b { b"true" } else { b"false" }),
-                    Field::Str(string) => output_record.push_field(string.as_bytes()),
-                    Field::Bytes(bytes) => output_record.push_field(bytes.data()),
-                    Field::UByte(f) => output_record.fmt_field(f),
-                    Field::UShort(f) => output_record.fmt_field(f),
-                    Field::UInt(f) => output_record.fmt_field(f),
-                    Field::ULong(f) => output_record.fmt_field(f),
-                    Field::Byte(f) => output_record.fmt_field(f),
-                    Field::Short(f) => output_record.fmt_field(f),
-                    Field::Int(f) => output_record.fmt_field(f),
-                    Field::Long(f) => output_record.fmt_field(f),
-                    Field::Float(f) => output_record.fmt_field(f),
-                    Field::Float16(f) => output_record.fmt_field(f),
-                    Field::Double(f) => output_record.fmt_field(f),
-                    Field::TimestampMicros(f) => output_record.fmt_field(f),
-                    Field::TimestampMillis(f) => output_record.fmt_field(f),
-                    Field::ListInternal(_) | Field::MapInternal(_) => {
-                        output_record.write_field(|view| {
-                            serde_json::to_writer(view, &value.to_json_value()).unwrap();
-                        })
-                    }
-                    _ => Err("unsupported parquet value type!")?,
-                };
+            for (_, field) in row.get_column_iter() {
+                crate::parquet::push_parquet_field(&mut output_record, field)?;
             }
 
             wtr.write_byte_record(&output_record)?;
