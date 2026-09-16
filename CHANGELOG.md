@@ -10,6 +10,7 @@
 *Features*
 
 * Adding easy way to use null-byte delimiters through `-d '\0'`, the same way as `-d '\t'`.
+* `xan count` parquet integration.
 
 *Performance*
 

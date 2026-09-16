@@ -26,6 +26,10 @@ impl ParquetReader {
         headers
     }
 
+    pub fn count(&self) -> u64 {
+        self.0.metadata().file_metadata().num_rows() as u64
+    }
+
     pub fn into_inner(self) -> SerializedFileReader<File> {
         self.0
     }

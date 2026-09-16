@@ -18,6 +18,9 @@ of records of the file in parallel to go faster. But this cannot work on streams
 or gzipped files, unless a `.gzi` index (as created by `bgzip -i`) can be found
 beside it.
 
+Finally, this command is able to access the number of rows of a `.parquet` file
+out of the box.
+
 Usage:
     xan count [options] [<input>]
 

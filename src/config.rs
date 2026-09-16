@@ -394,13 +394,13 @@ impl Config {
         self.path.is_none()
     }
 
-    // pub fn is_parquet(&self) -> bool {
-    //     if let Some(p) = &self.path {
-    //         matches!(p.extension(), Some(ext) if ext == "parquet")
-    //     } else {
-    //         false
-    //     }
-    // }
+    pub fn is_parquet(&self) -> bool {
+        if let Some(p) = &self.path {
+            matches!(p.extension(), Some(ext) if ext == "parquet")
+        } else {
+            false
+        }
+    }
 
     pub fn selection<'a, H>(&self, first_record: H) -> Result<Selection, String>
     where

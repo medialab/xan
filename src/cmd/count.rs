@@ -24,6 +24,9 @@ of records of the file in parallel to go faster. But this cannot work on streams
 or gzipped files, unless a `.gzi` index (as created by `bgzip -i`) can be found
 beside it.
 
+Finally, this command is able to access the number of rows of a `.parquet` file
+out of the box.
+
 Usage:
     xan count [options] [<input>]
 
@@ -94,7 +97,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let wconf = Config::new(&args.flag_output);
 
-    let count = if args.flag_approx {
+    let count = if conf.is_parquet() {
+        conf.parquet_reader()?.count()
+    } else if args.flag_approx {
         match conf.simd_seeker()? {
             None => 0,
             Some(seeker) => seeker.approx_count(),
