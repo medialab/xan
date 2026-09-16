@@ -35,6 +35,7 @@ impl TryFrom<String> for Delimiter {
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         match value.as_str() {
+            r"\0" => Ok(Delimiter(b'\0')),
             r"\t" => Ok(Delimiter(b'\t')),
             s => {
                 if s.len() != 1 {

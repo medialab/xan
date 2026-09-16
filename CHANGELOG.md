@@ -7,6 +7,10 @@
 * Bumping MSRV to `1.88.0`.
 * Dropping the `parquet` feature. Parquet integration is now a default.
 
+*Features*
+
+* Adding easy way to use null-byte delimiters through `-d '\0'`, the same way as `-d '\t'`.
+
 *Performance*
 
 * Improving performance related to pretty-printing numbers.
