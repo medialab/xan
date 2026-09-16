@@ -636,30 +636,17 @@ impl Args {
     }
 
     fn convert_parquet(&self) -> CliResult<()> {
-        use std::fs::File;
+        use parquet::file::reader::FileReader;
 
-        use parquet::file::reader::{FileReader, SerializedFileReader};
-
-        if self.arg_input.is_none() {
-            Err("xan from -f parquet does not work on stdin!")?;
-        }
-
-        let file = File::open(self.arg_input.as_ref().unwrap())?;
-        let reader = SerializedFileReader::new(file)?;
+        let reader = Config::new(&self.arg_input).parquet_reader()?;
 
         let mut wtr = self.writer()?;
+
+        wtr.write_byte_record(&reader.byte_headers())?;
+
+        let reader = reader.into_inner();
+
         let mut output_record = ByteRecord::new();
-
-        let schema = reader.metadata().file_metadata().schema_descr();
-
-        for column in schema.columns() {
-            let path = column.path();
-            let logical_name = &path.parts()[0];
-            output_record.push_field(logical_name.as_bytes());
-        }
-
-        wtr.write_byte_record(&output_record)?;
-
         let iter = reader.get_row_iter(None)?;
 
         for result in iter {

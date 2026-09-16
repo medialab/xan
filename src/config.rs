@@ -11,6 +11,7 @@ use bgzip::read::{BGZFReader, IndexedBGZFReader};
 use flate2::read::MultiGzDecoder;
 use regex::bytes::Regex;
 
+use crate::parquet::ParquetReader;
 use crate::read;
 use crate::select::{SelectedColumns, Selection};
 use crate::{CliError, CliResult};
@@ -886,5 +887,23 @@ impl Config {
 
     pub fn simd_csv_writer_from_writer<W: io::Write>(&self, wtr: W) -> simd_csv::Writer<W> {
         self.simd_csv_writer_builder().from_writer(wtr)
+    }
+
+    pub fn parquet_reader(&self) -> CliResult<ParquetReader> {
+        match &self.path {
+            None => Err(
+                "parquet files cannot be read from stdin!\nIt must be a file on disk with the .parquet extension.",
+            )?,
+            Some(p) => {
+                if matches!(p.extension(), Some(ext) if ext == "parquet") {
+                    Ok(ParquetReader::new(fs::File::open(p)?)?)
+                } else {
+                    Err(format!(
+                        "target file at path {} does not have the correct .parquet extension!",
+                        p.to_string_lossy()
+                    ))?
+                }
+            }
+        }
     }
 }

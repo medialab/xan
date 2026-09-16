@@ -1,5 +1,35 @@
+use std::fs::File;
+
+use parquet::errors::Result as ParquetResult;
+use parquet::file::reader::{FileReader, SerializedFileReader};
 use parquet::record::Field;
 use simd_csv::ByteRecord;
+
+pub struct ParquetReader(SerializedFileReader<File>);
+
+impl ParquetReader {
+    pub fn new(file: File) -> ParquetResult<Self> {
+        SerializedFileReader::new(file).map(Self)
+    }
+
+    pub fn byte_headers(&self) -> ByteRecord {
+        let mut headers = ByteRecord::new();
+
+        let schema = self.0.metadata().file_metadata().schema_descr();
+
+        for column in schema.columns() {
+            let path = column.path();
+            let logical_name = &path.parts()[0];
+            headers.push_field(logical_name.as_bytes());
+        }
+
+        headers
+    }
+
+    pub fn into_inner(self) -> SerializedFileReader<File> {
+        self.0
+    }
+}
 
 pub fn push_parquet_field(record: &mut ByteRecord, field: &Field) -> Result<(), String> {
     match field {
