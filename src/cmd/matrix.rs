@@ -73,6 +73,7 @@ Supported modes:
             adjacency matrix, or co-occurrence matrix, if you will).
     corr  - convert a selection of columns into a full
             correlation matrix.
+    bivar - convert x & y columns into a bivariate distribution matrix.
 
 Note that the difference between the `adj` and `count` mode is that `count`
 considers its `x` & `y` labels as two separate sets while `adj` considers `source`
@@ -83,10 +84,13 @@ Usage:
     xan matrix adj [options] <source> <target> [<input>]
     xan matrix count [options] <x> <y> [<input>]
     xan matrix corr [options] [<input>]
+    xan matrix bivar [options] <x> <y> [<input>]
     xan matrix --help
 
-matrix adj/count options:
-    -w, --weight <column>  Optional column containing a weight for edges.
+matrix adj/count/bivar options:
+    -w, --weight <column>  Optional column containing numbers that will be used
+                           as matrix cell weights, instead of just counting
+                           occurrences.
 
 matrix adj options:
     -U, --undirected  Indicates that edges are undirected and that produced
@@ -111,6 +115,7 @@ struct Args {
     cmd_adj: bool,
     cmd_count: bool,
     cmd_corr: bool,
+    cmd_bivar: bool,
     arg_input: Option<String>,
     arg_x: Option<SelectedColumns>,
     arg_y: Option<SelectedColumns>,
@@ -341,6 +346,11 @@ impl Args {
 
         Ok(())
     }
+
+    fn bivar(self) -> CliResult<()> {
+        dbg!(self);
+        Ok(())
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -350,6 +360,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         args.adj_or_count()
     } else if args.cmd_corr {
         args.correlation()
+    } else if args.cmd_bivar {
+        args.bivar()
     } else {
         unreachable!()
     }
