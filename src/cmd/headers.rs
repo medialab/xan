@@ -68,15 +68,30 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut headers_per_input: Vec<Vec<String>> = Vec::with_capacity(configs.len());
 
     let single_input = configs.len() == 1;
+    let mut column_types_per_input = Vec::new();
 
     for conf in configs.iter() {
-        headers_per_input.push(
-            conf.reader()?
-                .headers()?
-                .iter()
-                .map(|h| h.to_string())
-                .collect(),
-        );
+        if conf.is_parquet() {
+            let parquet_reader = conf.parquet_reader()?;
+
+            headers_per_input.push(
+                parquet_reader
+                    .headers()
+                    .iter()
+                    .map(|h| h.to_string())
+                    .collect(),
+            );
+            column_types_per_input.push(Some(parquet_reader.column_types()));
+        } else {
+            headers_per_input.push(
+                conf.reader()?
+                    .headers()?
+                    .iter()
+                    .map(|h| h.to_string())
+                    .collect(),
+            );
+            column_types_per_input.push(None);
+        }
     }
 
     if args.flag_csv {
@@ -137,8 +152,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .max()
         .unwrap();
 
-    for (i, (headers, conf)) in headers_per_input
+    for (i, ((headers, types_opt), conf)) in headers_per_input
         .into_iter()
+        .zip(column_types_per_input)
         .zip(configs.iter())
         .enumerate()
     {
@@ -175,13 +191,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             writeln!(
                 &mut out,
-                "{}",
+                "{}{}",
                 if duplicates.contains(&header) {
                     display_header.red()
                 } else if *name_counts.get(&header).unwrap() < configs.len() {
                     display_header.dimmed()
                 } else {
                     display_header.normal()
+                },
+                if let Some(types) = &types_opt {
+                    format!(" {}", types[j].magenta())
+                } else {
+                    "".to_string()
                 }
             )?;
         }

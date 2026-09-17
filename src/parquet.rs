@@ -1,9 +1,11 @@
 use std::fs::File;
 
+use parquet::basic::{ConvertedType, LogicalType};
 use parquet::errors::Result as ParquetResult;
 use parquet::file::reader::{FileReader, SerializedFileReader};
 use parquet::record::Field;
-use simd_csv::ByteRecord;
+use parquet::schema::types::ColumnDescriptor;
+use simd_csv::{ByteRecord, StringRecord};
 
 pub struct ParquetReader(SerializedFileReader<File>);
 
@@ -12,18 +14,32 @@ impl ParquetReader {
         SerializedFileReader::new(file).map(Self)
     }
 
-    pub fn byte_headers(&self) -> ByteRecord {
-        let mut headers = ByteRecord::new();
+    pub fn headers(&self) -> StringRecord {
+        let mut headers = StringRecord::new();
 
         let schema = self.0.metadata().file_metadata().schema_descr();
 
         for column in schema.columns() {
             let path = column.path();
             let logical_name = &path.parts()[0];
-            headers.push_field(logical_name.as_bytes());
+            headers.push_field(logical_name);
         }
 
         headers
+    }
+
+    pub fn column_types(&self) -> Vec<&'static str> {
+        let schema = self.0.metadata().file_metadata().schema_descr();
+
+        schema
+            .columns()
+            .iter()
+            .map(|column| human_readable_column_type(column))
+            .collect()
+    }
+
+    pub fn byte_headers(&self) -> ByteRecord {
+        self.headers().as_byte_record().clone()
     }
 
     pub fn count(&self) -> u64 {
@@ -61,4 +77,18 @@ pub fn push_parquet_field(record: &mut ByteRecord, field: &Field) -> Result<(), 
     };
 
     Ok(())
+}
+
+fn human_readable_column_type(column: &ColumnDescriptor) -> &'static str {
+    if let Some(logical_type) = column.logical_type_ref() {
+        return match logical_type {
+            LogicalType::Timestamp(_) => "timestamp",
+            _ => "unknown",
+        };
+    }
+
+    match column.converted_type() {
+        ConvertedType::UTF8 => "string",
+        _ => "unknown",
+    }
 }
