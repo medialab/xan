@@ -280,13 +280,13 @@ impl Serialize for OmittableAttributes {
 
 // NOTE: we keep a depth on `Delve` and `Pop` to be able to skip absent keys efficiently
 #[derive(Debug, Clone)]
-enum JSONTraversalState {
+pub enum JSONTraversalState {
     Delve(String, usize),
     Emit,
     Pop(usize),
 }
 
-type JSONTraversalStack = Vec<JSONTraversalState>;
+pub type JSONTraversalStack = Vec<JSONTraversalState>;
 
 fn traverse_to_build_stack(
     value: &Value,
@@ -562,7 +562,7 @@ fn fill_record_from_value(value: &Value, record: &mut ByteRecord, stack: &JSONTr
 // }
 
 #[inline]
-fn fill_record_from_tape_value(
+pub fn fill_record_from_tape_value(
     value: TapeValue,
     record: &mut ByteRecord,
     stack: &JSONTraversalStack,
@@ -643,14 +643,14 @@ fn traverse_to_build_headers_override(
 }
 
 pub struct JSONTabularizer<W: Write> {
-    writer: simd_csv::Writer<W>,
+    pub writer: simd_csv::Writer<W>,
     harmonized_value: Value,
     sample_size: Option<usize>,
     sample: Vec<Value>,
     flushed: bool,
     output_record: ByteRecord,
     headers_override: Option<ByteRecord>,
-    stack: JSONTraversalStack,
+    pub stack: JSONTraversalStack,
     reorder_keys: bool,
 }
 

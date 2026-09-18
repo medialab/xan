@@ -64,7 +64,7 @@ Excel/OpenOffice-related options:
     --sheet-name <name>  Name of the sheet to convert.
     --list-sheets        Print sheet names instead of converting file.
 
-JSON/TOML options:
+JSON/NDJSON/TOML options:
     --sample-size <n>      Number of records to sample before emitting headers.
                            Set to -1 to sample ALL records before emitting headers.
                            This may cost a lot of memory but will ensure all possible
@@ -86,6 +86,14 @@ JSON/TOML options:
                            Leaf nodes of said object must be strings that will be used as column names
                            in the CSV output. This can be useful to reshape the output and/or limit
                            memory usage and downstream bandwidth.
+
+NDJSON options:
+    -p, --parallel           Whether to use parallelization to speed up JSON parsing.
+                             Will automatically select a suitable number of threads to use
+                             based on your number of cores. Use -t, --threads if you want to
+                             indicate the number of threads yourself.
+    -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
+                             if you want the number of threads to be automatically chosen instead.
 
 Text lines & raw options:
     -c, --column <name>    Name of the column to create. Will default to "line" with -f=txt

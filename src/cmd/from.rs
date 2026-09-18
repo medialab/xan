@@ -1,5 +1,6 @@
 use std::convert::TryFrom;
 use std::num::NonZeroUsize;
+use std::sync::Arc;
 use std::{
     fs,
     io::{self, BufReader, Cursor, Read},
@@ -9,13 +10,14 @@ use std::{
 use calamine::{Data, Reader, open_workbook_auto_from_rs};
 use flate2::read::MultiGzDecoder;
 use jiff::civil::{DateTime, Time};
+use pariter::IteratorExt;
 use serde_json::{Map, Value};
 use simd_csv::ByteRecord;
 
 use crate::CliError;
 use crate::CliResult;
 use crate::config::Config;
-use crate::json::{GetPathOwned, JSONTabularizer};
+use crate::json::{GetPathOwned, JSONTabularizer, fill_record_from_tape_value};
 use crate::moonblade::Path as JSONPath;
 use crate::util::{self, ChunksIteratorExt};
 
@@ -134,7 +136,7 @@ Excel/OpenOffice-related options:
     --sheet-name <name>  Name of the sheet to convert.
     --list-sheets        Print sheet names instead of converting file.
 
-JSON/TOML options:
+JSON/NDJSON/TOML options:
     --sample-size <n>      Number of records to sample before emitting headers.
                            Set to -1 to sample ALL records before emitting headers.
                            This may cost a lot of memory but will ensure all possible
@@ -156,6 +158,14 @@ JSON/TOML options:
                            Leaf nodes of said object must be strings that will be used as column names
                            in the CSV output. This can be useful to reshape the output and/or limit
                            memory usage and downstream bandwidth.
+
+NDJSON options:
+    -p, --parallel           Whether to use parallelization to speed up JSON parsing.
+                             Will automatically select a suitable number of threads to use
+                             based on your number of cores. Use -t, --threads if you want to
+                             indicate the number of threads yourself.
+    -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
+                             if you want the number of threads to be automatically chosen instead.
 
 Text lines & raw options:
     -c, --column <name>    Name of the column to create. Will default to "line" with -f=txt
@@ -188,6 +198,8 @@ struct Args {
     flag_root: Option<String>,
     flag_column: Option<String>,
     flag_nth_table: isize,
+    flag_parallel: bool,
+    flag_threads: Option<NonZeroUsize>,
 }
 
 impl Args {
@@ -340,8 +352,6 @@ impl Args {
                 .map_err(|msg| format!("{} while processing --model!", msg))?;
         }
 
-        let mut tape = simd_json::Tape::null();
-
         while tabularizer.is_sampling() {
             if let Some(line) = rdr.read_line()? {
                 let line_mut =
@@ -362,23 +372,62 @@ impl Args {
             }
         }
 
-        while let Some(line) = rdr.read_line()? {
-            // Sshhh... it's alright, really.
-            let line_mut =
-                unsafe { std::slice::from_raw_parts_mut(line.as_ptr() as *mut u8, line.len()) };
+        let threads = util::parallelization(self.flag_parallel, self.flag_threads.map(|t| t.get()));
 
-            simd_json::fill_tape(line_mut, &mut buffers, &mut tape)?;
-            let value = tape.as_value();
+        if let Some(t) = threads {
+            let root_opt_handle = Arc::new(root_opt);
 
-            let mut nested = value;
+            tabularizer.flush()?;
 
-            if let Some(path) = &root_opt {
-                nested = nested
-                    .get_path_owned(path)
-                    .ok_or("could not extract at --root!")?;
+            let json_stack = tabularizer.stack.clone();
+
+            for result in rdr.lines().parallel_map_custom(
+                |o| o.threads(t),
+                move |result| -> CliResult<ByteRecord> {
+                    let mut line = result?;
+
+                    let tape = simd_json::to_tape(&mut line)?;
+
+                    let value = tape.as_value();
+
+                    let mut nested = value;
+
+                    if let Some(path) = root_opt_handle.as_ref() {
+                        nested = nested
+                            .get_path_owned(path)
+                            .ok_or("could not extract at --root!")?;
+                    }
+
+                    let mut record = ByteRecord::new();
+
+                    fill_record_from_tape_value(nested, &mut record, &json_stack);
+
+                    Ok(record)
+                },
+            ) {
+                tabularizer.writer.write_byte_record(&result?)?;
             }
+        } else {
+            let mut tape = simd_json::Tape::null();
 
-            tabularizer.process_tape_no_sampling(nested)?;
+            while let Some(line) = rdr.read_line()? {
+                // Sshhh... it's alright, really.
+                let line_mut =
+                    unsafe { std::slice::from_raw_parts_mut(line.as_ptr() as *mut u8, line.len()) };
+
+                simd_json::fill_tape(line_mut, &mut buffers, &mut tape)?;
+                let value = tape.as_value();
+
+                let mut nested = value;
+
+                if let Some(path) = &root_opt {
+                    nested = nested
+                        .get_path_owned(path)
+                        .ok_or("could not extract at --root!")?;
+                }
+
+                tabularizer.process_tape_no_sampling(nested)?;
+            }
         }
 
         Ok(tabularizer.flush()?)
