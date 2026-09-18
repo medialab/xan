@@ -71,7 +71,7 @@ impl TryFrom<String> for SupportedFormat {
     }
 }
 
-static USAGE: &str = "
+static USAGE: &str = r#"
 Convert a variety of data formats to CSV.
 
 Usage:
@@ -99,6 +99,26 @@ in `.gz`: `json`, `ndjson`, `jsonl`, `raw`, `tar` and `txt`.
 
 Tarball extraction was designed for utf8-encoded text files. Expect weird or
 broken results with other encodings or binary files.
+
+# Examples
+
+*Restricting/reshaping a JSON stream*
+
+Let's say you have the following JSON data to process:
+
+[{"name": "John", "data": {"age": 34, "colors": {"default": "red", "preferred": "purple"}}}]
+
+You could run the following command:
+
+    $ xan from file.json --model '{"name": "username", "data": {"colors": {"preferred": "preferred_color"}}}'
+
+And get the following CSV output:
+
+┌──────────┬─────────────────┐
+│ username │ preferred_color │
+├──────────┼─────────────────┤
+│ John     │ purple          │
+└──────────┴─────────────────┘
 
 from options:
     -f, --format <format>  Format to convert from. Will be inferred from file
@@ -131,14 +151,15 @@ JSON/TOML options:
                            to map to a single CSV row, instead of mapping to key,value columns.
     --root <path>          Convert nested object found at path instead of root object. This path
                            must be given as a getter using the expression language. For instance
-                           \"data\" or \"_.nodes[0].metadata\".
-    --model <json>         Pass a dummy JSON object that will be used as the extraction \"model\".
-                           Can be useful to avoid the need for sampling and/or restrict the extracted
-                           paths in the resulting output.
+                           "data" or "_.nodes[0].metadata".
+    --model <json>         Pass a dummy JSON object that will be used as the extraction "model".
+                           Leaf nodes of said object must be strings that will be used as column names
+                           in the CSV output. This can be useful to reshape the output and/or limit
+                           memory usage and downstream bandwidth.
 
 Text lines & raw options:
-    -c, --column <name>    Name of the column to create. Will default to \"line\" with -f=txt
-                           and \"value\" with -f=raw.
+    -c, --column <name>    Name of the column to create. Will default to "line" with -f=txt
+                           and "value" with -f=raw.
 
 Markdown options:
     -n, --nth-table <n>    Select nth table in document, starting at 0.
@@ -148,7 +169,7 @@ Markdown options:
 Common options:
     -h, --help             Display this message
     -o, --output <file>    Write output to <file> instead of stdout.
-";
+"#;
 
 #[derive(Deserialize)]
 struct Args {
@@ -314,7 +335,9 @@ impl Args {
         }
 
         if let Some(model) = self.model()? {
-            tabularizer.set_model(&model);
+            tabularizer
+                .set_model(&model)
+                .map_err(|msg| format!("{} while processing --model!", msg))?;
         }
 
         let mut tape = simd_json::Tape::null();
@@ -410,7 +433,9 @@ impl Args {
             }
 
             if let Some(model) = self.model()? {
-                tabularizer.set_model(&model);
+                tabularizer
+                    .set_model(&model)
+                    .map_err(|msg| format!("{} while processing --model!", msg))?;
             }
 
             for item in array.into_iter() {
