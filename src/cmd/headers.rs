@@ -200,7 +200,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     display_header.normal()
                 },
                 if let Some(types) = &types_opt {
-                    format!(" {}", types[j].magenta())
+                    format!(
+                        " {}",
+                        if types[j] == "unknown" {
+                            types[j].dimmed()
+                        } else {
+                            types[j].magenta()
+                        }
+                    )
                 } else {
                     "".to_string()
                 }

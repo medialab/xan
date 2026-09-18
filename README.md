@@ -14,7 +14,7 @@ Note that this tool is originally a fork of [BurntSushi](https://github.com/Burn
 
 `xan` therefore goes beyond typical data manipulation and expose utilities related to lexicometry, graph theory and even scraping.
 
-Beyond CSV data, `xan` is able to process a large variety of CSV-adjacent data formats from many different disciplines such as web archival (`.cdx`) or bioinformatics (`.vcf`, `.gtf`, `.sam`, `.bed` etc.). `xan` is also able to convert to & from many data formats such as json, excel files, numpy arrays etc. using [`xan to`](./docs/cmd/to.md) and [`xan from`](./docs/cmd/from.md). See [this](#supported-file-formats) section for more detail.
+Beyond CSV data, `xan` is able to process a large variety of CSV-adjacent data formats from many different disciplines such as web archival (`.cdx`) or bioinformatics (`.vcf`, `.gtf`, `.sam`, `.bed` etc.). `xan` is also able to convert to & from many data formats such as json, ndjson, excel files, numpy arrays etc. using [`xan to`](./docs/cmd/to.md) and [`xan from`](./docs/cmd/from.md). See [this](#supported-file-formats) section for more detail.
 
 Then, even though `xan` is fundamentally geared towards streams of row-oriented tabular data, it can sometimes leverage the benefits of the popular `parquet` file format to offer better performance. See [this](#regarding-parquet-files) section for more detail.
 
@@ -765,6 +765,7 @@ xan from data.parquet | xan search -s title French | xan count
 Then, some `xan` commands offer better `parquet` integration when they can leverage the benefits of the file format itself:
 
 * `xan count` knows how to access the number of rows of a `parquet` file in constant time by reading its footer.
+* `xan headers` will display the type of the columns along with their names.
 
 ### Compressed files
 
