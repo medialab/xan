@@ -30,6 +30,26 @@ in `.gz`: `json`, `ndjson`, `jsonl`, `raw`, `tar` and `txt`.
 Tarball extraction was designed for utf8-encoded text files. Expect weird or
 broken results with other encodings or binary files.
 
+# Examples
+
+*Restricting/reshaping a JSON stream*
+
+Let's say you have the following JSON data to process:
+
+[{"name": "John", "data": {"age": 34, "colors": {"default": "red", "preferred": "purple"}}}]
+
+You could run the following command:
+
+    $ xan from file.json --model '{"name": "username", "data": {"colors": {"preferred": "preferred_color"}}}'
+
+And get the following CSV output:
+
+┌──────────┬─────────────────┐
+│ username │ preferred_color │
+├──────────┼─────────────────┤
+│ John     │ purple          │
+└──────────┴─────────────────┘
+
 from options:
     -f, --format <format>  Format to convert from. Will be inferred from file
                            extension if not given. Must be specified when reading
@@ -63,8 +83,9 @@ JSON/TOML options:
                            must be given as a getter using the expression language. For instance
                            "data" or "_.nodes[0].metadata".
     --model <json>         Pass a dummy JSON object that will be used as the extraction "model".
-                           Can be useful to avoid the need for sampling and/or restrict the extracted
-                           paths in the resulting output.
+                           Leaf nodes of said object must be strings that will be used as column names
+                           in the CSV output. This can be useful to reshape the output and/or limit
+                           memory usage and downstream bandwidth.
 
 Text lines & raw options:
     -c, --column <name>    Name of the column to create. Will default to "line" with -f=txt

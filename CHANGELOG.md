@@ -6,11 +6,12 @@
 
 * Bumping MSRV to `1.88.0`.
 * Dropping the `parquet` feature. Parquet integration is now a default.
+* `xan from -f (json|ndjson) --model` is now also used to rename the projected columns.
 
 *Features*
 
 * Adding easy way to use null-byte delimiters through `-d '\0'`, the same way as `-d '\t'`.
-* `xan count` parquet integration.
+* `xan count` & `xan headers` parquet integration.
 
 *Performance*
 

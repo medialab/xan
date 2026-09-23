@@ -613,6 +613,35 @@ fn merge_with_owned(a: &mut Value, b: &Value) {
     *a = b.clone();
 }
 
+fn traverse_to_build_headers_override(
+    headers: &mut ByteRecord,
+    value: &Value,
+) -> Result<(), &'static str> {
+    match value {
+        Value::Null => Err("found null leaf value"),
+        Value::Bool(_) => Err("found bool leaf value"),
+        Value::Number(_) => Err("found number leaf value"),
+        Value::String(name) => {
+            headers.push_field(name.as_bytes());
+            Ok(())
+        }
+        Value::Array(array) => {
+            for item in array {
+                traverse_to_build_headers_override(headers, item)?;
+            }
+
+            Ok(())
+        }
+        Value::Object(object) => {
+            for item in object.values() {
+                traverse_to_build_headers_override(headers, item)?;
+            }
+
+            Ok(())
+        }
+    }
+}
+
 pub struct JSONTabularizer<W: Write> {
     writer: simd_csv::Writer<W>,
     harmonized_value: Value,
@@ -620,6 +649,7 @@ pub struct JSONTabularizer<W: Write> {
     sample: Vec<Value>,
     flushed: bool,
     output_record: ByteRecord,
+    headers_override: Option<ByteRecord>,
     stack: JSONTraversalStack,
     reorder_keys: bool,
 }
@@ -636,16 +666,22 @@ impl<W: Write> JSONTabularizer<W> {
             },
             flushed: true,
             output_record: ByteRecord::new(),
+            headers_override: None,
             stack: JSONTraversalStack::new(),
             reorder_keys: false,
         }
     }
 
-    pub fn set_model(&mut self, model: &Value) {
+    pub fn set_model(&mut self, model: &Value) -> Result<(), String> {
         self.sample_size = Some(0);
         self.flushed = false;
 
         merge_with_owned(&mut self.harmonized_value, model);
+        let mut headers_override = ByteRecord::new();
+        traverse_to_build_headers_override(&mut headers_override, model)?;
+        self.headers_override = Some(headers_override);
+
+        Ok(())
     }
 
     pub fn reorder_keys(&mut self) {
@@ -664,8 +700,12 @@ impl<W: Write> JSONTabularizer<W> {
             0,
         );
 
-        self.writer
-            .write_byte_record(&headers_from_stack(&self.stack))?;
+        if let Some(headers_override) = &self.headers_override {
+            self.writer.write_byte_record(headers_override)?;
+        } else {
+            self.writer
+                .write_byte_record(&headers_from_stack(&self.stack))?;
+        }
 
         for value in self.sample.iter() {
             fill_record_from_value(value, &mut self.output_record, &self.stack);
