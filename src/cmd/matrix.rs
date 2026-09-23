@@ -73,7 +73,7 @@ Supported modes:
             adjacency matrix, or co-occurrence matrix, if you will).
     corr  - convert a selection of columns into a full
             correlation matrix.
-    bivar - convert x & y columns into a bivariate distribution matrix (e.g. a 
+    bivar - convert x & y columns into a bivariate distribution matrix (e.g. a
             discretized scatterplot).
 
 Note that the difference between the `adj` and `count` mode is that `count`
@@ -103,7 +103,7 @@ matrix corr options:
     -D, --fill-diagonal     Whether to fill diagonal with ones.
 
 matrix bivar options:
-    -b, --bins <nb_columns>  Number of columns (= number of rows) to consider 
+    -b, --bins <nb_columns>  Number of columns (= number of rows) to consider
                              for the square matrix [default: 10]
     --x-bins <nb_columns>    Number of columns to consider for the matrix
                              Default to --bins.
