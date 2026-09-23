@@ -449,14 +449,14 @@ impl Args {
         let mut x_lower_bound = min_x;
         for _ in 0..(nb_cols - 1) {
             x_labels.push(format!(
-                ">= {} > {}",
+                ">= {} < {}",
                 util::format_number(x_lower_bound),
                 util::format_number(x_lower_bound + cell_width)
             ));
             x_lower_bound += cell_width;
         }
         x_labels.push(format!(
-            ">= {} >= {}",
+            ">= {} <= {}",
             util::format_number(x_lower_bound),
             util::format_number(max_x)
         ));
@@ -465,14 +465,14 @@ impl Args {
         let mut y_lower_bound = min_y;
         for _ in 0..(nb_cols - 1) {
             y_labels.push(format!(
-                ">= {} > {}",
+                ">= {} < {}",
                 util::format_number(y_lower_bound),
                 util::format_number(y_lower_bound + cell_height)
             ));
             y_lower_bound += cell_height;
         }
         y_labels.push(format!(
-            ">= {} >= {}",
+            ">= {} <= {}",
             util::format_number(y_lower_bound),
             util::format_number(max_y)
         ));
@@ -491,14 +491,8 @@ impl Args {
 
         let list_points = points.into_iter();
         for (x_value, y_value, weight) in list_points {
-            let idx_col = std::cmp::min(
-                ((x_value - min_x) / cell_width).floor() as usize,
-                nb_cols - 1,
-            );
-            let idx_row = std::cmp::min(
-                ((y_value - min_y) / cell_height).floor() as usize,
-                nb_rows - 1,
-            );
+            let idx_col = (((x_value - min_x) / cell_width).floor() as usize).min(nb_cols - 1);
+            let idx_row = (((y_value - min_y) / cell_height).floor() as usize).min(nb_rows - 1);
 
             flat_matrix[idx_row + nb_rows * idx_col] =
                 Some(match flat_matrix[idx_row + nb_rows * idx_col] {
