@@ -337,7 +337,7 @@ impl Args {
         if let Some(model) = self.model()? {
             tabularizer
                 .set_model(&model)
-                .map_err(|msg| format!("{} while processing --model!", msg))?;
+                .map_err(|msg| format!("{msg} while processing --model!"))?;
         }
 
         let mut tape = simd_json::Tape::null();
@@ -435,7 +435,7 @@ impl Args {
             if let Some(model) = self.model()? {
                 tabularizer
                     .set_model(&model)
-                    .map_err(|msg| format!("{} while processing --model!", msg))?;
+                    .map_err(|msg| format!("{msg} while processing --model!"))?;
             }
 
             for item in array.into_iter() {
