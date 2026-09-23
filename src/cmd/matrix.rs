@@ -89,18 +89,18 @@ Usage:
     xan matrix --help
 
 matrix adj/count/bivar options:
-    -w, --weight <column>    Optional column containing numbers that will be used
-                             as matrix cell weights, instead of just counting
-                             occurrences.
+    -w, --weight <column>  Optional column containing numbers that will be used
+                           as matrix cell weights, instead of just counting
+                           occurrences.
 
 matrix adj options:
-    -U, --undirected         Indicates that edges are undirected and that produced
-                             matrix should be symmetric.
+    -U, --undirected  Indicates that edges are undirected and that produced
+                      matrix should be symmetric.
 
 matrix corr options:
-    -s, --select <columns>   Columns to consider for the correlation
-                             matrix.
-    -D, --fill-diagonal      Whether to fill diagonal with ones.
+    -s, --select <columns>  Columns to consider for the correlation
+                            matrix.
+    -D, --fill-diagonal     Whether to fill diagonal with ones.
 
 matrix bivar options:
     -b, --bins <nb_columns>  Number of columns (= number of rows) to consider 
@@ -111,12 +111,12 @@ matrix bivar options:
                              Default to --bins.
 
 Common options:
-    -h, --help               Display this message
-    -o, --output <file>      Write output to <file> instead of stdout.
-    -n, --no-headers         When set, the file will be considered as having no
-                             headers.
-    -d, --delimiter <arg>    The field delimiter foDirectedr reading CSV data.
-                             Must be a single character.
+    -h, --help             Display this message
+    -o, --output <file>    Write output to <file> instead of stdout.
+    -n, --no-headers       When set, the file will be considered as having no
+                           headers.
+    -d, --delimiter <arg>  The field delimiter foDirectedr reading CSV data.
+                           Must be a single character.
 ";
 
 fn try_parse_float(value: &[u8]) -> Result<f64, String> {
