@@ -73,7 +73,7 @@ Supported modes:
             adjacency matrix, or co-occurrence matrix, if you will).
     corr  - convert a selection of columns into a full
             correlation matrix.
-    grid - convert x & y columns into a bivariate distribution matrix (e.g. a 
+    bivar - convert x & y columns into a bivariate distribution matrix (e.g. a 
             discretized scatterplot).
 
 Note that the difference between the `adj` and `count` mode is that `count`
@@ -85,65 +85,72 @@ Usage:
     xan matrix adj [options] <source> <target> [<input>]
     xan matrix count [options] <x> <y> [<input>]
     xan matrix corr [options] [<input>]
-    xan matrix grid [options] <x> <y> [<input>]
+    xan matrix bivar [options] <x> <y> [<input>]
     xan matrix --help
 
-matrix adj/count/grid options:
-    -w, --weight <column>  Optional column containing numbers that will be used
-                           as matrix cell weights, instead of just counting
-                           occurrences.
+matrix adj/count/bivar options:
+    -w, --weight <column>    Optional column containing numbers that will be used
+                             as matrix cell weights, instead of just counting
+                             occurrences.
 
 matrix adj options:
-    -U, --undirected  Indicates that edges are undirected and that produced
-                      matrix should be symmetric.
+    -U, --undirected         Indicates that edges are undirected and that produced
+                             matrix should be symmetric.
 
 matrix corr options:
-    -s, --select <columns>  Columns to consider for the correlation
-                            matrix.
-    -D, --fill-diagonal     Whether to fill diagonal with ones.
+    -s, --select <columns>   Columns to consider for the correlation
+                             matrix.
+    -D, --fill-diagonal      Whether to fill diagonal with ones.
 
-matrix grid options:
-    -b, --bins <nb_columns>  Number of columns to consider for the square grid
-                             [default: 10]
-    --bins-x <nb_columns>  Number of columns to consider for the grid
-    --bins-y <nb_rows>  Number of rows to consider for the grid
+matrix bivar options:
+    -b, --bins <nb_columns>  Number of columns (= number of rows) to consider 
+                             for the square matrix [default: 10]
+    --x-bins <nb_columns>    Number of columns to consider for the matrix
+                             Default to --bins.
+    --y-bins <nb_rows>       Number of rows to consider for the matrix
+                             Default to --bins.
 
 Common options:
-    -h, --help             Display this message
-    -o, --output <file>    Write output to <file> instead of stdout.
-    -n, --no-headers       When set, the file will be considered as having no
-                           headers.
-    -d, --delimiter <arg>  The field delimiter foDirectedr reading CSV data.
-                           Must be a single character.
+    -h, --help               Display this message
+    -o, --output <file>      Write output to <file> instead of stdout.
+    -n, --no-headers         When set, the file will be considered as having no
+                             headers.
+    -d, --delimiter <arg>    The field delimiter foDirectedr reading CSV data.
+                             Must be a single character.
 ";
 
-fn parse_csv_float_from_index(value_str : &[u8]) -> Result<f64, String> {
-    fast_float::parse::<f64, &[u8]>(value_str).map_err(|_| {
+fn try_parse_float(value: &[u8]) -> Result<f64, String> {
+    fast_float::parse::<f64, &[u8]>(value).map_err(|_| {
         format!(
             "could not parse cell \"{}\" as a float!",
-            std::str::from_utf8(value_str).unwrap()
+            bstr::BStr::new(value)
         )
     })
 }
 
-
-fn min<T : PartialOrd>(opt_min: Option<T>, new_val: T) -> Option<T> {
+fn get_min<T: PartialOrd>(opt_min: Option<T>, new_val: T) -> Option<T> {
     Some(match opt_min {
-        Some(min_value) => {
-            if min_value > new_val {new_val}
-            else {min_value}
+        Some(min_val) => {
+            if new_val < min_val {
+                new_val
+            } else {
+                min_val
+            }
         }
-        None => new_val
+        None => new_val,
     })
 }
 
-fn max<T : PartialOrd>(opt_max: Option<T>, new_val: T) -> Option<T> {
+fn get_max<T: PartialOrd>(opt_max: Option<T>, new_val: T) -> Option<T> {
     Some(match opt_max {
         Some(max_value) => {
-            if max_value < new_val {new_val}
-            else {max_value}
+            if max_value < new_val {
+                new_val
+            } else {
+                max_value
+            }
         }
-        None => new_val
+        None => new_val,
     })
 }
 
@@ -152,7 +159,7 @@ struct Args {
     cmd_adj: bool,
     cmd_count: bool,
     cmd_corr: bool,
-    cmd_grid: bool,
+    cmd_bivar: bool,
     arg_input: Option<String>,
     arg_x: Option<SelectedColumns>,
     arg_y: Option<SelectedColumns>,
@@ -163,8 +170,8 @@ struct Args {
     flag_undirected: bool,
     flag_fill_diagonal: bool,
     flag_bins: usize,
-    flag_bins_x: Option<usize>,
-    flag_bins_y: Option<usize>,
+    flag_x_bins: Option<usize>,
+    flag_y_bins: Option<usize>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_output: Option<String>,
@@ -209,7 +216,7 @@ impl Args {
             }
 
             let weight = match weight_column_index {
-                Some(index) => parse_csv_float_from_index(&input_record[index])?,
+                Some(index) => try_parse_float(&input_record[index])?,
                 None => 1.0,
             };
 
@@ -376,7 +383,7 @@ impl Args {
         Ok(())
     }
 
-    fn grid(self) -> CliResult<()> {
+    fn bivar(self) -> CliResult<()> {
         let rconf = Config::new(&self.arg_input)
             .delimiter(self.flag_delimiter)
             .no_headers(self.flag_no_headers);
@@ -384,78 +391,91 @@ impl Args {
         let mut reader = rconf.simd_reader()?;
         let headers = reader.byte_headers()?;
 
-        let x_column_index = self.arg_x.as_ref()
+        let x_column_index = self
+            .arg_x
+            .as_ref()
             .unwrap()
             .single_selection(headers, !rconf.no_headers)?;
 
-        let y_column_index = self.arg_y.as_ref()
+        let y_column_index = self
+            .arg_y
+            .as_ref()
             .unwrap()
             .single_selection(headers, !rconf.no_headers)?;
 
-        let weight_column_index = self.flag_weight.as_ref()
+        let weight_column_index = self
+            .flag_weight
+            .as_ref()
             .map(|weight_col| weight_col.single_selection(headers, !rconf.no_headers))
             .transpose()?;
 
         let mut input_record = ByteRecord::new();
-        let (mut vect_x, mut vect_y) = (Vec::new(), Vec::new());
-        let mut vect_weight = Vec::new();
+        let mut points = Vec::new();
 
-        let (mut min_x, mut max_x) : (Option<f64>, Option<f64>) = (None, None);
-        let (mut min_y, mut max_y) : (Option<f64>, Option<f64>) = (None, None);
-        
+        let (mut min_x, mut max_x): (Option<f64>, Option<f64>) = (None, None);
+        let (mut min_y, mut max_y): (Option<f64>, Option<f64>) = (None, None);
+
         while reader.read_byte_record(&mut input_record)? {
-
-            let x_value = parse_csv_float_from_index(&input_record[x_column_index])?;
-            let y_value = parse_csv_float_from_index(&input_record[y_column_index])?;
+            let x_value = try_parse_float(&input_record[x_column_index])?;
+            let y_value = try_parse_float(&input_record[y_column_index])?;
 
             let weight = match weight_column_index {
-                Some(index) => parse_csv_float_from_index(&input_record[index])?,
+                Some(index) => try_parse_float(&input_record[index])?,
                 None => 1.0,
             };
 
-            (min_x, max_x) = (min(min_x, x_value), max(max_x, x_value));
-            (min_y, max_y) = (min(min_y, y_value), max(max_y, y_value));
+            (min_x, max_x) = (get_min(min_x, x_value), get_max(max_x, x_value));
+            (min_y, max_y) = (get_min(min_y, y_value), get_max(max_y, y_value));
 
-            vect_x.push(x_value);
-            vect_y.push(y_value);
-            vect_weight.push(weight);
-            
+            points.push((x_value, y_value, weight));
         }
-        
-        let (min_axe_x, max_axe_x) = (min_x.unwrap(), max_x.unwrap());
-        let (min_axe_y, max_axe_y) = (min_y.unwrap(), max_y.unwrap());
 
-        let nb_cols = match self.flag_bins_x {
+        let (min_x, max_x) = (min_x.unwrap(), max_x.unwrap());
+        let (min_y, max_y) = (min_y.unwrap(), max_y.unwrap());
+
+        let nb_cols = match self.flag_x_bins {
             Some(nb_bins) => nb_bins,
             None => self.flag_bins,
         };
-        let nb_rows = match self.flag_bins_y {
+        let nb_rows = match self.flag_y_bins {
             Some(nb_bins) => nb_bins,
             None => self.flag_bins,
         };
 
-
-        let jump_x: f64 = (max_axe_x-min_axe_x)/(nb_cols as f64);
-        let jump_y: f64 = (max_axe_y-min_axe_y)/(nb_rows as f64);
-
+        let cell_width: f64 = (max_x - min_x) / (nb_cols as f64);
+        let cell_height: f64 = (max_y - min_y) / (nb_rows as f64);
 
         let mut x_labels = Vec::with_capacity(nb_cols);
-        let mut x_lower_bound = min_axe_x;
-        for _ in 0..(nb_cols-1) {
-            x_labels.push(format!("[{};{}[", util::format_number(x_lower_bound), util::format_number(x_lower_bound+jump_x)));
-            x_lower_bound += jump_x;
+        let mut x_lower_bound = min_x;
+        for _ in 0..(nb_cols - 1) {
+            x_labels.push(format!(
+                ">= {} > {}",
+                util::format_number(x_lower_bound),
+                util::format_number(x_lower_bound + cell_width)
+            ));
+            x_lower_bound += cell_width;
         }
-        x_labels.push(format!("[{};{}]", util::format_number(x_lower_bound), util::format_number(max_axe_x)));
-
+        x_labels.push(format!(
+            ">= {} >= {}",
+            util::format_number(x_lower_bound),
+            util::format_number(max_x)
+        ));
 
         let mut y_labels = Vec::with_capacity(nb_rows);
-        let mut y_lower_bound = min_axe_y;
-        for _ in 0..(nb_cols-1) {
-            y_labels.push(format!("[{};{}[", util::format_number(y_lower_bound), util::format_number(y_lower_bound+jump_y)));
-            y_lower_bound += jump_y;
+        let mut y_lower_bound = min_y;
+        for _ in 0..(nb_cols - 1) {
+            y_labels.push(format!(
+                ">= {} > {}",
+                util::format_number(y_lower_bound),
+                util::format_number(y_lower_bound + cell_height)
+            ));
+            y_lower_bound += cell_height;
         }
-        y_labels.push(format!("[{};{}]", util::format_number(y_lower_bound), util::format_number(max_axe_y)));
-
+        y_labels.push(format!(
+            ">= {} >= {}",
+            util::format_number(y_lower_bound),
+            util::format_number(max_y)
+        ));
 
         let mut writer = Config::new(&self.flag_output).simd_writer()?;
         let mut output_record = ByteRecord::new();
@@ -469,36 +489,32 @@ impl Args {
 
         let mut flat_matrix: Vec<Option<f64>> = vec![None; nb_cols * nb_rows];
 
-        let list_points = vect_x.into_iter().zip(vect_y.into_iter()).zip(vect_weight.into_iter());
-        for ((x_value, y_value), weight) in list_points {
-            let idx_col: usize = 
-                if x_value == max_axe_x {
-                    ((x_value - min_axe_x) / jump_x).floor() as usize - 1
-                } else {
-                    ((x_value - min_axe_x) / jump_x).floor() as usize
-                };
-            let idx_row: usize = 
-                if y_value == max_axe_y {
-                    ((y_value - min_axe_y) / jump_y).floor() as usize - 1
-                } else {
-                    ((y_value - min_axe_y) / jump_y).floor() as usize
-                };
+        let list_points = points.into_iter();
+        for (x_value, y_value, weight) in list_points {
+            let idx_col = std::cmp::min(
+                ((x_value - min_x) / cell_width).floor() as usize,
+                nb_cols - 1,
+            );
+            let idx_row = std::cmp::min(
+                ((y_value - min_y) / cell_height).floor() as usize,
+                nb_rows - 1,
+            );
 
-            flat_matrix[idx_row + nb_rows * idx_col] = Some(
-                match flat_matrix[idx_row + nb_rows * idx_col] {
+            flat_matrix[idx_row + nb_rows * idx_col] =
+                Some(match flat_matrix[idx_row + nb_rows * idx_col] {
                     Some(value) => value + weight,
                     None => weight,
-            })
+                })
         }
 
-        for (index, row) in flat_matrix.chunks_exact(nb_cols).enumerate() {
-            let row_label = y_labels[index].as_bytes();
+        for (row, label) in flat_matrix.chunks_exact(nb_cols).zip(&y_labels) {
+            let row_label = label.as_bytes();
             output_record.clear();
             output_record.push_field(row_label);
 
             for v_opt in row {
                 match v_opt {
-                    Some(v) => output_record.push_field(v.to_string().as_bytes()),
+                    Some(v) => output_record.fmt_field(&v),
                     None => output_record.push_field(b""),
                 };
             }
@@ -516,8 +532,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         args.adj_or_count()
     } else if args.cmd_corr {
         args.correlation()
-    } else if args.cmd_grid {
-        args.grid()
+    } else if args.cmd_bivar {
+        args.bivar()
     } else {
         unreachable!()
     }
