@@ -103,6 +103,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             FunctionArguments::with_range(1..=2),
         ),
         "chars" => (strings::chars, FunctionArguments::unary()),
+        "chr" => (strings::chr, FunctionArguments::unary()),
         "cmd" => (io::cmd, FunctionArguments::binary()),
         "compact" => (sequences::compact, FunctionArguments::unary()),
         "concat" => (sequences::concat, FunctionArguments::variadic(2)),
@@ -219,6 +220,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
                 Argument::with_name("significance"),
             ]),
         ),
+        "ord" => (strings::ord, FunctionArguments::unary()),
         "pad" => (
             |args| fmt::pad(pad::Alignment::Middle, args),
             FunctionArguments::with_range(2..=3),

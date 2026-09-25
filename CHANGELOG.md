@@ -13,7 +13,7 @@
 * Adding easy way to use null-byte delimiters through `-d '\0'`, the same way as `-d '\t'`.
 * `xan count` & `xan headers` parquet integration.
 * Adding `xan matrix bivar`.
-* Adding the `chars` & `graphemes` moonblade functions.
+* Adding the `ord`, `chr`, `chars` & `graphemes` moonblade functions.
 
 *Performance*
 
