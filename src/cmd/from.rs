@@ -96,8 +96,8 @@ Supported formats:
 Some formats can be streamed, some others require the full file to be loaded into
 memory. The streamable formats are `ndjson`, `jsonl`, `parquet`, `tar`,`txt` and `npy`.
 
-Some formats will handle gzip decompression on the fly if the filename ends
-in `.gz`: `json`, `ndjson`, `jsonl`, `raw`, `tar` and `txt`.
+Some formats will handle decompression on the fly if the filename ends in `.gz`
+or `.zst`: `json`, `ndjson`, `jsonl`, `raw`, `tar` and `txt`.
 
 Tarball extraction was designed for utf8-encoded text files. Expect weird or
 broken results with other encodings or binary files.
