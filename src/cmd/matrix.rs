@@ -73,6 +73,8 @@ Supported modes:
             adjacency matrix, or co-occurrence matrix, if you will).
     corr  - convert a selection of columns into a full
             correlation matrix.
+    bivar - convert x & y columns into a bivariate distribution matrix (e.g. a
+            discretized scatterplot).
 
 Note that the difference between the `adj` and `count` mode is that `count`
 considers its `x` & `y` labels as two separate sets while `adj` considers `source`
@@ -83,10 +85,13 @@ Usage:
     xan matrix adj [options] <source> <target> [<input>]
     xan matrix count [options] <x> <y> [<input>]
     xan matrix corr [options] [<input>]
+    xan matrix bivar [options] <x> <y> [<input>]
     xan matrix --help
 
-matrix adj/count options:
-    -w, --weight <column>  Optional column containing a weight for edges.
+matrix adj/count/bivar options:
+    -w, --weight <column>  Optional column containing numbers that will be used
+                           as matrix cell weights, instead of just counting
+                           occurrences.
 
 matrix adj options:
     -U, --undirected  Indicates that edges are undirected and that produced
@@ -97,6 +102,14 @@ matrix corr options:
                             matrix.
     -D, --fill-diagonal     Whether to fill diagonal with ones.
 
+matrix bivar options:
+    -b, --bins <nb_columns>  Number of columns (= number of rows) to consider
+                             for the square matrix [default: 10]
+    --x-bins <nb_columns>    Number of columns to consider for the matrix
+                             Default to --bins.
+    --y-bins <nb_rows>       Number of rows to consider for the matrix
+                             Default to --bins.
+
 Common options:
     -h, --help             Display this message
     -o, --output <file>    Write output to <file> instead of stdout.
@@ -106,11 +119,47 @@ Common options:
                            Must be a single character.
 ";
 
+fn try_parse_float(value: &[u8]) -> Result<f64, String> {
+    fast_float::parse::<f64, &[u8]>(value).map_err(|_| {
+        format!(
+            "could not parse cell \"{}\" as a float!",
+            bstr::BStr::new(value)
+        )
+    })
+}
+
+fn get_min<T: PartialOrd>(opt_min: Option<T>, new_val: T) -> Option<T> {
+    Some(match opt_min {
+        Some(min_val) => {
+            if new_val < min_val {
+                new_val
+            } else {
+                min_val
+            }
+        }
+        None => new_val,
+    })
+}
+
+fn get_max<T: PartialOrd>(opt_max: Option<T>, new_val: T) -> Option<T> {
+    Some(match opt_max {
+        Some(max_value) => {
+            if max_value < new_val {
+                new_val
+            } else {
+                max_value
+            }
+        }
+        None => new_val,
+    })
+}
+
 #[derive(Deserialize, Debug)]
 struct Args {
     cmd_adj: bool,
     cmd_count: bool,
     cmd_corr: bool,
+    cmd_bivar: bool,
     arg_input: Option<String>,
     arg_x: Option<SelectedColumns>,
     arg_y: Option<SelectedColumns>,
@@ -120,6 +169,9 @@ struct Args {
     flag_select: SelectedColumns,
     flag_undirected: bool,
     flag_fill_diagonal: bool,
+    flag_bins: usize,
+    flag_x_bins: Option<usize>,
+    flag_y_bins: Option<usize>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_output: Option<String>,
@@ -133,8 +185,7 @@ impl Args {
 
         let rconf = Config::new(&self.arg_input)
             .delimiter(self.flag_delimiter)
-            .no_headers(self.flag_no_headers)
-            .select(self.flag_select.clone());
+            .no_headers(self.flag_no_headers);
 
         let mut reader = rconf.simd_reader()?;
         let headers = reader.byte_headers()?;
@@ -165,16 +216,7 @@ impl Args {
             }
 
             let weight = match weight_column_index {
-                Some(index) => {
-                    let weight_str = &input_record[index];
-
-                    fast_float::parse::<f64, &[u8]>(weight_str).map_err(|_| {
-                        format!(
-                            "could not parse cell \"{}\" as a float!",
-                            std::str::from_utf8(weight_str).unwrap()
-                        )
-                    })?
-                }
+                Some(index) => try_parse_float(&input_record[index])?,
                 None => 1.0,
             };
 
@@ -194,8 +236,7 @@ impl Args {
         output_record.push_field(b"");
 
         for value in axes.x_labels() {
-            let label = value.as_slice();
-            output_record.push_field(label);
+            output_record.push_field(value);
         }
 
         writer.write_byte_record(&output_record)?;
@@ -341,6 +382,141 @@ impl Args {
 
         Ok(())
     }
+
+    fn bivar(self) -> CliResult<()> {
+        let rconf = Config::new(&self.arg_input)
+            .delimiter(self.flag_delimiter)
+            .no_headers(self.flag_no_headers);
+
+        let mut reader = rconf.simd_reader()?;
+        let headers = reader.byte_headers()?;
+
+        let x_column_index = self
+            .arg_x
+            .as_ref()
+            .unwrap()
+            .single_selection(headers, !rconf.no_headers)?;
+
+        let y_column_index = self
+            .arg_y
+            .as_ref()
+            .unwrap()
+            .single_selection(headers, !rconf.no_headers)?;
+
+        let weight_column_index = self
+            .flag_weight
+            .as_ref()
+            .map(|weight_col| weight_col.single_selection(headers, !rconf.no_headers))
+            .transpose()?;
+
+        let mut input_record = ByteRecord::new();
+        let mut points = Vec::new();
+
+        let (mut min_x, mut max_x): (Option<f64>, Option<f64>) = (None, None);
+        let (mut min_y, mut max_y): (Option<f64>, Option<f64>) = (None, None);
+
+        while reader.read_byte_record(&mut input_record)? {
+            let x_value = try_parse_float(&input_record[x_column_index])?;
+            let y_value = try_parse_float(&input_record[y_column_index])?;
+
+            let weight = match weight_column_index {
+                Some(index) => try_parse_float(&input_record[index])?,
+                None => 1.0,
+            };
+
+            (min_x, max_x) = (get_min(min_x, x_value), get_max(max_x, x_value));
+            (min_y, max_y) = (get_min(min_y, y_value), get_max(max_y, y_value));
+
+            points.push((x_value, y_value, weight));
+        }
+
+        let (min_x, max_x) = (min_x.unwrap(), max_x.unwrap());
+        let (min_y, max_y) = (min_y.unwrap(), max_y.unwrap());
+
+        let nb_cols = match self.flag_x_bins {
+            Some(nb_bins) => nb_bins,
+            None => self.flag_bins,
+        };
+        let nb_rows = match self.flag_y_bins {
+            Some(nb_bins) => nb_bins,
+            None => self.flag_bins,
+        };
+
+        let cell_width: f64 = (max_x - min_x) / (nb_cols as f64);
+        let cell_height: f64 = (max_y - min_y) / (nb_rows as f64);
+
+        let mut x_labels = Vec::with_capacity(nb_cols);
+        let mut x_lower_bound = min_x;
+        for _ in 0..(nb_cols - 1) {
+            x_labels.push(format!(
+                ">= {} < {}",
+                util::format_number(x_lower_bound),
+                util::format_number(x_lower_bound + cell_width)
+            ));
+            x_lower_bound += cell_width;
+        }
+        x_labels.push(format!(
+            ">= {} <= {}",
+            util::format_number(x_lower_bound),
+            util::format_number(max_x)
+        ));
+
+        let mut y_labels = Vec::with_capacity(nb_rows);
+        let mut y_lower_bound = min_y;
+        for _ in 0..(nb_cols - 1) {
+            y_labels.push(format!(
+                ">= {} < {}",
+                util::format_number(y_lower_bound),
+                util::format_number(y_lower_bound + cell_height)
+            ));
+            y_lower_bound += cell_height;
+        }
+        y_labels.push(format!(
+            ">= {} <= {}",
+            util::format_number(y_lower_bound),
+            util::format_number(max_y)
+        ));
+
+        let mut writer = Config::new(&self.flag_output).simd_writer()?;
+        let mut output_record = ByteRecord::new();
+        output_record.push_field(b"");
+
+        for value in x_labels {
+            output_record.push_field(value.as_bytes());
+        }
+
+        writer.write_byte_record(&output_record)?;
+
+        let mut flat_matrix: Vec<Option<f64>> = vec![None; nb_cols * nb_rows];
+
+        let list_points = points.into_iter();
+        for (x_value, y_value, weight) in list_points {
+            let idx_col = (((x_value - min_x) / cell_width).floor() as usize).min(nb_cols - 1);
+            let idx_row = (((y_value - min_y) / cell_height).floor() as usize).min(nb_rows - 1);
+
+            flat_matrix[idx_row + nb_rows * idx_col] =
+                Some(match flat_matrix[idx_row + nb_rows * idx_col] {
+                    Some(value) => value + weight,
+                    None => weight,
+                })
+        }
+
+        for (row, label) in flat_matrix.chunks_exact(nb_cols).zip(&y_labels) {
+            let row_label = label.as_bytes();
+            output_record.clear();
+            output_record.push_field(row_label);
+
+            for v_opt in row {
+                match v_opt {
+                    Some(v) => output_record.fmt_field(&v),
+                    None => output_record.push_field(b""),
+                };
+            }
+
+            writer.write_byte_record(&output_record)?;
+        }
+        Ok(())
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -350,6 +526,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         args.adj_or_count()
     } else if args.cmd_corr {
         args.correlation()
+    } else if args.cmd_bivar {
+        args.bivar()
     } else {
         unreachable!()
     }

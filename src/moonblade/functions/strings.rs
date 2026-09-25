@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 
 use bstr::ByteSlice;
+use unicode_segmentation::UnicodeSegmentation;
 
 use crate::moonblade::types::{BoundArguments, BoundStringLike, DynamicValue};
 
@@ -34,6 +35,26 @@ pub fn split(args: BoundArguments) -> FunctionResult {
     };
 
     Ok(DynamicValue::from(splitted))
+}
+
+pub fn chars(args: BoundArguments) -> FunctionResult {
+    let string = args.get1_str()?;
+
+    Ok(string
+        .chars()
+        .map(DynamicValue::from)
+        .collect::<Vec<_>>()
+        .into())
+}
+
+pub fn graphemes(args: BoundArguments) -> FunctionResult {
+    let string = args.get1_str()?;
+
+    Ok(string
+        .graphemes(true)
+        .map(DynamicValue::from)
+        .collect::<Vec<_>>()
+        .into())
 }
 
 pub fn lower(args: BoundArguments) -> FunctionResult {
@@ -130,4 +151,27 @@ pub fn replace(args: BoundArguments) -> FunctionResult {
     };
 
     Ok(DynamicValue::from(replaced))
+}
+
+pub fn chr(mut args: BoundArguments) -> FunctionResult {
+    let n = args.pop1_number()?;
+
+    let u32c: u32 = n
+        .as_int()
+        .try_into()
+        .map_err(|_| "given number does not fit a u32")?;
+
+    let c = char::from_u32(u32c).ok_or("given number is out-of-range")?;
+
+    Ok(c.into())
+}
+
+pub fn ord(args: BoundArguments) -> FunctionResult {
+    let string = args.get1_str()?;
+    let mut chars = string.chars();
+
+    match (chars.next(), chars.next()) {
+        (Some(c), None) => Ok((c as i64).into()),
+        _ => Err("expected a single character")?,
+    }
 }

@@ -320,6 +320,18 @@
     "title": "Strings",
     "functions": [
       {
+        "name": "chr",
+        "arguments": ["int"],
+        "returns": "string",
+        "help": "Return the unicode code point represented by given integer as a single character."
+      },
+      {
+        "name": "chars",
+        "arguments": ["string"],
+        "returns": "list[string]",
+        "help": "Return the list of characters of given string."
+      },
+      {
         "name": "count",
         "arguments": ["string", "substring"],
         "alternatives": [
@@ -335,10 +347,22 @@
         "help": "Test if string ends with substring."
       },
       {
+        "name": "graphemes",
+        "arguments": ["string"],
+        "returns": "list[string]",
+        "help": "Return the list of extended unicode grapheme clusters of given string."
+      },
+      {
         "name": "match",
         "arguments": ["string", "regex", "group"],
         "returns": "string",
         "help": "Return a regex pattern match on the string.  Remember a regex pattern must be written with slashes e.g. `/france|french/i`."
+      },
+      {
+        "name": "ord",
+        "arguments": ["string"],
+        "returns": "int",
+        "help": "Return the integer representing the given unicode code point as a single character."
       },
       {
         "name": "replace",

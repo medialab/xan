@@ -349,7 +349,7 @@ impl Args {
         if let Some(model) = self.model()? {
             tabularizer
                 .set_model(&model)
-                .map_err(|msg| format!("{} while processing --model!", msg))?;
+                .map_err(|msg| format!("{msg} while processing --model!"))?;
         }
 
         while tabularizer.is_sampling() {
@@ -484,7 +484,7 @@ impl Args {
             if let Some(model) = self.model()? {
                 tabularizer
                     .set_model(&model)
-                    .map_err(|msg| format!("{} while processing --model!", msg))?;
+                    .map_err(|msg| format!("{msg} while processing --model!"))?;
             }
 
             for item in array.into_iter() {

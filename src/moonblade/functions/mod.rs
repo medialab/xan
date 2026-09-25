@@ -102,6 +102,8 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| ops::round_like_op(args, DynamicNumber::ceil),
             FunctionArguments::with_range(1..=2),
         ),
+        "chars" => (strings::chars, FunctionArguments::unary()),
+        "chr" => (strings::chr, FunctionArguments::unary()),
         "cmd" => (io::cmd, FunctionArguments::binary()),
         "compact" => (sequences::compact, FunctionArguments::unary()),
         "concat" => (sequences::concat, FunctionArguments::variadic(2)),
@@ -138,6 +140,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "from_timestamp" => (temporal::from_timestamp, FunctionArguments::unary()),
         "from_timestamp_ms" => (temporal::from_timestamp_ms, FunctionArguments::unary()),
         "get" => (maps::get, FunctionArguments::with_range(2..=3)),
+        "graphemes" => (strings::graphemes, FunctionArguments::unary()),
         "hostname" => (web::hostname, FunctionArguments::unary()),
         "html_unescape" => (web::html_unescape, FunctionArguments::unary()),
         "idiv" => (
@@ -217,6 +220,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
                 Argument::with_name("significance"),
             ]),
         ),
+        "ord" => (strings::ord, FunctionArguments::unary()),
         "pad" => (
             |args| fmt::pad(pad::Alignment::Middle, args),
             FunctionArguments::with_range(2..=3),
