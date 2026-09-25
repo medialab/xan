@@ -320,6 +320,12 @@
     "title": "Strings",
     "functions": [
       {
+        "name": "chars",
+        "arguments": ["string"],
+        "returns": "list[string]",
+        "help": "Return the list of characters of given string."
+      },
+      {
         "name": "count",
         "arguments": ["string", "substring"],
         "alternatives": [
@@ -333,6 +339,12 @@
         "arguments": ["string", "substring"],
         "returns": "bool",
         "help": "Test if string ends with substring."
+      },
+      {
+        "name": "graphemes",
+        "arguments": ["string"],
+        "returns": "list[string]",
+        "help": "Return the list of extended unicode grapheme clusters of given string."
       },
       {
         "name": "match",

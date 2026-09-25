@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 
 use bstr::ByteSlice;
+use unicode_segmentation::UnicodeSegmentation;
 
 use crate::moonblade::types::{BoundArguments, BoundStringLike, DynamicValue};
 
@@ -34,6 +35,26 @@ pub fn split(args: BoundArguments) -> FunctionResult {
     };
 
     Ok(DynamicValue::from(splitted))
+}
+
+pub fn chars(args: BoundArguments) -> FunctionResult {
+    let string = args.get1_str()?;
+
+    Ok(string
+        .chars()
+        .map(DynamicValue::from)
+        .collect::<Vec<_>>()
+        .into())
+}
+
+pub fn graphemes(args: BoundArguments) -> FunctionResult {
+    let string = args.get1_str()?;
+
+    Ok(string
+        .graphemes(true)
+        .map(DynamicValue::from)
+        .collect::<Vec<_>>()
+        .into())
 }
 
 pub fn lower(args: BoundArguments) -> FunctionResult {

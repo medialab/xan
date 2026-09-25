@@ -178,9 +178,11 @@ add(trim(name) | len, 2)    - Can be used anywhere
 
 ## Strings
 
+- **chars**(*string*) -> `list[string]`: Return the list of characters of given string.
 - **count**(*string*, *substring*) -> `int`: Count number of times substring appear in string. Or count the number of times a regex pattern matched the strings. Note that only non-overlapping matches will be counted in both cases. Remember a regex pattern must be written with slashes e.g. `/france|french/i`.
 - **count**(*string*, *regex*) -> `int`: Count number of times substring appear in string. Or count the number of times a regex pattern matched the strings. Note that only non-overlapping matches will be counted in both cases. Remember a regex pattern must be written with slashes e.g. `/france|french/i`.
 - **endswith**(*string*, *substring*) -> `bool`: Test if string ends with substring.
+- **graphemes**(*string*) -> `list[string]`: Return the list of extended unicode grapheme clusters of given string.
 - **match**(*string*, *regex*, *group*) -> `string`: Return a regex pattern match on the string.  Remember a regex pattern must be written with slashes e.g. `/france|french/i`.
 - **replace**(*string*, *substring*, *replacement*) -> `string`: Replace all non-overlapping occurrences of substring in given string with provided replacement. Can also replace regex pattern matches. Remember a regex pattern must be written with slashes e.g. `/france|french/i`.<br>See regex replacement string syntax documentation here:<br>https://docs.rs/regex/latest/regex/struct.Regex.html#replacement-string-syntax
 - **replace**(*string*, *regex*, *replacement*) -> `string`: Replace all non-overlapping occurrences of substring in given string with provided replacement. Can also replace regex pattern matches. Remember a regex pattern must be written with slashes e.g. `/france|french/i`.<br>See regex replacement string syntax documentation here:<br>https://docs.rs/regex/latest/regex/struct.Regex.html#replacement-string-syntax
