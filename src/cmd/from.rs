@@ -18,6 +18,7 @@ use crate::CliResult;
 use crate::config::Config;
 use crate::json::{GetPathOwned, JSONTabularizer, fill_record_from_tape_value};
 use crate::moonblade::Path as JSONPath;
+use crate::select::SelectedColumns;
 use crate::util::{self, ChunksIteratorExt};
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -181,6 +182,9 @@ NDJSON options:
     --chunk-size <n>         Number of JSON records to parse at once per thread in parallel.
                              [default: 16]
 
+Parquet options:
+    -s, --select <columns>  Selection of columns to keep in the CSV output.
+
 Text lines & raw options:
     -c, --column <name>    Name of the column to create. Will default to "line" with -f=txt
                            and "value" with -f=raw.
@@ -215,6 +219,7 @@ struct Args {
     flag_parallel: bool,
     flag_threads: Option<NonZeroUsize>,
     flag_chunk_size: NonZeroUsize,
+    flag_select: Option<SelectedColumns>,
 }
 
 impl Args {
@@ -741,15 +746,31 @@ impl Args {
         use parquet::file::reader::FileReader;
 
         let reader = Config::new(&self.arg_input).parquet_reader()?;
+        let mut headers = reader.byte_headers();
+
+        let mut sel_opt = self
+            .flag_select
+            .as_ref()
+            .map(|sel| sel.selection(&headers, true))
+            .transpose()?;
+
+        if let Some(sel) = &mut sel_opt {
+            sel.sort_and_dedup();
+            headers = sel.select(&headers).collect();
+        }
+
+        let projection = sel_opt
+            .map(|sel| reader.project(&sel.iter().copied().collect::<Vec<_>>()))
+            .transpose()?;
 
         let mut wtr = self.writer()?;
 
-        wtr.write_byte_record(&reader.byte_headers())?;
+        wtr.write_byte_record(&headers)?;
 
         let reader = reader.into_inner();
 
         let mut output_record = ByteRecord::new();
-        let iter = reader.get_row_iter(None)?;
+        let iter = reader.get_row_iter(projection)?;
 
         for result in iter {
             output_record.clear();

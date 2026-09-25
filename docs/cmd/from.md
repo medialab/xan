@@ -110,6 +110,9 @@ NDJSON options:
     --chunk-size <n>         Number of JSON records to parse at once per thread in parallel.
                              [default: 16]
 
+Parquet options:
+    -s, --select <columns>  Selection of columns to keep in the CSV output.
+
 Text lines & raw options:
     -c, --column <name>    Name of the column to create. Will default to "line" with -f=txt
                            and "value" with -f=raw.

@@ -15,6 +15,7 @@
 * Adding `xan matrix bivar`.
 * Adding the `ord`, `chr`, `chars` & `graphemes` moonblade functions.
 * Adding `xan from -f=ndjson -p/-t`.
+* Adding `xan from -f=parquet -s/--select`.
 
 *Performance*
 

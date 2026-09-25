@@ -4,7 +4,7 @@ use parquet::basic::{ConvertedType, LogicalType, TimeUnit, Type};
 use parquet::errors::Result as ParquetResult;
 use parquet::file::reader::{FileReader, SerializedFileReader};
 use parquet::record::Field;
-use parquet::schema::types::ColumnDescriptor;
+use parquet::schema::types::{ColumnDescriptor, Type as SchemaType};
 use simd_csv::{ByteRecord, StringRecord};
 
 pub struct ParquetReader(SerializedFileReader<File>);
@@ -36,6 +36,26 @@ impl ParquetReader {
             .iter()
             .map(|column| human_readable_column_type(column))
             .collect()
+    }
+
+    pub fn project(&self, indices: &[usize]) -> ParquetResult<SchemaType> {
+        let file_schema = self
+            .0
+            .metadata()
+            .file_metadata()
+            .schema_descr()
+            .root_schema();
+
+        let fields = indices
+            .iter()
+            .map(|&i| file_schema.get_fields()[i].clone())
+            .collect::<Vec<_>>();
+
+        let projection = SchemaType::group_type_builder(file_schema.name())
+            .with_fields(fields)
+            .build()?;
+
+        Ok(projection)
     }
 
     pub fn byte_headers(&self) -> ByteRecord {
