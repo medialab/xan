@@ -1,6 +1,5 @@
 use std::convert::TryFrom;
 use std::num::NonZeroUsize;
-use std::sync::Arc;
 use std::{
     fs,
     io::{self, BufReader, Cursor, Read},
@@ -122,6 +121,19 @@ And get the following CSV output:
 │ John     │ purple          │
 └──────────┴─────────────────┘
 
+# Regarding parallelization
+
+Currently the only format that can benefit from parallelization when being converted
+to a CSV stream is `ndjson`.
+
+This said, your mileage may vary and parallelization (through the -p and -t flags)
+is usually only beneficial when JSON records are very large. Else it is often
+detrimental to the overall performance so be sure to run some tests before committing
+to using parallelization.
+
+Also try to tweak --chunk-size as the sweet spot is often very dependent on the
+actual JSON records being parsed.
+
 from options:
     -f, --format <format>  Format to convert from. Will be inferred from file
                            extension if not given. Must be specified when reading
@@ -166,6 +178,8 @@ NDJSON options:
                              indicate the number of threads yourself.
     -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
                              if you want the number of threads to be automatically chosen instead.
+    --chunk-size <n>         Number of JSON records to parse at once per thread in parallel.
+                             [default: 16]
 
 Text lines & raw options:
     -c, --column <name>    Name of the column to create. Will default to "line" with -f=txt
@@ -200,6 +214,7 @@ struct Args {
     flag_nth_table: isize,
     flag_parallel: bool,
     flag_threads: Option<NonZeroUsize>,
+    flag_chunk_size: NonZeroUsize,
 }
 
 impl Args {
@@ -332,11 +347,9 @@ impl Args {
     }
 
     fn convert_ndjson(&self) -> CliResult<()> {
-        use simd_json::Buffers;
+        use simd_json::{Buffers, Tape};
 
         let root_opt = self.root()?;
-
-        let mut buffers = Buffers::default();
 
         let wtr = self.writer()?;
         let mut rdr = simd_csv::LineReader::from_reader(Config::new(&self.arg_input).io_reader()?);
@@ -351,6 +364,8 @@ impl Args {
                 .set_model(&model)
                 .map_err(|msg| format!("{msg} while processing --model!"))?;
         }
+
+        let mut buffers = Buffers::default();
 
         while tabularizer.is_sampling() {
             if let Some(line) = rdr.read_line()? {
@@ -375,40 +390,53 @@ impl Args {
         let threads = util::parallelization(self.flag_parallel, self.flag_threads.map(|t| t.get()));
 
         if let Some(t) = threads {
-            let root_opt_handle = Arc::new(root_opt);
-
             tabularizer.flush()?;
 
             let json_stack = tabularizer.stack.clone();
 
-            for result in rdr.lines().parallel_map_custom(
-                |o| o.threads(t),
-                move |result| -> CliResult<ByteRecord> {
-                    let mut line = result?;
+            for results in rdr
+                .lines()
+                .chunks(self.flag_chunk_size)
+                .parallel_map_custom(
+                    |o| o.threads(t),
+                    move |results| -> CliResult<Vec<ByteRecord>> {
+                        let mut output = Vec::with_capacity(results.len());
+                        let mut local_tape = Tape::null();
+                        let mut local_buffers = Buffers::default();
 
-                    let tape = simd_json::to_tape(&mut line)?;
+                        for result in results {
+                            let mut line = result?;
 
-                    let value = tape.as_value();
+                            simd_json::fill_tape(&mut line, &mut local_buffers, &mut local_tape)?;
 
-                    let mut nested = value;
+                            let value = local_tape.as_value();
 
-                    if let Some(path) = root_opt_handle.as_ref() {
-                        nested = nested
-                            .get_path_owned(path)
-                            .ok_or("could not extract at --root!")?;
-                    }
+                            let mut nested = value;
 
-                    let mut record = ByteRecord::new();
+                            if let Some(path) = root_opt.as_ref() {
+                                nested = nested
+                                    .get_path_owned(path)
+                                    .ok_or("could not extract at --root!")?;
+                            }
 
-                    fill_record_from_tape_value(nested, &mut record, &json_stack);
+                            let mut record = ByteRecord::new();
 
-                    Ok(record)
-                },
-            ) {
-                tabularizer.writer.write_byte_record(&result?)?;
+                            fill_record_from_tape_value(nested, &mut record, &json_stack);
+
+                            output.push(record);
+                            local_tape = local_tape.reset();
+                        }
+
+                        Ok(output)
+                    },
+                )
+            {
+                for record in results? {
+                    tabularizer.writer.write_byte_record(&record)?;
+                }
             }
         } else {
-            let mut tape = simd_json::Tape::null();
+            let mut tape = Tape::null();
 
             while let Some(line) = rdr.read_line()? {
                 // Sshhh... it's alright, really.

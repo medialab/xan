@@ -895,13 +895,13 @@ pub fn parse_scraper(input: &str) -> Result<Vec<ScrapingBrackets>, ParseError> {
         .collect::<Result<Vec<_>, _>>()
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum Step {
     Index(isize),
     Key(String),
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct Path {
     steps: Vec<Step>,
 }

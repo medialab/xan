@@ -14,6 +14,7 @@
 * `xan count` & `xan headers` parquet integration.
 * Adding `xan matrix bivar`.
 * Adding the `ord`, `chr`, `chars` & `graphemes` moonblade functions.
+* Adding `xan from -f=ndjson -p/-t`.
 
 *Performance*
 

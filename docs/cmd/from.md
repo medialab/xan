@@ -50,6 +50,19 @@ And get the following CSV output:
 │ John     │ purple          │
 └──────────┴─────────────────┘
 
+# Regarding parallelization
+
+Currently the only format that can benefit from parallelization when being converted
+to a CSV stream is `ndjson`.
+
+This said, your mileage may vary and parallelization (through the -p and -t flags)
+is usually only beneficial when JSON records are very large. Else it is often
+detrimental to the overall performance so be sure to run some tests before committing
+to using parallelization.
+
+Also try to tweak --chunk-size as the sweet spot is often very dependent on the
+actual JSON records being parsed.
+
 from options:
     -f, --format <format>  Format to convert from. Will be inferred from file
                            extension if not given. Must be specified when reading
@@ -94,6 +107,8 @@ NDJSON options:
                              indicate the number of threads yourself.
     -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
                              if you want the number of threads to be automatically chosen instead.
+    --chunk-size <n>         Number of JSON records to parse at once per thread in parallel.
+                             [default: 16]
 
 Text lines & raw options:
     -c, --column <name>    Name of the column to create. Will default to "line" with -f=txt

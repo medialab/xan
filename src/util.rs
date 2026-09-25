@@ -805,7 +805,7 @@ where
     type Item = Vec<I::Item>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let mut chunk: Vec<I::Item> = Vec::new();
+        let mut chunk: Vec<I::Item> = Vec::with_capacity(self.size.get());
 
         while chunk.len() < self.size.get() {
             match self.inner.next() {
