@@ -255,6 +255,12 @@ heatmap options:
     --repeat-headers <n>    Repeat headers every <n> heatmap rows. This can also
                             be set to \"auto\" to choose a suitable number based
                             on the height of your terminal.
+                            Cannot be used with --hide-labels/--hide-col-labels.
+    --hide-labels           Don't display labels in the terminal.
+                            Cannot be used with ---repeat-headers.
+    --hide-col-labels       Don't display col labels in the terminal.
+                            Cannot be used with ---repeat-headers.
+    --hide-row-labels       Don't display row labels in the terminal.
     --color <when>          When to color the output using ANSI escape codes.
                             Use `auto` for automatic detection, `never` to
                             disable colors completely and `always` to force
@@ -292,6 +298,9 @@ struct Args {
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_repeat_headers: Option<String>,
+    flag_hide_labels: bool,
+    flag_hide_col_labels: bool,
+    flag_hide_row_labels: bool,
     flag_green_hills: bool,
 }
 
@@ -346,6 +355,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("only one of -N/--show-numbers or -Z/--show-normalized must be given!")?;
     }
 
+    let no_col_labels = args.flag_hide_labels || args.flag_hide_col_labels;
+    let no_row_labels = args.flag_hide_labels || args.flag_hide_row_labels;
+
+    if args.flag_repeat_headers.is_some() && no_col_labels {
+        Err("--repeat-headers does not work with --hide-labels nor --hide-col-labels!")?;
+    }
+
     let out = stdout();
 
     if args.flag_green_hills {
@@ -362,7 +378,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let gradient = args.flag_gradient.build();
 
     let mut rdr = conf.simd_reader()?;
-    let headers = rdr.byte_headers()?.clone();
+    let headers = rdr.byte_headers()?.clone(); // USELESS
 
     let label_column_index = match &args.flag_label {
         Some(flag_label) => flag_label.single_selection(&headers, !conf.no_headers)?,
@@ -478,23 +494,23 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     };
 
     let print_legend = || -> CliResult<()> {
-        writeln!(
-            &out,
-            "{}{}",
-            left_padding,
-            util::wrap(&column_info, cols.saturating_sub(label_cols), label_cols)
-        )?;
+        if !no_row_labels {
+            write!(&out, "{left_padding}")?;
+        }
+        writeln!(&out,"{}",util::wrap(
+            &column_info,
+            cols.saturating_sub(label_cols),
+            label_cols
+        ))?;
         writeln!(&out)?;
 
         Ok(())
     };
 
-    if !actually_cram {
-        print_legend()?;
-    }
-
     let write_headers = || -> CliResult<()> {
-        write!(&out, "{left_padding}")?;
+        if !no_row_labels {
+            write!(&out, "{left_padding}")?;
+        }
         for (i, col_label) in matrix.column_labels.iter().enumerate() {
             let label = if !actually_cram {
                 (i + 1).to_string()
@@ -519,7 +535,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Ok(())
     };
 
-    write_headers()?;
+    if !no_col_labels {
+        if !actually_cram {
+            print_legend()?;
+        }
+        write_headers()?;
+    }
+
 
     // Printing rows
     let midpoint = size / 2;
@@ -550,26 +572,27 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .then(|| compute_row_extent(row, forced_extent).map(LinearScale::from_extent));
 
         for i in 0..size {
-            if i == 0 {
-                let formatted_label = util::unicode_aware_rpad_with_ellipsis(
-                    row_label,
-                    label_cols.saturating_sub(1),
-                    " ",
-                );
+            if !no_row_labels {
+                if i == 0 {
+                    let formatted_label = util::unicode_aware_rpad_with_ellipsis(
+                        row_label,
+                        label_cols.saturating_sub(1),
+                        " ",
+                    );
 
-                write!(
-                    &out,
-                    "{} ",
-                    if row_label == "<empty>" {
-                        formatted_label.dimmed()
-                    } else {
-                        formatted_label.normal()
-                    }
-                )?;
-            } else {
-                write!(&out, "{left_padding}")?;
+                    write!(
+                        &out,
+                        "{} ",
+                        if row_label == "<empty>" {
+                            formatted_label.dimmed()
+                        } else {
+                            formatted_label.normal()
+                        }
+                    )?;
+                } else {
+                    write!(&out, "{left_padding}")?;
+                }
             }
-
             for (col_i, cell) in row.iter().enumerate() {
                 match cell {
                     None => write!(
