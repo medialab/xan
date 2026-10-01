@@ -344,11 +344,8 @@ impl Args {
             .unwrap()
             .single_selection(rdr.byte_headers()?, has_headers)?;
 
-        // global
         let mut global_reservoir: ClusteredInsertHashmap<ByteRecord, BinaryHeap<WeightedRow>> =
             ClusteredInsertHashmap::new();
-
-        // no current group and no cpt "i" and no writer
 
         for result in rdr.byte_records() {
             let record = result?;
