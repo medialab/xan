@@ -19,12 +19,16 @@ struct GroupReservoir {
     total: usize,
 }
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 struct WeightedRow(f64, ByteRecord);
 
 impl WeightedRow {
-    fn row(self) -> ByteRecord {
+    fn into_byte_record(self) -> ByteRecord {
         self.1
+    }
+
+    fn byte_record(&self) -> &ByteRecord {
+        &self.1
     }
 }
 
@@ -207,7 +211,12 @@ impl Args {
             }
         }
 
-        self.write(&mut rdr, reservoir.into_iter().map(|record| record.row()))?;
+        self.write(
+            &mut rdr,
+            reservoir
+                .into_iter()
+                .map(|record| record.into_byte_record()),
+        )?;
 
         Ok(())
     }
@@ -371,10 +380,78 @@ impl Args {
             global_reservoir
                 .into_values()
                 .flatten()
-                .map(|record| record.row()),
+                .map(|record| record.into_byte_record()),
         )?;
 
         Ok(())
+    }
+
+    fn weighted_sorted_grouped_reservoir_sample(&self) -> CliResult<()> {
+        let sample_size = self.arg_sample_size.get();
+        let mut rng = self.rng();
+
+        let mut rdr = self.rconf().simd_reader()?;
+        let has_headers = rdr.has_headers();
+
+        let mut wtr = self.wconf().simd_writer()?;
+
+        if has_headers {
+            wtr.write_byte_record(rdr.byte_headers()?)?;
+        }
+
+        let group_sel = self
+            .flag_groupby
+            .as_ref()
+            .unwrap()
+            .selection(rdr.byte_headers()?, has_headers)?;
+
+        let weight_column_index = self
+            .flag_weight
+            .as_ref()
+            .unwrap()
+            .single_selection(rdr.byte_headers()?, has_headers)?;
+
+        let mut reservoir: BinaryHeap<WeightedRow> = BinaryHeap::with_capacity(sample_size);
+
+        let mut current_group_opt: Option<ByteRecord> = None;
+
+        for result in rdr.byte_records() {
+            let record = result?;
+
+            let group = group_sel.select(&record).collect();
+
+            let weight: f64 = fast_float::parse(&record[weight_column_index])
+                .map_err(|_| CliError::Other("could not parse weight as f64".to_string()))?;
+
+            let score = rng.random::<f64>().powf(1.0 / weight);
+            let weighted_row = WeightedRow(score, record);
+
+            if current_group_opt.is_none()
+                || matches!(&current_group_opt, Some(current_group) if &group == current_group )
+            {
+                if reservoir.len() < sample_size {
+                    reservoir.push(weighted_row);
+                } else if &weighted_row < reservoir.peek().unwrap() {
+                    reservoir.pop();
+                    reservoir.push(weighted_row);
+                }
+            } else {
+                for weighted_record in reservoir.iter() {
+                    wtr.write_byte_record(weighted_record.byte_record())?;
+                }
+
+                reservoir.clear();
+                reservoir.push(weighted_row);
+            }
+
+            current_group_opt = Some(group);
+        }
+
+        for weighted_record in reservoir.iter() {
+            wtr.write_byte_record(weighted_record.byte_record())?;
+        }
+
+        Ok(wtr.flush()?)
     }
 
     fn cursed_sample(&self) -> CliResult<()> {
@@ -441,7 +518,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     } else if args.flag_sorted {
         if args.flag_weight.is_some() {
-            Err("-S/--sorted is not yet implemented for -w/--weight!".into())
+            args.weighted_sorted_grouped_reservoir_sample()
         } else {
             args.sorted_grouped_reservoir_sample()
         }
