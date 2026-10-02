@@ -5,7 +5,7 @@ extern crate fast_float2 as fast_float;
 use std::borrow::ToOwned;
 use std::env;
 use std::fmt;
-use std::io;
+use std::io::{self, Write};
 use std::process;
 use std::str::Utf8Error;
 
@@ -164,6 +164,22 @@ fn set_virtual_terminal() {
     colored::control::set_virtual_terminal(true).ok();
 }
 
+macro_rules! success {
+    ($($msg: tt)+) => {{
+        let mut stdout = io::stdout();
+        let _ = writeln!(&mut stdout, $($msg)+);
+        process::exit(0);
+    }};
+}
+
+macro_rules! error {
+    ($($msg: tt)+) => {{
+        let mut stderr = io::stderr();
+        let _ = writeln!(&mut stderr, $($msg)+);
+        process::exit(1);
+    }};
+}
+
 fn main() {
     set_virtual_terminal();
 
@@ -177,11 +193,7 @@ fn main() {
             match e {
                 docopt::Error::Deserialize(_) => {
                     // Command mismatch
-                    // eprintln!(
-                    //     "Please choose one of the following commands/flags:\n{}",
-                    //     util::colorize_main_help(command_list!())
-                    // );
-                    eprintln!(
+                    error!(
                         "{}",
                         format!(
                             "xan: unknown command \"{}\"! Use xan --help to review available commands.",
@@ -191,11 +203,9 @@ fn main() {
                         )
                         .red()
                     );
-                    process::exit(1);
                 }
                 docopt::Error::WithProgramUsage(_, usage) => {
-                    println!("{}", util::colorize_help(&util::colorize_main_help(&usage)));
-                    process::exit(0);
+                    success!("{}", util::colorize_help(&util::colorize_main_help(&usage)));
                 }
                 _ => {
                     e.exit();
@@ -205,7 +215,7 @@ fn main() {
 
     match args.arg_command {
         None => {
-            println!(
+            success!(
                 "{}",
                 util::colorize_main_help(&format!(
                     "xan (v{}) is a suite of CSV command line utilities.
@@ -215,53 +225,47 @@ Please choose one of the following commands/flags:\n{}",
                     command_list!()
                 ))
             );
-            process::exit(0);
         }
         Some(cmd) => match cmd.run() {
             Ok(()) => process::exit(0),
             Err(CliError::Flag(err)) => err.exit(),
             Err(CliError::Csv(err)) => {
-                eprintln!(
+                error!(
                     "xan {}: {}",
                     env::args().nth(1).unwrap_or("".to_string()),
                     err
                 );
-                process::exit(1);
             }
             Err(CliError::SimdCsv(err)) => {
-                eprintln!(
+                error!(
                     "xan {}: {}",
                     env::args().nth(1).unwrap_or("".to_string()),
                     err
                 );
-                process::exit(1);
             }
             Err(CliError::Io(ref err)) if err.kind() == io::ErrorKind::BrokenPipe => {
                 process::exit(0);
             }
             Err(CliError::Io(err)) => {
-                eprintln!(
+                error!(
                     "xan {}: {}",
                     env::args().nth(1).unwrap_or("".to_string()),
                     err
                 );
-                process::exit(1);
             }
             Err(CliError::Other(msg)) => {
-                eprintln!(
+                error!(
                     "xan {}: {}",
                     env::args().nth(1).unwrap_or("".to_string()),
                     msg
                 );
-                process::exit(1);
             }
             Err(CliError::Help(usage, exit_code)) => {
                 if exit_code == 0 {
-                    println!("{usage}");
+                    success!("{usage}");
                 } else {
-                    eprintln!("{usage}");
+                    error!("{usage}");
                 }
-                process::exit(exit_code);
             }
         },
     }
@@ -386,14 +390,7 @@ impl Command {
             Command::Head => cmd::head::run(argv),
             Command::Headers | Command::H => cmd::headers::run(argv),
             Command::Heatmap => cmd::heatmap::run(argv),
-            Command::Help => {
-                if argv.len() < 3 {
-                    println!("{}", util::colorize_help(&util::colorize_main_help(USAGE)));
-                    Ok(())
-                } else {
-                    cmd::help::run(argv)
-                }
-            }
+            Command::Help => cmd::help::run(argv),
             Command::Hist => cmd::hist::run(argv),
             Command::Implode => cmd::implode::run(argv),
             Command::Input => cmd::input::run(argv),
