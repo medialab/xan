@@ -530,20 +530,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let records = {
         let limit = args.flag_limit.unwrap();
 
-        let mut r_iter = rdr.into_records().enumerate();
+        let mut records_iter = rdr.into_records().enumerate();
 
-        let mut records: Vec<StringRecord> = Vec::new();
+        let mut records: Vec<StringRecord> = Vec::with_capacity(limit);
 
         loop {
-            match r_iter.next() {
+            match records_iter.next() {
                 None => break,
                 Some((i, record)) => {
                     let mut record = sel
                         .select(&record?)
                         .map(|cell| {
-                            let mut cell = cell.to_string();
-
-                            cell = util::sanitize_text_for_single_line_printing(&cell);
+                            let mut cell = util::sanitize_text_for_single_line_printing(cell);
 
                             if let Some(sanitizer) = &emoji_sanitizer_opt {
                                 cell = sanitizer.sanitize(&cell);
@@ -572,7 +570,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             };
         }
 
-        if r_iter.next().is_none() {
+        if records_iter.next().is_none() {
             all_records_buffered = true;
         }
 

@@ -28,6 +28,7 @@
 * Improving performance related to pretty-printing numbers.
 * Faster JSON parsing.
 * Only collecting/allocating command line arguments once.
+* Improving performance of `xan view`.
 
 ## 0.61.0
 
