@@ -183,9 +183,15 @@ macro_rules! error {
 fn main() {
     set_virtual_terminal();
 
+    let argv: Vec<_> = env::args_os()
+        .map(|arg| arg.to_string_lossy().into_owned())
+        .collect();
+    let argv: Vec<&str> = argv.iter().map(String::as_str).collect();
+
     let args: Args = Docopt::new(USAGE)
         .and_then(|d| {
             d.options_first(true)
+            .argv(&argv)
                 .version(Some(util::version()))
                 .deserialize()
         })
@@ -226,7 +232,7 @@ Please choose one of the following commands/flags:\n{}",
                 ))
             );
         }
-        Some(cmd) => match cmd.run() {
+        Some(cmd) => match cmd.run(&argv) {
             Ok(()) => process::exit(0),
             Err(CliError::Flag(err)) => err.exit(),
             Err(CliError::Csv(err)) => {
@@ -354,11 +360,7 @@ enum Command {
 }
 
 impl Command {
-    fn run(&self) -> CliResult<()> {
-        let argv: Vec<_> = env::args().collect();
-        let argv: Vec<_> = argv.iter().map(|s| &**s).collect();
-        let argv = &*argv;
-
+    fn run(&self, argv: &[&str]) -> CliResult<()> {
         match self {
             Command::Agg => cmd::agg::run(argv),
             Command::Behead | Command::Guillotine => cmd::behead::run(argv),

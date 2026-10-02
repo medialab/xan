@@ -16,11 +16,18 @@
 * Adding the `ord`, `chr`, `chars` & `graphemes` moonblade functions.
 * Adding `xan from -f=ndjson -p/-t`.
 * Adding `xan from -f=parquet -s/--select`.
+* Adding support for missing `xan sample -g -w -S`.
+
+*Fixes*
+
+* Fixing broken pipe issues related to printing help.
+* Fixing command panicking when dealing with badly encoded arguments.
 
 *Performance*
 
 * Improving performance related to pretty-printing numbers.
 * Faster JSON parsing.
+* Only collecting/allocating command line arguments once.
 
 ## 0.61.0
 
