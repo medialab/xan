@@ -23,11 +23,12 @@ struct GroupReservoir {
 struct WeightedRow(f64, ByteRecord);
 
 impl WeightedRow {
-    fn row(self) -> ByteRecord {
+    fn into_byte_record(self) -> ByteRecord {
         self.1
     }
-    fn clone_row(&self) -> ByteRecord {
-        self.1.clone()
+
+    fn byte_record(&self) -> &ByteRecord {
+        &self.1
     }
 }
 
@@ -210,7 +211,12 @@ impl Args {
             }
         }
 
-        self.write(&mut rdr, reservoir.into_iter().map(|record| record.row()))?;
+        self.write(
+            &mut rdr,
+            reservoir
+                .into_iter()
+                .map(|record| record.into_byte_record()),
+        )?;
 
         Ok(())
     }
@@ -374,7 +380,7 @@ impl Args {
             global_reservoir
                 .into_values()
                 .flatten()
-                .map(|record| record.row()),
+                .map(|record| record.into_byte_record()),
         )?;
 
         Ok(())
@@ -429,11 +435,9 @@ impl Args {
                     reservoir.pop();
                     reservoir.push(weighted_row);
                 }
-            }
-            else {
-
-                for record_weighted in reservoir.iter() {
-                    wtr.write_byte_record(&record_weighted.clone_row())?;
+            } else {
+                for weighted_record in reservoir.iter() {
+                    wtr.write_byte_record(weighted_record.byte_record())?;
                 }
 
                 reservoir.clear();
@@ -443,8 +447,8 @@ impl Args {
             current_group_opt = Some(group);
         }
 
-        for record_weighted in reservoir.iter() {
-            wtr.write_byte_record(&record_weighted.clone_row())?;
+        for weighted_record in reservoir.iter() {
+            wtr.write_byte_record(weighted_record.byte_record())?;
         }
 
         Ok(wtr.flush()?)
