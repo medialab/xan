@@ -9,7 +9,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::CliResult;
 use crate::config::{Config, Delimiter};
-use crate::scales::{Extent, ExtentBuilder, GradientName, LinearScale};
+use crate::scales::{Extent, ExtentBuilder, GradientName, Scale, ScaleType};
 use crate::select::{SelectedColumns, Selection};
 use crate::util::{self, ColorMode};
 
@@ -85,18 +85,18 @@ impl Matrix {
         }
     }
 
+    #[inline]
     fn is_empty(&self) -> bool {
         self.array.is_empty()
     }
 
+    #[inline]
     fn finalize(&mut self) {
         self.extent = self.extent_builder.clone().build();
     }
 
-    fn push_row<I>(&mut self, label: String, row: I)
-    where
-        I: IntoIterator<Item = Option<f64>>,
-    {
+    #[inline]
+    fn try_push_row<I: IntoIterator<Item = Option<f64>>>(&mut self, label: String, row: I, scale_type: ScaleType) -> CliResult<()>  {
         self.row_labels.push(if label.is_empty() {
             "<empty>".to_string()
         } else {
@@ -107,11 +107,16 @@ impl Matrix {
             self.array.push(cell);
 
             if let Some(f) = cell {
+                if !scale_type.accepts(f) {
+                    Err(format!("given --scale encountered an illegal value ({f})!"))?;
+                }
                 self.extent_builder.process(f);
             }
         }
+        Ok(())
     }
 
+    #[inline]
     fn rows(&self) -> impl Iterator<Item = (&String, &[Option<f64>])> {
         self.array
             .chunks(self.column_labels.len())
@@ -119,6 +124,7 @@ impl Matrix {
             .map(|(i, chunk)| (&self.row_labels[i], chunk))
     }
 
+    #[inline]
     fn max_row_label_width(&self) -> Option<usize> {
         self.row_labels.iter().map(|label| label.width()).max()
     }
@@ -143,6 +149,20 @@ impl Matrix {
 
         cols.into_iter().map(|builder| builder.build()).collect()
     }
+
+    pub fn to_scale(&self, scale_type: ScaleType) -> Option<Scale> {
+        self.extent_builder
+            .build()
+            .map(|extent| scale_from_extent(extent, scale_type))
+    }
+}
+
+fn scale_from_extent(mut extent: Extent<f64>, scale_type: ScaleType) -> Scale {
+    if extent.min() == 0.0 && scale_type.disallows_zero() {
+        extent.set_min(1.0);
+    }
+
+    Scale::from_extent(scale_type, extent)
 }
 
 fn compute_row_extent(
@@ -255,11 +275,22 @@ heatmap options:
     --repeat-headers <n>    Repeat headers every <n> heatmap rows. This can also
                             be set to \"auto\" to choose a suitable number based
                             on the height of your terminal.
+                            Cannot be used with --hide-labels/--hide-col-labels.
+    --hide-labels           Don't display labels in the terminal.
+                            Cannot be used with ---repeat-headers.
+    --hide-col-labels       Don't display col labels in the terminal.
+                            Cannot be used with ---repeat-headers.
+    --hide-row-labels       Don't display row labels in the terminal.
     --color <when>          When to color the output using ANSI escape codes.
                             Use `auto` for automatic detection, `never` to
                             disable colors completely and `always` to force
                             colors, even when the output could not handle them.
                             [default: auto]
+    --scale <scale>         Apply a scale to the values. Can be one of \"lin\", \"pow\",
+                            \"sqrt\", \"pow(custom_exponent)\" like \"pow(4.5)\", \"log\",
+                            \"log2\", \"log10\" or \"log(custom_base)\" like \"log(2.5)\".
+                            [default: lin]
+    --log                   Use a log scale, shorthand for --scale=log.
 
 Common options:
     -h, --help             Display this message
@@ -292,7 +323,12 @@ struct Args {
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_repeat_headers: Option<String>,
+    flag_hide_labels: bool,
+    flag_hide_col_labels: bool,
+    flag_hide_row_labels: bool,
     flag_green_hills: bool,
+    flag_scale: ScaleType,
+    flag_log: bool,
 }
 
 impl Args {
@@ -306,6 +342,15 @@ impl Args {
 
         if self.flag_diverging && self.flag_gradient.as_str() == "or_rd" {
             self.flag_gradient = GradientName::RdBu;
+        }
+
+        if self.flag_hide_labels {
+            self.flag_hide_col_labels = true;
+            self.flag_hide_row_labels = true;
+        }
+
+        if self.flag_log {
+            self.flag_scale = ScaleType::ln();
         }
     }
 
@@ -346,6 +391,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("only one of -N/--show-numbers or -Z/--show-normalized must be given!")?;
     }
 
+    if args.flag_repeat_headers.is_some() && args.flag_hide_col_labels {
+        Err("--repeat-headers does not work with --hide-labels nor --hide-col-labels!")?;
+    }
+
+    if matches!(args.flag_min, Some(v) if !args.flag_scale.accepts(v))
+        || matches!(args.flag_max, Some(v) if !args.flag_scale.accepts(v))
+    {
+        Err("-m/--min or -M/--max values are incompatible with --scale!")?;
+    }
+
     let out = stdout();
 
     if args.flag_green_hills {
@@ -362,7 +417,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let gradient = args.flag_gradient.build();
 
     let mut rdr = conf.simd_reader()?;
-    let headers = rdr.byte_headers()?.clone();
+    let headers = rdr.byte_headers()?.clone(); // USELESS
 
     let label_column_index = match &args.flag_label {
         Some(flag_label) => flag_label.single_selection(&headers, !conf.no_headers)?,
@@ -418,7 +473,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             })
             .collect::<Vec<_>>();
 
-        matrix.push_row(label, row);
+        matrix.try_push_row(label, row, args.flag_scale)?;
     }
 
     if matrix.is_empty() {
@@ -432,7 +487,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         ((cols as f64 * 0.3).floor() as usize).min(matrix.max_row_label_width().unwrap() + 1);
     let left_padding = " ".repeat(label_cols);
 
-    let full_scale = matrix.extent.map(LinearScale::from_extent);
+    let full_scale = matrix.to_scale(args.flag_scale);
 
     let size = args.flag_size.get();
     let width = args.flag_width.map(NonZeroUsize::get).unwrap_or(size * 2);
@@ -478,23 +533,23 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     };
 
     let print_legend = || -> CliResult<()> {
-        writeln!(
-            &out,
-            "{}{}",
-            left_padding,
-            util::wrap(&column_info, cols.saturating_sub(label_cols), label_cols)
-        )?;
+        if !args.flag_hide_row_labels {
+            write!(&out, "{left_padding}")?;
+        }
+        writeln!(&out,"{}",util::wrap(
+            &column_info,
+            cols.saturating_sub(label_cols),
+            label_cols
+        ))?;
         writeln!(&out)?;
 
         Ok(())
     };
 
-    if !actually_cram {
-        print_legend()?;
-    }
-
     let write_headers = || -> CliResult<()> {
-        write!(&out, "{left_padding}")?;
+        if !args.flag_hide_row_labels {
+            write!(&out, "{left_padding}")?;
+        }
         for (i, col_label) in matrix.column_labels.iter().enumerate() {
             let label = if !actually_cram {
                 (i + 1).to_string()
@@ -519,7 +574,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Ok(())
     };
 
-    write_headers()?;
+    if !args.flag_hide_col_labels {
+        if !actually_cram {
+            print_legend()?;
+        }
+        write_headers()?;
+    }
+
 
     // Printing rows
     let midpoint = size / 2;
@@ -528,7 +589,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         matrix
             .extent_per_column(forced_extent)
             .into_iter()
-            .map(|extent_opt| extent_opt.map(LinearScale::from_extent))
+            .map(|extent_opt| extent_opt.map(|extent| scale_from_extent(extent, args.flag_scale)))
             .collect::<Vec<_>>()
     });
 
@@ -547,29 +608,33 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let row_scale = args
             .flag_normalize
             .is_row()
-            .then(|| compute_row_extent(row, forced_extent).map(LinearScale::from_extent));
+            .then(|| {
+                compute_row_extent(row, forced_extent)
+                    .map(|extent| scale_from_extent(extent, args.flag_scale))
+            });
 
         for i in 0..size {
-            if i == 0 {
-                let formatted_label = util::unicode_aware_rpad_with_ellipsis(
-                    row_label,
-                    label_cols.saturating_sub(1),
-                    " ",
-                );
+            if !args.flag_hide_row_labels {
+                if i == 0 {
+                    let formatted_label = util::unicode_aware_rpad_with_ellipsis(
+                        row_label,
+                        label_cols.saturating_sub(1),
+                        " ",
+                    );
 
-                write!(
-                    &out,
-                    "{} ",
-                    if row_label == "<empty>" {
-                        formatted_label.dimmed()
-                    } else {
-                        formatted_label.normal()
-                    }
-                )?;
-            } else {
-                write!(&out, "{left_padding}")?;
+                    write!(
+                        &out,
+                        "{} ",
+                        if row_label == "<empty>" {
+                            formatted_label.dimmed()
+                        } else {
+                            formatted_label.normal()
+                        }
+                    )?;
+                } else {
+                    write!(&out, "{left_padding}")?;
+                }
             }
-
             for (col_i, cell) in row.iter().enumerate() {
                 match cell {
                     None => write!(
