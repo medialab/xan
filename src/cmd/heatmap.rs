@@ -155,16 +155,8 @@ impl Matrix {
     pub fn to_scale(&self) -> Option<Scale> {
         self.extent_builder
             .build()
-            .map(|extent| scale_from_extent(extent, self.scale_type))
+            .map(|extent| Scale::from_extent(self.scale_type, extent))
     }
-}
-
-fn scale_from_extent(mut extent: Extent<f64>, scale_type: ScaleType) -> Scale {
-    if extent.min() == 0.0 && scale_type.disallows_zero() {
-        extent.set_min(1.0);
-    }
-
-    Scale::from_extent(scale_type, extent)
 }
 
 fn compute_row_extent(
@@ -590,7 +582,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         matrix
             .extent_per_column(forced_extent)
             .into_iter()
-            .map(|extent_opt| extent_opt.map(|extent| scale_from_extent(extent, args.flag_scale)))
+            .map(|extent_opt| extent_opt.map(|extent| Scale::from_extent(args.flag_scale, extent)))
             .collect::<Vec<_>>()
     });
 
@@ -608,7 +600,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         let row_scale = args.flag_normalize.is_row().then(|| {
             compute_row_extent(row, forced_extent)
-                .map(|extent| scale_from_extent(extent, args.flag_scale))
+                .map(|extent| Scale::from_extent(args.flag_scale, extent))
         });
 
         for i in 0..size {
