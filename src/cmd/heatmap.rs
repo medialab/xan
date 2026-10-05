@@ -90,13 +90,14 @@ impl Matrix {
         self.array.is_empty()
     }
 
-    #[inline]
     fn finalize(&mut self) {
         self.extent = self.extent_builder.clone().build();
     }
 
-    #[inline]
-    fn try_push_row<I: IntoIterator<Item = Option<f64>>>(&mut self, label: String, row: I, scale_type: ScaleType) -> CliResult<()>  {
+    fn try_push_row<I>(&mut self, label: String, row: I, scale_type: ScaleType) -> CliResult<()>
+    where
+        I: IntoIterator<Item = Option<f64>>,
+    {
         self.row_labels.push(if label.is_empty() {
             "<empty>".to_string()
         } else {
@@ -116,7 +117,6 @@ impl Matrix {
         Ok(())
     }
 
-    #[inline]
     fn rows(&self) -> impl Iterator<Item = (&String, &[Option<f64>])> {
         self.array
             .chunks(self.column_labels.len())
@@ -124,7 +124,6 @@ impl Matrix {
             .map(|(i, chunk)| (&self.row_labels[i], chunk))
     }
 
-    #[inline]
     fn max_row_label_width(&self) -> Option<usize> {
         self.row_labels.iter().map(|label| label.width()).max()
     }
@@ -417,7 +416,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let gradient = args.flag_gradient.build();
 
     let mut rdr = conf.simd_reader()?;
-    let headers = rdr.byte_headers()?.clone(); // USELESS
+    let headers = rdr.byte_headers()?.clone();
 
     let label_column_index = match &args.flag_label {
         Some(flag_label) => flag_label.single_selection(&headers, !conf.no_headers)?,
@@ -536,11 +535,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         if !args.flag_hide_row_labels {
             write!(&out, "{left_padding}")?;
         }
-        writeln!(&out,"{}",util::wrap(
-            &column_info,
-            cols.saturating_sub(label_cols),
-            label_cols
-        ))?;
+        writeln!(
+            &out,
+            "{}",
+            util::wrap(&column_info, cols.saturating_sub(label_cols), label_cols)
+        )?;
         writeln!(&out)?;
 
         Ok(())
@@ -581,7 +580,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         write_headers()?;
     }
 
-
     // Printing rows
     let midpoint = size / 2;
 
@@ -605,13 +603,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
         }
 
-        let row_scale = args
-            .flag_normalize
-            .is_row()
-            .then(|| {
-                compute_row_extent(row, forced_extent)
-                    .map(|extent| scale_from_extent(extent, args.flag_scale))
-            });
+        let row_scale = args.flag_normalize.is_row().then(|| {
+            compute_row_extent(row, forced_extent)
+                .map(|extent| scale_from_extent(extent, args.flag_scale))
+        });
 
         for i in 0..size {
             if !args.flag_hide_row_labels {
