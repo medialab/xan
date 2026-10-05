@@ -72,16 +72,19 @@ struct Matrix {
     row_labels: Vec<String>,
     extent_builder: ExtentBuilder<f64>,
     extent: Option<Extent<f64>>,
+    scale_type: ScaleType
 }
 
 impl Matrix {
-    fn new(column_labels: Vec<String>, forced_extent: (Option<f64>, Option<f64>)) -> Self {
+    fn new(column_labels: Vec<String>, forced_extent: (Option<f64>, Option<f64>), scale_type: Option<ScaleType>) -> Self {
+        let scale_type = scale_type.unwrap_or(ScaleType::Linear);
         Self {
             array: Vec::new(),
             column_labels,
             row_labels: Vec::new(),
             extent_builder: ExtentBuilder::from(forced_extent),
             extent: None,
+            scale_type,
         }
     }
 
@@ -94,7 +97,7 @@ impl Matrix {
         self.extent = self.extent_builder.clone().build();
     }
 
-    fn try_push_row<I>(&mut self, label: String, row: I, scale_type: ScaleType) -> CliResult<()>
+    fn try_push_row<I>(&mut self, label: String, row: I) -> CliResult<()>
     where
         I: IntoIterator<Item = Option<f64>>,
     {
@@ -108,7 +111,7 @@ impl Matrix {
             self.array.push(cell);
 
             if let Some(f) = cell {
-                if !scale_type.accepts(f) {
+                if !self.scale_type.accepts(f) {
                     Err(format!("given --scale encountered an illegal value ({f})!"))?;
                 }
                 self.extent_builder.process(f);
@@ -149,10 +152,10 @@ impl Matrix {
         cols.into_iter().map(|builder| builder.build()).collect()
     }
 
-    pub fn to_scale(&self, scale_type: ScaleType) -> Option<Scale> {
+    pub fn to_scale(&self) -> Option<Scale> {
         self.extent_builder
             .build()
-            .map(|extent| scale_from_extent(extent, scale_type))
+            .map(|extent| scale_from_extent(extent, self.scale_type))
     }
 }
 
@@ -451,7 +454,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         column_labels = (0..column_labels.len()).map(|i| i.to_string()).collect();
     }
 
-    let mut matrix = Matrix::new(column_labels, forced_extent);
+    let mut matrix = Matrix::new(column_labels, forced_extent, Some(args.flag_scale));
 
     while rdr.read_byte_record(&mut record)? {
         let label = util::sanitize_text_for_single_line_printing(
@@ -472,7 +475,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             })
             .collect::<Vec<_>>();
 
-        matrix.try_push_row(label, row, args.flag_scale)?;
+        matrix.try_push_row(label, row)?;
     }
 
     if matrix.is_empty() {
@@ -486,7 +489,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         ((cols as f64 * 0.3).floor() as usize).min(matrix.max_row_label_width().unwrap() + 1);
     let left_padding = " ".repeat(label_cols);
 
-    let full_scale = matrix.to_scale(args.flag_scale);
+    let full_scale = matrix.to_scale();
 
     let size = args.flag_size.get();
     let width = args.flag_width.map(NonZeroUsize::get).unwrap_or(size * 2);
