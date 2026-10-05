@@ -159,6 +159,8 @@ Currently supported targets include:
 
 - `aarch64-apple-darwin`
 - `aarch64-unknown-linux-gnu`
+- `aarch64-unknown-linux-musl`
+- `aarch64-pc-windows-msvc`
 
 `ppc64le` targets are not built by the CI yet but prebuilt binaries can still be found in the `conda-forge` package's [files](https://anaconda.org/conda-forge/xan/files) if you need them.
 
