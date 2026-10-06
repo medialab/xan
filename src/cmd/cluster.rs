@@ -1,7 +1,5 @@
 use std::io::{self, Write};
 
-use serde::ser::{Serialize, SerializeStruct, Serializer};
-
 use crate::CliResult;
 use crate::collections::{HashMap, hash_map::Entry};
 use crate::config::{Config, Delimiter};
@@ -127,32 +125,6 @@ impl Cluster {
         writeln!(&mut writer)?;
 
         Ok(())
-    }
-}
-
-impl Serialize for Cluster {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut state = serializer.serialize_struct("Cluster", 8)?;
-        state.serialize_field("id", &self.id)?;
-        state.serialize_field("key", &self.key)?;
-        state.serialize_field("nb_values", &self.values.len())?;
-        state.serialize_field("nb_rows", &self.rows.len())?;
-        state.serialize_field(
-            "rows",
-            &self
-                .rows
-                .iter()
-                .map(|i| i.to_string())
-                .collect::<Vec<_>>()
-                .join(","),
-        )?;
-        state.serialize_field("replace_with", self.best())?;
-        state.serialize_field("values", &self.values)?;
-        state.serialize_field("harmonize", &false)?;
-        state.end()
     }
 }
 
