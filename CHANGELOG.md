@@ -17,6 +17,7 @@
 * Adding `xan from -f=ndjson -p/-t`.
 * Adding `xan from -f=parquet -s/--select`.
 * Adding support for missing `xan sample -g -w -S`.
+* Adding `xan heatmap --scale, --log, --hide-labels, --hide-col-labels, --hide-row-labels`.
 
 *Fixes*
 

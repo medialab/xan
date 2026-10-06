@@ -98,11 +98,22 @@ heatmap options:
     --repeat-headers <n>    Repeat headers every <n> heatmap rows. This can also
                             be set to "auto" to choose a suitable number based
                             on the height of your terminal.
+                            Cannot be used with --hide-labels/--hide-col-labels.
+    --hide-labels           Don't display labels in the terminal.
+                            Cannot be used with ---repeat-headers.
+    --hide-col-labels       Don't display col labels in the terminal.
+                            Cannot be used with ---repeat-headers.
+    --hide-row-labels       Don't display row labels in the terminal.
     --color <when>          When to color the output using ANSI escape codes.
                             Use `auto` for automatic detection, `never` to
                             disable colors completely and `always` to force
                             colors, even when the output could not handle them.
                             [default: auto]
+    --scale <scale>         Apply a scale to the values. Can be one of "lin", "pow",
+                            "sqrt", "pow(custom_exponent)" like "pow(4.5)", "log",
+                            "log2", "log10" or "log(custom_base)" like "log(2.5)".
+                            [default: lin]
+    --log                   Use a log scale, shorthand for --scale=log.
 
 Common options:
     -h, --help             Display this message
