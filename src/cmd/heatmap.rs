@@ -72,12 +72,15 @@ struct Matrix {
     row_labels: Vec<String>,
     extent_builder: ExtentBuilder<f64>,
     extent: Option<Extent<f64>>,
-    scale_type: ScaleType
+    scale_type: ScaleType,
 }
 
 impl Matrix {
-    fn new(column_labels: Vec<String>, forced_extent: (Option<f64>, Option<f64>), scale_type: Option<ScaleType>) -> Self {
-        let scale_type = scale_type.unwrap_or(ScaleType::Linear);
+    fn new(
+        column_labels: Vec<String>,
+        forced_extent: (Option<f64>, Option<f64>),
+        scale_type: ScaleType,
+    ) -> Self {
         Self {
             array: Vec::new(),
             column_labels,
@@ -446,7 +449,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         column_labels = (0..column_labels.len()).map(|i| i.to_string()).collect();
     }
 
-    let mut matrix = Matrix::new(column_labels, forced_extent, Some(args.flag_scale));
+    let mut matrix = Matrix::new(column_labels, forced_extent, args.flag_scale);
 
     while rdr.read_byte_record(&mut record)? {
         let label = util::sanitize_text_for_single_line_printing(
@@ -625,6 +628,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     write!(&out, "{left_padding}")?;
                 }
             }
+
             for (col_i, cell) in row.iter().enumerate() {
                 match cell {
                     None => write!(
