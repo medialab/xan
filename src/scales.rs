@@ -789,9 +789,9 @@ impl LinearScale {
         }
     }
 
-    pub fn from_extent(input_domain: Extent<f64>) -> Self {
-        Self::new(input_domain.into_inner(), (0.0, 1.0))
-    }
+    // pub fn from_extent(input_domain: Extent<f64>) -> Self {
+    //     Self::new(input_domain.into_inner(), (0.0, 1.0))
+    // }
 
     pub fn nice(input_domain: (f64, f64), output_range: (f64, f64), ticks: usize) -> Self {
         Self::new(
