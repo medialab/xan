@@ -811,7 +811,7 @@ See also blog posts related to the tool:
 
 You can cite it thusly:
 
-> Guillaume Plique, Béatrice Mazoyer, Laura Miguel, César Pichon, Anna Charles, & Julien Pontoire. (2025). xan, the CSV magician. (0.50.0). Zenodo. https://doi.org/10.5281/zenodo.15310200
+> Guillaume Plique, Béatrice Mazoyer, Laura Miguel, César Pichon, Anna Charles, Julien Pontoire & Clothilde Marko-Lafon. (2025). xan, the CSV magician. (0.50.0). Zenodo. https://doi.org/10.5281/zenodo.15310200
 
 ## Frequently Asked Questions
 
