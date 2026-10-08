@@ -23,6 +23,7 @@
 
 * Fixing broken pipe issues related to printing help.
 * Fixing command panicking when dealing with badly encoded arguments.
+* Fixing moonblade float truthiness (non-zero floats were considered falsey).
 
 *Performance*
 

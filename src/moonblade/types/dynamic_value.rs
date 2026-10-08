@@ -569,7 +569,7 @@ impl DynamicValue {
             Self::Map(value) => !value.is_empty(),
             Self::String(value) => !value.is_empty(),
             Self::Bytes(value) => !value.is_empty(),
-            Self::Float(value) => value == &0.0,
+            Self::Float(value) => value != &0.0,
             Self::Integer(value) => value != &0,
             Self::Boolean(value) => *value,
             Self::Regex(pattern) => !pattern.as_str().is_empty(),
@@ -948,5 +948,18 @@ mod tests {
                 &DynamicValue::Integer(4)
             ]
         );
+    }
+
+    #[test]
+    fn test_is_truthy() {
+        assert!(DynamicValue::Integer(1).is_truthy());
+        assert!(!DynamicValue::Integer(0).is_truthy());
+        assert!(DynamicValue::Float(1.5).is_truthy());
+        assert!(DynamicValue::Float(-0.5).is_truthy());
+        assert!(!DynamicValue::Float(0.0).is_truthy());
+        assert!(!DynamicValue::Float(-0.0).is_truthy());
+        assert!(DynamicValue::from("test").is_truthy());
+        assert!(!DynamicValue::from("").is_truthy());
+        assert!(!DynamicValue::None.is_truthy());
     }
 }
