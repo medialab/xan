@@ -69,6 +69,43 @@ impl SelectedColumns {
         Ok(Selection(map))
     }
 
+    /// Same as `selection`, except plain names (no `[nth]`, no wildcard) that
+    /// do not exist in the headers resolve to `SelectedColumn::Missing`
+    /// instead of raising an error. Every other selector behaves as usual.
+    pub fn selection_with_missing<'a, H>(&self, headers: H) -> Result<Vec<SelectedColumn>, String>
+    where
+        H: IntoIterator<Item = &'a [u8]>,
+    {
+        if self.invert {
+            return Err("cannot invert a selection while allowing missing columns!".to_string());
+        }
+
+        let headers = headers.into_iter().collect::<Vec<_>>();
+
+        if self.selectors.is_empty() {
+            return Ok((0..headers.len()).map(SelectedColumn::Existing).collect());
+        }
+
+        let mut columns = vec![];
+
+        for sel in &self.selectors {
+            if let Selector::One(OneSelector::IndexedName(name, None, _)) = sel {
+                if !headers.contains(&name.as_bytes()) {
+                    columns.push(SelectedColumn::Missing(name.clone()));
+                    continue;
+                }
+            }
+
+            columns.extend(
+                sel.indices(&headers, true)?
+                    .into_iter()
+                    .map(SelectedColumn::Existing),
+            );
+        }
+
+        Ok(columns)
+    }
+
     pub fn single_selection<'a, H>(&self, first_record: H, use_names: bool) -> Result<usize, String>
     where
         H: IntoIterator<Item = &'a [u8]>,
@@ -800,6 +837,12 @@ impl fmt::Debug for OneSelector {
 }
 
 #[derive(Clone, Debug)]
+pub enum SelectedColumn {
+    Existing(usize),
+    Missing(String),
+}
+
+#[derive(Clone, Debug)]
 pub struct Selection(Vec<usize>);
 
 impl Selection {
@@ -817,6 +860,18 @@ impl Selection {
 
     pub fn into_rest(self) -> Self {
         Self(self.0.into_iter().skip(1).collect())
+    }
+
+    /// Returns `None` if some of the given columns are missing.
+    pub fn from_selected_columns(columns: &[SelectedColumn]) -> Option<Self> {
+        columns
+            .iter()
+            .map(|col| match col {
+                SelectedColumn::Existing(i) => Some(*i),
+                SelectedColumn::Missing(_) => None,
+            })
+            .collect::<Option<Vec<_>>>()
+            .map(Self)
     }
 
     pub fn without_indices(len: usize, indices: &[usize]) -> Self {

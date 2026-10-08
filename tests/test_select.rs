@@ -310,3 +310,72 @@ fn select_glob_duplicates() {
     let expected = vec![["aba"], ["6"]];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn select_missing() {
+    let wrk = Workdir::new("select_missing");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["ID", "last", "age"],
+            svec!["1", "Smith", "30"],
+            svec!["2", "Doe, J", "40"],
+        ],
+    );
+
+    // missing columns are added empty
+    let mut cmd = wrk.command("select");
+    cmd.arg("--missing").arg("ID,first,last").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["ID", "first", "last"],
+        svec!["1", "", "Smith"],
+        svec!["2", "", "Doe, J"],
+    ];
+    assert_eq!(got, expected);
+
+    // nothing missing
+    let mut cmd = wrk.command("select");
+    cmd.arg("--missing").arg("last,ID").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["last", "ID"],
+        svec!["Smith", "1"],
+        svec!["Doe, J", "2"],
+    ];
+    assert_eq!(got, expected);
+
+    // mixing with other selectors
+    let mut cmd = wrk.command("select");
+    cmd.arg("--missing").arg("0,first,age:").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["ID", "first", "age"],
+        svec!["1", "", "30"],
+        svec!["2", "", "40"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn select_missing_errors() {
+    let wrk = Workdir::new("select_missing_errors");
+    wrk.create("data.csv", vec![svec!["ID", "last"], svec!["1", "Smith"]]);
+
+    for selection in ["5", "first:last", "foo*", "last[1]", "!ID"] {
+        let mut cmd = wrk.command("select");
+        cmd.arg("--missing").arg(selection).arg("data.csv");
+        wrk.assert_err(&mut cmd);
+    }
+
+    let mut cmd = wrk.command("select");
+    cmd.arg("--missing").arg("-n").arg("0").arg("data.csv");
+    wrk.assert_err(&mut cmd);
+
+    let mut cmd = wrk.command("select");
+    cmd.arg("--missing").arg("-e").arg("ID").arg("data.csv");
+    wrk.assert_err(&mut cmd);
+}
