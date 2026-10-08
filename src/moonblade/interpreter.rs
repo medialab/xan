@@ -1195,6 +1195,14 @@ mod tests {
     }
 
     #[test]
+    fn test_float_truthiness() {
+        assert_eq!(eval_code("if(1.5, 3, 2)"), Ok(DynamicValue::from(3)));
+        assert_eq!(eval_code("if(0.0, 3, 2)"), Ok(DynamicValue::from(2)));
+        assert_eq!(eval_code("float(a) || 0"), Ok(DynamicValue::from(34.0)));
+        assert_eq!(eval_code("0.0 || 5"), Ok(DynamicValue::from(5)));
+    }
+
+    #[test]
     fn test_neg() {
         assert_eq!(eval_code("neg(-1)"), Ok(DynamicValue::from(1)));
         assert_eq!(eval_code("neg(1)"), Ok(DynamicValue::from(-1)));
