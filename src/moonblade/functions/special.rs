@@ -303,7 +303,12 @@ pub fn get_special_function(
         "or" => (None, Some(runtime_or), FunctionArguments::variadic(2)),
 
         // NOTE: try is special because you need to suppress the error if any
-        "try" => (None, Some(runtime_try), FunctionArguments::unary()),
+        // and only evaluate the default value when needed
+        "try" => (
+            None,
+            Some(runtime_try),
+            FunctionArguments::with_range(1..=2),
+        ),
 
         // NOTE: warn must know row index
         "warn" => (None, Some(runtime_warn), FunctionArguments::unary()),
@@ -691,9 +696,13 @@ where
 }
 
 fn runtime_try(context: &EvaluationContext, args: &[ConcreteExpr]) -> EvaluationResult {
-    let result = args.first().unwrap().evaluate(context);
-
-    Ok(result.unwrap_or(DynamicValue::None))
+    match args.first().unwrap().evaluate(context) {
+        Ok(value) => Ok(value),
+        Err(_) => match args.get(1) {
+            Some(default) => default.evaluate(context),
+            None => Ok(DynamicValue::None),
+        },
+    }
 }
 
 fn runtime_warn(context: &EvaluationContext, args: &[ConcreteExpr]) -> EvaluationResult {

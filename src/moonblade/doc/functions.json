@@ -34,9 +34,9 @@
       },
       {
         "name": "try",
-        "arguments": ["T"],
+        "arguments": ["T", "default?"],
         "returns": "T",
-        "help": "Attempt to evaluate given expression and return null if it raised an error."
+        "help": "Attempt to evaluate given expression and return null, or the given default value, if it raised an error. The default value is only evaluated if needed."
       }
     ]
   },

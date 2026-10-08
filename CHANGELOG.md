@@ -18,6 +18,7 @@
 * Adding `xan from -f=parquet -s/--select`.
 * Adding support for missing `xan sample -g -w -S`.
 * Adding `xan heatmap --scale, --log, --hide-labels, --hide-col-labels, --hide-row-labels`.
+* Adding an optional default value to the `try` moonblade function.
 
 *Fixes*
 

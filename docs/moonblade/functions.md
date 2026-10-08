@@ -119,7 +119,7 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **unless**(*cond*, *then*, *else?*) -> `T`: Shorthand for `if(not(cond), then, else?)`
 - **not**(*a*) -> `bool`: Perform boolean NOT operation.
 - **or**(*a*, *b*, *\*n*) -> `T`: Perform boolean OR operation on two or more values.
-- **try**(*T*) -> `T`: Attempt to evaluate given expression and return null if it raised an error.
+- **try**(*T*, *default?*) -> `T`: Attempt to evaluate given expression and return null, or the given default value, if it raised an error. The default value is only evaluated if needed.
 
 ## Comparison
 

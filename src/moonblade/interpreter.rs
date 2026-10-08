@@ -1190,6 +1190,27 @@ mod tests {
     }
 
     #[test]
+    fn test_try() {
+        assert_eq!(eval_code("try(int(a))"), Ok(DynamicValue::from(34)));
+        assert_eq!(eval_code("try(int(name))"), Ok(DynamicValue::None));
+        assert_eq!(eval_code("try(int(a), 0)"), Ok(DynamicValue::from(34)));
+        assert_eq!(eval_code("try(int(name), 0)"), Ok(DynamicValue::from(0)));
+        assert_eq!(
+            eval_code("try(int(name), int(b))"),
+            Ok(DynamicValue::from(62))
+        );
+
+        // Default value is lazy
+        assert_eq!(
+            eval_code("try(int(a), int(name))"),
+            Ok(DynamicValue::from(34))
+        );
+
+        // Errors raised by the default value are not suppressed
+        assert!(eval_code("try(int(name), int(surname))").is_err());
+    }
+
+    #[test]
     fn test_unless() {
         assert_eq!(eval_code("unless(true, 3, 2)"), Ok(DynamicValue::from(2)));
     }
