@@ -9,6 +9,12 @@
         "help": "Perform boolean AND operation on two or more values."
       },
       {
+        "name": "coalesce",
+        "arguments": ["a", "b", "*n"],
+        "returns": "T",
+        "help": "Return the first value that is neither null nor an empty string, or null if there is none. Contrary to `or`, falsey values such as 0 or false are returned. Remaining values are not evaluated once one is found."
+      },
+      {
         "name": "if",
         "arguments": ["cond", "then", "else?"],
         "returns": "T",

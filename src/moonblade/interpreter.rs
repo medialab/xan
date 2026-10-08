@@ -1008,6 +1008,31 @@ mod tests {
     }
 
     #[test]
+    fn test_coalesce() {
+        assert_eq!(eval_code("coalesce(name, 'x')"), Ok(b("john")));
+        assert_eq!(
+            eval_code("coalesce(null, 'x')"),
+            Ok(DynamicValue::from("x"))
+        );
+        assert_eq!(eval_code("coalesce('', 'x')"), Ok(DynamicValue::from("x")));
+        assert_eq!(
+            eval_code("coalesce(full_name?, '', surname)"),
+            Ok(b("SMITH"))
+        );
+        assert_eq!(eval_code("coalesce(null, '')"), Ok(DynamicValue::None));
+
+        // Falsey values that are not empty are kept
+        assert_eq!(eval_code("coalesce(0, 5)"), Ok(DynamicValue::from(0)));
+        assert_eq!(
+            eval_code("coalesce(false, 5)"),
+            Ok(DynamicValue::from(false))
+        );
+
+        // Remaining values are lazy
+        assert_eq!(eval_code("coalesce(a, int(name))"), Ok(b("34")));
+    }
+
+    #[test]
     fn test_pathjoin() {
         assert_eq!(
             eval_code("pathjoin('one', 'two', 'three')"),
