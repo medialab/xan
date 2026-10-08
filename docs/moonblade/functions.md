@@ -115,6 +115,7 @@ add(trim(name) | len, 2)    - Can be used anywhere
 ## Boolean operations & branching
 
 - **and**(*a*, *b*, *\*n*) -> `T`: Perform boolean AND operation on two or more values.
+- **coalesce**(*a*, *b*, *\*n*) -> `T`: Return the first value that is neither null nor an empty string, or null if there is none. Contrary to `or`, falsey values such as 0 or false are returned. Remaining values are not evaluated once one is found.
 - **if**(*cond*, *then*, *else?*) -> `T`: Evaluate condition and switch to correct branch.
 - **unless**(*cond*, *then*, *else?*) -> `T`: Shorthand for `if(not(cond), then, else?)`
 - **not**(*a*) -> `bool`: Perform boolean NOT operation.

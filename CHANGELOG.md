@@ -14,6 +14,7 @@
 * `xan count` & `xan headers` parquet integration.
 * Adding `xan matrix bivar`.
 * Adding the `ord`, `chr`, `chars` & `graphemes` moonblade functions.
+* Adding the `coalesce` moonblade function.
 * Adding `xan from -f=ndjson -p/-t`.
 * Adding `xan from -f=parquet -s/--select`.
 * Adding support for missing `xan sample -g -w -S`.

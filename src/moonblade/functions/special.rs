@@ -302,6 +302,9 @@ pub fn get_special_function(
         "and" => (None, Some(runtime_and), FunctionArguments::variadic(2)),
         "or" => (None, Some(runtime_or), FunctionArguments::variadic(2)),
 
+        // NOTE: coalesce is special because it short-circuits evaluation
+        "coalesce" => (None, Some(runtime_coalesce), FunctionArguments::variadic(2)),
+
         // NOTE: try is special because you need to suppress the error if any
         "try" => (None, Some(runtime_try), FunctionArguments::unary()),
 
@@ -525,6 +528,18 @@ fn runtime_and(context: &EvaluationContext, args: &[ConcreteExpr]) -> Evaluation
     }
 
     Ok(last.unwrap())
+}
+
+fn runtime_coalesce(context: &EvaluationContext, args: &[ConcreteExpr]) -> EvaluationResult {
+    for arg in args {
+        let value = arg.evaluate(context)?;
+
+        if !value.is_nullish() {
+            return Ok(value);
+        }
+    }
+
+    Ok(DynamicValue::None)
 }
 
 fn runtime_row_index(context: &EvaluationContext, _args: &[ConcreteExpr]) -> EvaluationResult {
