@@ -6,43 +6,9 @@ use crate::config::{Config, Delimiter};
 use crate::moonblade::Program;
 use crate::util;
 
-enum ControlFlow {
-    Continue,
-    Break,
-    Process,
-}
+mod predicate;
 
-struct Conditions {
-    start: Option<Program>,
-    end: Option<Program>,
-    has_started: bool,
-}
-
-impl Conditions {
-    fn process(&mut self, index: usize, record: &simd_csv::ByteRecord) -> CliResult<ControlFlow> {
-        if !self.has_started {
-            if let Some(program) = &self.start {
-                let value = program.run_with_record(index, record)?;
-
-                if value.is_truthy() {
-                    self.has_started = true;
-                } else {
-                    return Ok(ControlFlow::Continue);
-                }
-            }
-        }
-
-        if let Some(program) = &self.end {
-            let value = program.run_with_record(index, record)?;
-
-            if value.is_truthy() {
-                return Ok(ControlFlow::Break);
-            }
-        }
-
-        Ok(ControlFlow::Process)
-    }
-}
+use self::predicate::{RowPredicate, Selection};
 
 static USAGE: &str = "
 Returns rows of a CSV file in the specified range. This range can be specified
@@ -85,15 +51,23 @@ of operations:
 
 - First, the command will seek in target file if -B/--byte-offset was given, and
 won't read past a certain byte offset if --end-byte was given.
-- Then the -S/--start-condition and -E/--end-condtion apply.
+- Then the -S/--start-condition and -E/--end-condition apply.
 - Finally flags related to row indices will apply. Note that indices are therefore
 relative to both the application of the byte offset and the start condition and not
 to the first actual row in the file.
+
+In expressions, row_index() is the 0-based index of each parsed row after the byte
+seek, including rows skipped before the start condition or by row selection.
+The row matching the end condition is not included in the output.
 
 So, for instance, if you want to slice 5 rows in the file but only after a row
 where the \"count\" column is over `10`, you could do the following:
 
     $ xan slice -S 'count > 10' -l 5 file.csv
+
+Or retrieve the first and third rows after that start condition:
+
+    $ xan slice -S 'count > 10' -I 0,2 file.csv
 
 Usage:
     xan slice [options] [<input>]
@@ -117,7 +91,7 @@ slice options to use with expressions:
     -S, --start-condition <expr>  Do not start yielding rows until given expression
                                   returns true.
     -E, --end-condition <expr>    Stop yielding rows as soon as given expression
-                                  returns false.
+                                  returns true (exclusive).
 
 slice options to use with byte offets:
     -B, --byte-offset <b>  Byte offset to seek to in the sliced file. This can
@@ -212,46 +186,6 @@ impl Args {
             return self.run_last();
         }
 
-        if self.flag_indices.is_some() {
-            if self.flag_start_condition.is_some() || self.flag_end_condition.is_some() {
-                Err(
-                    "-I/--indices does not work with -S/--start-condition nor -E/--end-condition!",
-                )?;
-            }
-
-            return {
-                let mut rconf = self.rconfig();
-                let no_headers = rconf.no_headers;
-
-                if let Some(offset) = self.flag_byte_offset {
-                    rconf = rconf.no_headers(true);
-                    let mut rdr = rconf.simd_csv_reader_from_reader(rconf.seekable_io_reader()?);
-                    let headers = rdr.byte_headers()?.clone();
-                    let mut inner = rdr.into_inner();
-
-                    inner.seek(SeekFrom::Start(offset))?;
-
-                    if let Some(end_offset) = self.flag_end_byte {
-                        self.run_plural(
-                            no_headers,
-                            rconf.simd_csv_reader_from_reader(inner.take(end_offset - offset)),
-                            headers,
-                        )
-                    } else {
-                        self.run_plural(
-                            no_headers,
-                            rconf.simd_csv_reader_from_reader(inner),
-                            headers,
-                        )
-                    }
-                } else {
-                    let mut rdr = rconf.simd_reader()?;
-                    let headers = rdr.byte_headers()?.clone();
-                    self.run_plural(no_headers, rdr, headers)
-                }
-            };
-        }
-
         let mut rconf = self.rconfig();
         let no_headers = rconf.no_headers;
 
@@ -264,13 +198,13 @@ impl Args {
             inner.seek(SeekFrom::Start(offset))?;
 
             if let Some(end_offset) = self.flag_end_byte {
-                self.run_default(
+                self.run_selection(
                     no_headers,
                     rconf.simd_csv_reader_from_reader(inner.take(end_offset - offset)),
                     headers,
                 )
             } else {
-                self.run_default(
+                self.run_selection(
                     no_headers,
                     rconf.simd_csv_reader_from_reader(inner),
                     headers,
@@ -279,11 +213,11 @@ impl Args {
         } else {
             let mut rdr = rconf.simd_reader()?;
             let headers = rdr.byte_headers()?.clone();
-            self.run_default(no_headers, rdr, headers)
+            self.run_selection(no_headers, rdr, headers)
         }
     }
 
-    fn run_default<R: Read>(
+    fn run_selection<R: Read>(
         &self,
         no_headers: bool,
         mut rdr: simd_csv::Reader<R>,
@@ -295,33 +229,26 @@ impl Args {
             wtr.write_byte_record(&headers)?;
         }
 
-        let mut record = simd_csv::ByteRecord::new();
-        let mut conditions = self.conditions(&headers, no_headers)?;
+        let mut predicate = self.predicate(&headers, no_headers)?;
 
-        let (start, end) = self.range()?;
-        let mut record_index: usize = 0;
-        let mut i: usize = 0;
+        if predicate.is_done() {
+            return Ok(wtr.flush()?);
+        }
+
+        let mut record = simd_csv::ByteRecord::new();
+        let mut input_index = 0;
 
         while rdr.read_byte_record(&mut record)? {
-            match conditions.process(record_index, &record)? {
-                ControlFlow::Break => break,
-                ControlFlow::Continue => continue,
-                ControlFlow::Process => (),
-            };
+            let decision = predicate.process(input_index, &record)?;
+            input_index += 1;
 
-            i += 1;
-
-            if i <= start {
-                continue;
+            if decision.yield_row {
+                wtr.write_byte_record(&record)?;
             }
 
-            wtr.write_byte_record(&record)?;
-
-            if i == end {
+            if decision.stop {
                 break;
             }
-
-            record_index += 1;
         }
 
         Ok(wtr.flush()?)
@@ -382,38 +309,6 @@ impl Args {
         }
     }
 
-    fn run_plural<R: Read>(
-        &self,
-        no_headers: bool,
-        mut rdr: simd_csv::Reader<R>,
-        headers: simd_csv::ByteRecord,
-    ) -> CliResult<()> {
-        let mut wtr = self.wconfig().simd_writer()?;
-
-        if !no_headers {
-            wtr.write_byte_record(&headers)?;
-        }
-
-        let indices = self.plural_indices()?;
-
-        let mut record = simd_csv::ByteRecord::new();
-        let mut i: usize = 0;
-
-        while rdr.read_byte_record(&mut record)? {
-            if indices.contains(&i) {
-                wtr.write_byte_record(&record)?;
-            }
-
-            i += 1;
-
-            if &i > indices.last().unwrap() {
-                break;
-            }
-        }
-
-        Ok(wtr.flush()?)
-    }
-
     fn range(&self) -> Result<(usize, usize), String> {
         util::range(
             self.flag_start,
@@ -423,7 +318,6 @@ impl Args {
         )
     }
 
-    // NOTE: there is room to optimize, but this seems pointless currently
     fn plural_indices(&self) -> Result<Vec<usize>, &str> {
         self.flag_indices
             .as_ref()
@@ -435,10 +329,6 @@ impl Args {
                     .map_err(|_| "could not parse some index in -i/--index!")
             })
             .collect::<Result<Vec<usize>, _>>()
-            .map(|mut indices| {
-                indices.sort();
-                indices
-            })
     }
 
     fn rconfig(&self) -> Config {
@@ -451,7 +341,14 @@ impl Args {
         Config::new(&self.flag_output)
     }
 
-    fn conditions(&self, headers: &simd_csv::ByteRecord, headless: bool) -> CliResult<Conditions> {
+    fn predicate(&self, headers: &simd_csv::ByteRecord, headless: bool) -> CliResult<RowPredicate> {
+        let selection = if self.flag_indices.is_some() {
+            Selection::Indices(self.plural_indices()?)
+        } else {
+            let (start, end) = self.range()?;
+            Selection::Range { start, end }
+        };
+
         let start_condition_program = self
             .flag_start_condition
             .as_ref()
@@ -464,11 +361,11 @@ impl Args {
             .map(|expr| Program::parse(expr, headers, headless))
             .transpose()?;
 
-        Ok(Conditions {
-            start: start_condition_program,
-            end: end_condition_program,
-            has_started: false,
-        })
+        Ok(RowPredicate::new(
+            selection,
+            start_condition_program,
+            end_condition_program,
+        ))
     }
 }
 
