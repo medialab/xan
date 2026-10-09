@@ -42,15 +42,23 @@ of operations:
 
 - First, the command will seek in target file if -B/--byte-offset was given, and
 won't read past a certain byte offset if --end-byte was given.
-- Then the -S/--start-condition and -E/--end-condtion apply.
+- Then the -S/--start-condition and -E/--end-condition apply.
 - Finally flags related to row indices will apply. Note that indices are therefore
 relative to both the application of the byte offset and the start condition and not
 to the first actual row in the file.
+
+In expressions, row_index() is the 0-based index of each parsed row after the byte
+seek, including rows skipped before the start condition or by row selection.
+The row matching the end condition is not included in the output.
 
 So, for instance, if you want to slice 5 rows in the file but only after a row
 where the "count" column is over `10`, you could do the following:
 
     $ xan slice -S 'count > 10' -l 5 file.csv
+
+Or retrieve the first and third rows after that start condition:
+
+    $ xan slice -S 'count > 10' -I 0,2 file.csv
 
 Usage:
     xan slice [options] [<input>]
@@ -74,7 +82,7 @@ slice options to use with expressions:
     -S, --start-condition <expr>  Do not start yielding rows until given expression
                                   returns true.
     -E, --end-condition <expr>    Stop yielding rows as soon as given expression
-                                  returns false.
+                                  returns true (exclusive).
 
 slice options to use with byte offets:
     -B, --byte-offset <b>  Byte offset to seek to in the sliced file. This can
