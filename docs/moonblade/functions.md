@@ -81,13 +81,15 @@ x ++ y - string concatenation
 
 ### Logical operators
 
+Warning: when the right-hand side is a list, x in y and x not in y use strict equality, matching both value and type. Cast string-typed cells explicitly when comparing against typed list literals, e.g. int(b) not in [1, 2, 3].
+
 ```txt
 x && y     - logical and
 x and y
 x || y     - logical or
 x or y
-x in y
-x not in y
+x in y     - membership test
+x not in y - negated membership test
 ```
 
 ### Indexing & slicing operators
