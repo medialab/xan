@@ -89,6 +89,14 @@ Examples:
     $ xan select '*_dim[1]'
     $ xan select 'vec_*_count[1]'
 
+  Select columns, adding empty ones for names that do not exist in the file
+  (only works for plain column names, not indices, ranges or wildcards):
+    $ xan select --add-missing id,first_name,last_name
+
+  To fill missing columns with something else than an empty value, use an
+  expression with "unsure" identifiers instead:
+    $ xan select -e 'id, first_name? || "unknown" as first_name'
+
 # Evaluating a expression
 
 Using a SQLish syntax that is the same as for the `map`, `agg`, `filter` etc.
@@ -125,6 +133,10 @@ select options:
     -e, --evaluate       Toggle expression evaluation rather than using the
                          shorthand selection notation.
     -f, --evaluate-file  Read evaluation expression from a file instead.
+    -M, --add-missing    Add an empty column for each plain column name of
+                         the selection that does not exist in the file,
+                         instead of raising an error. Cannot be used when
+                         evaluating an expression nor with --no-headers.
 
 Common options:
     -h, --help             Display this message

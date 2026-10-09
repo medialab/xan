@@ -310,3 +310,124 @@ fn select_glob_duplicates() {
     let expected = vec![["aba"], ["6"]];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn select_add_missing() {
+    let wrk = Workdir::new("select_add_missing");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["ID", "last", "age"],
+            svec!["1", "Smith", "30"],
+            svec!["2", "Doe, J", "40"],
+            svec!["3", "say \"hi\"", "50"],
+        ],
+    );
+
+    // missing columns are added empty
+    let mut cmd = wrk.command("select");
+    cmd.arg("--add-missing")
+        .arg("ID,first,last")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["ID", "first", "last"],
+        svec!["1", "", "Smith"],
+        svec!["2", "", "Doe, J"],
+        svec!["3", "", "say \"hi\""],
+    ];
+    assert_eq!(got, expected);
+
+    // nothing missing
+    let mut cmd = wrk.command("select");
+    cmd.arg("-M").arg("last,ID").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["last", "ID"],
+        svec!["Smith", "1"],
+        svec!["Doe, J", "2"],
+        svec!["say \"hi\"", "3"],
+    ];
+    assert_eq!(got, expected);
+
+    // mixing with other selectors, which must still resolve
+    let mut cmd = wrk.command("select");
+    cmd.arg("-M").arg("0,first,age:,l*,ID:last").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["ID", "first", "age", "last", "ID", "last"],
+        svec!["1", "", "30", "Smith", "1", "Smith"],
+        svec!["2", "", "40", "Doe, J", "2", "Doe, J"],
+        svec!["3", "", "50", "say \"hi\"", "3", "say \"hi\""],
+    ];
+    assert_eq!(got, expected);
+
+    // only missing columns
+    let mut cmd = wrk.command("select");
+    cmd.arg("-M").arg("first").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["first"], svec![""], svec![""], svec![""]];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn select_add_missing_raw_output() {
+    let wrk = Workdir::new("select_add_missing_raw_output");
+    wrk.write("data.csv", "ID,last\n1,\"Doe, J\"\n2,\"say \"\"hi\"\"\"\n");
+
+    // quoted cells must be written as-is, not quoted again
+    let mut cmd = wrk.command("select");
+    cmd.arg("-M").arg("ID,first,last").arg("data.csv");
+
+    let got: String = wrk.stdout(&mut cmd);
+    assert_eq!(got, "ID,first,last\n1,,\"Doe, J\"\n2,,\"say \"\"hi\"\"\"");
+}
+
+#[test]
+fn select_add_missing_delimiter() {
+    let wrk = Workdir::new("select_add_missing_delimiter");
+    wrk.write("data.csv", "ID;last\n1;Doe, J\n2;\"a;b\"\n");
+
+    // input & output delimiters differ, so cells must be re-escaped
+    let mut cmd = wrk.command("select");
+    cmd.arg("-M")
+        .arg("-d")
+        .arg(";")
+        .arg("ID,first,last")
+        .arg("data.csv");
+
+    let got: String = wrk.stdout(&mut cmd);
+    assert_eq!(got, "ID,first,last\n1,,\"Doe, J\"\n2,,a;b");
+}
+
+#[test]
+fn select_add_missing_errors() {
+    let wrk = Workdir::new("select_add_missing_errors");
+    wrk.create("data.csv", vec![svec!["ID", "last"], svec!["1", "Smith"]]);
+
+    for selection in [
+        "5",
+        "first:last",
+        "ID:first",
+        "foo*",
+        "first,foo*",
+        "last[1]",
+        "!ID",
+    ] {
+        let mut cmd = wrk.command("select");
+        cmd.arg("-M").arg(selection).arg("data.csv");
+        wrk.assert_err(&mut cmd);
+    }
+
+    let mut cmd = wrk.command("select");
+    cmd.arg("-M").arg("-n").arg("0").arg("data.csv");
+    wrk.assert_err(&mut cmd);
+
+    let mut cmd = wrk.command("select");
+    cmd.arg("-M").arg("-e").arg("ID").arg("data.csv");
+    wrk.assert_err(&mut cmd);
+}

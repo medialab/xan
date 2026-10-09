@@ -20,6 +20,7 @@
 * Adding support for missing `xan sample -g -w -S`.
 * Adding `xan heatmap --scale, --log, --hide-labels, --hide-col-labels, --hide-row-labels`.
 * Adding an optional default value to the `try` moonblade function.
+* Adding `xan select -M/--add-missing`.
 
 *Fixes*
 
