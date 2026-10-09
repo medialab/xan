@@ -1,9 +1,11 @@
+use std::borrow::Cow;
 use std::fs;
+use std::io;
 
 use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::SelectionProgram;
-use crate::select::SelectedColumns;
+use crate::select::{SelectedColumn, SelectedColumns, Selection};
 use crate::util;
 
 static USAGE: &str = "
@@ -94,6 +96,14 @@ Examples:
     $ xan select '*_dim[1]'
     $ xan select 'vec_*_count[1]'
 
+  Select columns, adding empty ones for names that do not exist in the file
+  (only works for plain column names, not indices, ranges or wildcards):
+    $ xan select --add-missing id,first_name,last_name
+
+  To fill missing columns with something else than an empty value, use an
+  expression with \"unsure\" identifiers instead:
+    $ xan select -e 'id, first_name? || \"unknown\" as first_name'
+
 # Evaluating a expression
 
 Using a SQLish syntax that is the same as for the `map`, `agg`, `filter` etc.
@@ -130,6 +140,10 @@ select options:
     -e, --evaluate       Toggle expression evaluation rather than using the
                          shorthand selection notation.
     -f, --evaluate-file  Read evaluation expression from a file instead.
+    -M, --add-missing    Add an empty column for each plain column name of
+                         the selection that does not exist in the file,
+                         instead of raising an error. Cannot be used when
+                         evaluating an expression nor with --no-headers.
 
 Common options:
     -h, --help             Display this message
@@ -150,12 +164,21 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
     flag_evaluate: bool,
     flag_evaluate_file: bool,
+    flag_add_missing: bool,
 }
 
 impl Args {
     fn resolve(&mut self) -> CliResult<()> {
         if self.flag_evaluate && self.flag_evaluate_file {
             Err("cannot use both -e/--evaluate & -f/--evaluate-file!")?;
+        }
+
+        if self.flag_add_missing && (self.flag_evaluate || self.flag_evaluate_file) {
+            Err("-M/--add-missing cannot be used with -e/--evaluate or -f/--evaluate-file!")?;
+        }
+
+        if self.flag_add_missing && self.flag_no_headers {
+            Err("-M/--add-missing cannot be used with -n/--no-headers!")?;
         }
 
         if self.flag_evaluate_file {
@@ -170,7 +193,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut args: Args = util::get_args(USAGE, argv)?;
     args.resolve()?;
 
-    let mut rconfig = Config::new(&args.arg_input)
+    let rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
 
@@ -200,7 +223,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Ok(wtr.flush()?)
     } else {
         let mut rdr = rconfig.simd_zero_copy_reader()?;
-        let mut wtr = Config::new(&args.flag_output).simd_writer()?;
+        let wconfig = Config::new(&args.flag_output);
+        let mut wtr = wconfig.simd_writer()?;
 
         let headers = rdr.byte_headers()?.clone();
 
@@ -210,9 +234,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             return Ok(());
         }
 
-        rconfig = rconfig.select(SelectedColumns::parse(&args.arg_selection)?);
+        let selected_columns = SelectedColumns::parse(&args.arg_selection)?;
 
-        let sel = rconfig.selection(&headers)?;
+        let sel = if args.flag_add_missing {
+            let columns = selected_columns.selection_with_missing(&headers)?;
+
+            match Selection::from_selected_columns(&columns) {
+                // Nothing is actually missing, we can use the typical path
+                Some(sel) => sel,
+                None => {
+                    return write_with_missing_columns(rdr, wtr, &rconfig, &wconfig, &columns);
+                }
+            }
+        } else {
+            selected_columns.selection(&headers, !rconfig.no_headers)?
+        };
 
         if !rconfig.no_headers {
             let headers_to_write = sel.select(&headers);
@@ -226,4 +262,41 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         Ok(wtr.flush()?)
     }
+}
+
+fn write_with_missing_columns<R: io::Read, W: io::Write>(
+    mut rdr: simd_csv::ZeroCopyReader<R>,
+    mut wtr: simd_csv::Writer<W>,
+    rconfig: &Config,
+    wconfig: &Config,
+    columns: &[SelectedColumn],
+) -> CliResult<()> {
+    let headers = rdr.byte_headers()?;
+
+    wtr.write_record(columns.iter().map(|col| match col {
+        SelectedColumn::Existing(i) => &headers[*i],
+        SelectedColumn::Missing(name) => name.as_bytes(),
+    }))?;
+
+    // NOTE: same as `write_zero_copy_byte_record_indices`, when input and
+    // output share the same delimiter & quote, raw cells can be written as-is,
+    // without needing to unescape then escape them again. Missing cells are
+    // empty and never need quoting.
+    let can_write_raw = rconfig.delimiter == wconfig.delimiter && rconfig.quote == wconfig.quote;
+
+    while let Some(record) = rdr.read_byte_record()? {
+        let cells = columns.iter().map(|col| match col {
+            SelectedColumn::Existing(i) if can_write_raw => Cow::Borrowed(&record[*i]),
+            SelectedColumn::Existing(i) => record.unescape(*i).unwrap(),
+            SelectedColumn::Missing(_) => Cow::Borrowed(&b""[..]),
+        });
+
+        if can_write_raw {
+            wtr.write_record_no_quoting(cells)?;
+        } else {
+            wtr.write_record(cells)?;
+        }
+    }
+
+    Ok(wtr.flush()?)
 }
