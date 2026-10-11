@@ -43,7 +43,8 @@ view options:
     --name <name>               Name for the viewed table. Will default to the path of the file
                                 if any or "<stdin>" when viewing standard input.
     -p, --pager                 Automatically use the "less" command to page the results.
-                                This flag does not work on windows!
+                                Ignored when stdout is not a terminal, e.g. when piping
+                                or redirecting to a file. This flag does not work on windows!
     -A, --all                   Remove the row limit and display everything.
     -l, --limit <number>        Maximum of rows to read into memory. Use -A, --all or
                                 set to 0 to disable the limit. Defaults to 100 rows, or 5 rows
