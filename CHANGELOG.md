@@ -21,7 +21,7 @@
 * Adding `xan heatmap --scale, --log, --hide-labels, --hide-col-labels, --hide-row-labels`.
 * Adding an optional default value to the `try` moonblade function.
 * Adding `xan select -M/--add-missing`.
-* Adding `xan view --no-pager`.
+* Adding `xan view --no-pager, --ignore-defaults`.
 
 *Fixes*
 

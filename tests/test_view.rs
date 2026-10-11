@@ -72,3 +72,35 @@ fn view_no_pager() {
     let got: String = wrk.stdout(&mut cmd);
     assert_eq!(got, expected);
 }
+
+#[test]
+fn view_ignore_defaults() {
+    let wrk = Workdir::new("view_ignore_defaults");
+    create_data(&wrk);
+
+    let mut cmd = wrk.command("view");
+    cmd.arg("data.csv").env_remove("XAN_VIEW_ARGS");
+    let expected: String = wrk.stdout(&mut cmd);
+
+    let defaults = "-t borderless -I -M -S 2 --color always";
+
+    let mut cmd = wrk.command("view");
+    cmd.arg("data.csv").env("XAN_VIEW_ARGS", defaults);
+    let got: String = wrk.stdout(&mut cmd);
+    assert_ne!(got, expected);
+
+    let mut cmd = wrk.command("view");
+    cmd.arg("data.csv")
+        .arg("--ignore-defaults")
+        .env("XAN_VIEW_ARGS", defaults);
+    let got: String = wrk.stdout(&mut cmd);
+    assert_eq!(got, expected);
+
+    // Invalid defaults should not make the command fail when ignored
+    let mut cmd = wrk.command("view");
+    cmd.arg("data.csv")
+        .arg("--ignore-defaults")
+        .env("XAN_VIEW_ARGS", "--not-a-flag");
+    let got: String = wrk.stdout(&mut cmd);
+    assert_eq!(got, expected);
+}

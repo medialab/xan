@@ -223,13 +223,16 @@ Finally, it is possible to customize the default behavior of this command throug
 the \"XAN_VIEW_ARGS\" environment variable. This variable takes a series of
 supported flags: -t/--theme, -p/--pager, -l/--limit, -R/--rainbow, -E/--sanitize-emojis,
 and -S/--significance, -I/--hide-index, --color, --repeat-headers, --reveal-whitespace
-& -M/--hide-info.
+& -M/--hide-info. Other flags are ignored.
 
 To use the `borderless` theme, hide the index column and restrict the number of
 floating points decimals to be shown by default, here is how it would be done
 through the \"XAN_VIEW_ARGS\" variable:
 
     $ XAN_VIEW_ARGS=\"-t borderless -S 5 -I\"
+
+Use the --ignore-defaults flag to ignore this variable entirely, which is
+recommended in scripts where the output should not depend on user preferences.
 
 Usage:
     xan view [options] [<input>]
@@ -288,6 +291,8 @@ view options:
                                 to stdout. Very useful to print transitional tables in pipes.
                                 Default --limit will be set to 5 and implies --color=always
                                 as well as --repeat-headers=never. Incompatible with -p/--pager.
+    --ignore-defaults           Ignore the defaults set through the \"XAN_VIEW_ARGS\"
+                                environment variable.
 
 Common options:
     -h, --help             Display this message
@@ -322,6 +327,7 @@ struct Args {
     flag_repeat_headers: ComplexToggle,
     flag_reveal_whitespace: ComplexToggle,
     flag_tee: bool,
+    flag_ignore_defaults: bool,
     flag_name: Option<String>,
 }
 
@@ -407,17 +413,22 @@ impl Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let cli_args: Args = util::get_args(USAGE, argv)?;
 
-    let mut env_var_argv = vec!["xan", "view"];
-    let env_var_split =
-        shlex::split(&env::var("XAN_VIEW_ARGS").unwrap_or("".to_string())).unwrap_or_default();
+    let mut args = if cli_args.flag_ignore_defaults {
+        cli_args
+    } else {
+        let mut env_var_argv = vec!["xan", "view"];
+        let env_var_split =
+            shlex::split(&env::var("XAN_VIEW_ARGS").unwrap_or("".to_string())).unwrap_or_default();
 
-    for env_arg in env_var_split.iter() {
-        env_var_argv.push(env_arg);
-    }
+        for env_arg in env_var_split.iter() {
+            env_var_argv.push(env_arg);
+        }
 
-    let env_args: Args = util::get_args(USAGE, &env_var_argv)?;
+        let env_args: Args = util::get_args(USAGE, &env_var_argv)?;
 
-    let mut args = Args::merge(env_args, cli_args);
+        Args::merge(env_args, cli_args)
+    };
+
     args.resolve();
     args.flag_color.apply();
 
