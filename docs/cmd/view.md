@@ -45,6 +45,8 @@ view options:
     -p, --pager                 Automatically use the "less" command to page the results.
                                 Ignored when stdout is not a terminal, e.g. when piping
                                 or redirecting to a file. This flag does not work on windows!
+    --no-pager                  Never page the results, even if -p/--pager is given or
+                                set through the "XAN_VIEW_ARGS" environment variable.
     -A, --all                   Remove the row limit and display everything.
     -l, --limit <number>        Maximum of rows to read into memory. Use -A, --all or
                                 set to 0 to disable the limit. Defaults to 100 rows, or 5 rows

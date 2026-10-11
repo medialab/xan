@@ -48,3 +48,27 @@ fn view_tee_with_pager_from_env() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn view_no_pager() {
+    let wrk = Workdir::new("view_no_pager");
+    create_data(&wrk);
+
+    let mut cmd = wrk.command("view");
+    cmd.arg("data.csv").env_remove("XAN_VIEW_ARGS");
+    let expected: String = wrk.stdout(&mut cmd);
+
+    let mut cmd = wrk.command("view");
+    cmd.arg("data.csv")
+        .arg("--no-pager")
+        .env("XAN_VIEW_ARGS", "-p");
+    let got: String = wrk.stdout(&mut cmd);
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("view");
+    cmd.arg("data.csv")
+        .args(["-p", "--no-pager"])
+        .env_remove("XAN_VIEW_ARGS");
+    let got: String = wrk.stdout(&mut cmd);
+    assert_eq!(got, expected);
+}
