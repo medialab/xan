@@ -88,7 +88,9 @@ view options:
     -T, --tee                   When used, will print the table to stderr and forward given stream
                                 to stdout. Very useful to print transitional tables in pipes.
                                 Default --limit will be set to 5 and implies --color=always
-                                as well as --repeat-headers=never. Incompatible with -p/--pager.
+                                as well as --repeat-headers=never. Incompatible with -p/--pager,
+                                but takes precedence over it when set through the
+                                "XAN_VIEW_ARGS" environment variable.
     --ignore-defaults           Ignore the defaults set through the "XAN_VIEW_ARGS"
                                 environment variable.
 

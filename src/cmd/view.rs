@@ -290,7 +290,9 @@ view options:
     -T, --tee                   When used, will print the table to stderr and forward given stream
                                 to stdout. Very useful to print transitional tables in pipes.
                                 Default --limit will be set to 5 and implies --color=always
-                                as well as --repeat-headers=never. Incompatible with -p/--pager.
+                                as well as --repeat-headers=never. Incompatible with -p/--pager,
+                                but takes precedence over it when set through the
+                                \"XAN_VIEW_ARGS\" environment variable.
     --ignore-defaults           Ignore the defaults set through the \"XAN_VIEW_ARGS\"
                                 environment variable.
 
@@ -373,7 +375,9 @@ impl Args {
             from_argv.flag_hide_info = true;
         }
 
-        if !from_argv.flag_pager && from_env.flag_pager {
+        // NOTE: -T/--tee is incompatible with the pager and should take precedence
+        // over a default
+        if !from_argv.flag_pager && from_env.flag_pager && !from_argv.flag_tee {
             from_argv.flag_pager = true;
         }
 
