@@ -681,7 +681,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let pretty_records_len = util::format_number(records.len());
         let pretty_headers_len = util::format_number(headers.len() - len_offset);
         let pretty_displayed_headers_len =
-            util::format_number(displayed_columns.len() - len_offset);
+            util::format_number(displayed_columns.len().saturating_sub(len_offset));
 
         writeln!(
             out,
@@ -1151,7 +1151,7 @@ fn infer_best_column_display(
 
         let widths = adjust_column_widths(max_column_widths, max_allowed_width);
 
-        let mut col_budget = cols - ellipsis_padding_cols;
+        let mut col_budget = cols.saturating_sub(ellipsis_padding_cols);
         let mut widths_iter = widths.iter().enumerate();
         let mut toggle = true;
         let mut left_leaning = left_advantage;
@@ -1204,5 +1204,5 @@ fn infer_best_column_display(
     attempts
         .into_iter()
         .max_by_key(|a| (a.fitting_count(), a.len(), a.max_allowed_cols))
-        .unwrap()
+        .unwrap_or_else(|| DisplayedColumns::new(cols))
 }

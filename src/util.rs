@@ -304,13 +304,18 @@ pub fn acquire_stty_size() -> Option<termsize::Size> {
     None
 }
 
+// NOTE: some terminals (e.g. pseudo-terminals without a window size) report
+// a size of 0x0, which must be considered as unknown.
+fn acquire_term_size() -> Option<termsize::Size> {
+    termsize::get()
+        .or_else(acquire_stty_size)
+        .filter(|size| size.cols > 0 && size.rows > 0)
+}
+
 pub fn acquire_term_cols(cols_override: &Option<usize>) -> usize {
     match cols_override {
-        None => match termsize::get() {
-            None => match acquire_stty_size() {
-                None => 80,
-                Some(size) => size.cols as usize,
-            },
+        None => match acquire_term_size() {
+            None => 80,
             Some(size) => size.cols as usize,
         },
         Some(c) => *c,
@@ -319,11 +324,8 @@ pub fn acquire_term_cols(cols_override: &Option<usize>) -> usize {
 
 pub fn acquire_term_rows(rows_override: &Option<usize>) -> usize {
     match rows_override {
-        None => match termsize::get() {
-            None => match acquire_stty_size() {
-                None => 30,
-                Some(size) => size.rows as usize,
-            },
+        None => match acquire_term_size() {
+            None => 30,
             Some(size) => size.rows as usize,
         },
         Some(c) => *c,
