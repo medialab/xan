@@ -569,17 +569,27 @@ fn concretize_call(
             }
         }
 
-        let concrete_args = concretize_arguments(&arguments, call.args, headers_index, globals);
-
         // NOTE: special case of bubbling-up exceptions
-        if function_name == "try" && concrete_args.is_err() {
-            return Ok(ConcreteExpr::Value(DynamicValue::None));
+        if function_name == "try" {
+            match concretize_expression(call.args[0].clone().1, headers_index, globals) {
+                Err(_) => {
+                    return match call.args.get(1) {
+                        Some((_, default)) => {
+                            concretize_expression(default.clone(), headers_index, globals)
+                        }
+                        None => Ok(ConcreteExpr::Value(DynamicValue::None)),
+                    };
+                }
+                // NOTE: default value will never be needed
+                Ok(ConcreteExpr::Value(value)) => return Ok(ConcreteExpr::Value(value)),
+                _ => (),
+            }
         }
 
         let concrete_call = ConcreteSpecialFunctionCall {
             name: function_name.clone(),
             function: runtime_function.expect("missing special function runtime"),
-            args: concrete_args?,
+            args: concretize_arguments(&arguments, call.args, headers_index, globals)?,
         };
 
         if concrete_call.is_statically_evaluable(&vec![]) {
@@ -1233,6 +1243,24 @@ mod tests {
 
         // Errors raised by the default value are not suppressed
         assert!(eval_code("try(int(name), int(surname))").is_err());
+
+        // Statically evaluable arguments
+        assert_eq!(eval_code("try(int('12'))"), Ok(DynamicValue::from(12)));
+        assert_eq!(eval_code("try(int('bad'))"), Ok(DynamicValue::None));
+        assert_eq!(eval_code("try(int('12'), 0)"), Ok(DynamicValue::from(12)));
+        assert_eq!(eval_code("try(int('bad'), 0)"), Ok(DynamicValue::from(0)));
+        assert_eq!(
+            eval_code("try(int('bad'), int(b))"),
+            Ok(DynamicValue::from(62))
+        );
+        assert_eq!(
+            eval_code("try(int(name), int('12'))"),
+            Ok(DynamicValue::from(12))
+        );
+        assert_eq!(
+            eval_code("try(int('12'), int('bad'))"),
+            Ok(DynamicValue::from(12))
+        );
     }
 
     #[test]
