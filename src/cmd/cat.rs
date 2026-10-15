@@ -348,14 +348,18 @@ impl Args {
         let mut headers_index = new_index_set::<Vec<u8>>();
 
         for (i, headers) in all_headers.iter().enumerate() {
-            for name in headers {
-                if self.flag_intersection {
-                    if i == 0 {
+            if self.flag_intersection {
+                if i == 0 {
+                    for name in headers {
                         headers_index.insert(name.to_vec());
-                    } else if !headers_index.contains(name) {
-                        headers_index.shift_remove(name);
                     }
                 } else {
+                    // Keep the first file's order, but drop every header the
+                    // current file does not have.
+                    headers_index.retain(|name| headers.iter().any(|n| n == name));
+                }
+            } else {
+                for name in headers {
                     headers_index.insert(name.to_vec());
                 }
             }

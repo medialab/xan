@@ -153,13 +153,24 @@ fn cat_rows_intersection() {
     cmd.arg("rows").arg("-I").arg("a.csv").arg("b.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![
-        ["name", "surname"],
-        ["john", "landis"],
-        ["lucy", "sue"],
-        ["carry", ""],
-        ["kimmarc", ""],
-    ];
+    let expected = vec![["name"], ["john"], ["lucy"], ["carry"], ["kimmarc"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn cat_rows_intersection_is_order_independent() {
+    let wrk = Workdir::new("cat_rows_intersection_is_order_independent");
+    wrk.create(
+        "a.csv",
+        vec![svec!["name", "surname"], svec!["john", "landis"]],
+    );
+    wrk.create("b.csv", vec![svec!["age", "name"], svec!["45", "carry"]]);
+
+    let mut cmd = wrk.command("cat");
+    cmd.arg("rows").arg("-I").arg("b.csv").arg("a.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![["name"], ["carry"], ["john"]];
     assert_eq!(got, expected);
 }
 

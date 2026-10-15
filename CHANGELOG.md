@@ -28,6 +28,7 @@
 * Fixing command panicking when dealing with badly encoded arguments.
 * Fixing moonblade float truthiness (non-zero floats were considered falsey).
 * Fixing `xan view` panicking when the terminal reports a size of 0x0 or when `--cols` is very small.
+* Fixing `xan cat rows -I/--intersection` never intersecting headers, so the output columns depended on the input file order.
 
 *Performance*
 
