@@ -9,7 +9,7 @@ use unicode_width::UnicodeWidthStr;
 use crate::CliResult;
 use crate::collections::{IndexMap, index_map::Entry, new_index_map};
 use crate::config::{Config, Delimiter};
-use crate::scales::{Scale, ScaleType};
+use crate::scales::{Scale, ScaleType, PowerExponent};
 use crate::select::SelectedColumns;
 use crate::temporal;
 use crate::util::{self, ColorMode};
@@ -183,7 +183,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let value = fast_float::parse::<f64, &[u8]>(&record[value_pos])
             .map_err(|_| "could not parse value")?;
 
-        if args.flag_scale.is_logarithmic() && (value < 0.0 || (value > 0.0 && value < 1.0)) {
+        if args.flag_scale.is_logarithmic() && (value <= 0.0 || (value > 0.0 && value < 1.0)) {
             Err(format!(
                 "{} value cannot work with a log scale!",
                 value.to_string().cyan()
@@ -243,16 +243,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         let domain_max = match args.flag_domain_max.as_str() {
             "max" => histogram.max().unwrap(),
-            "sum" => sum,
+            "sum" => match args.flag_scale {
+                ScaleType::Logarithmic(_) => histogram.product(), // sum log(a) = log (prod(a))
+                ScaleType::Power(exponent) => histogram.inv_sum_of_pow(exponent), // sum(x^k) = [(sum(x^k))^(1/k)]^k
+                ScaleType::Linear => histogram.sum(),
+            },
             d => match d.parse::<f64>() {
                 Ok(f) => f,
                 _ => Err("unknown -m/--domain-max. Should be one of \"sum\", \"max\".")?,
             },
         };
+        println!("{:?}", domain_max);
 
         if domain_max <= 0.0 {
             Err("-m/--domain-max should be >= 0!")?;
-        }
+        };
 
         writeln!(
             &mut out,
@@ -472,6 +477,15 @@ impl Histogram {
 
     fn sum(&self) -> f64 {
         self.bars.iter().map(|bar| bar.value).sum()
+    }
+
+    fn inv_sum_of_pow(&self, scale: PowerExponent) -> f64 {
+        let sum_of_pow = self.bars.iter().map(|bar| scale.apply(bar.value)).sum();
+        scale.invert(sum_of_pow)
+    }
+
+    fn product(&self) -> f64 {
+        self.bars.iter().map(|bar| bar.value).product()
     }
 
     fn compressed_bars(&self, min_gap_size_opt: Option<usize>) -> Vec<Option<&Bar>> {
