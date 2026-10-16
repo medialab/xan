@@ -4,7 +4,7 @@ use std::num::NonZeroU8;
 use std::str::FromStr;
 
 use colored::{self, Colorize};
-use numfmt::{Formatter, Precision};
+use numfmt::{Formatter, Precision, Scales};
 use simd_csv::{ByteRecord, StringRecord};
 use unicode_width::UnicodeWidthStr;
 
@@ -12,7 +12,7 @@ use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::read::LeakySponge;
 use crate::select::SelectedColumns;
-use crate::util::{self, ColorMode};
+use crate::util::{self, ColorMode, DataType};
 
 #[derive(Debug, Clone, Copy, Default, Deserialize)]
 pub enum ComplexToggle {
@@ -399,6 +399,10 @@ impl Args {
             from_argv.flag_significance = from_env.flag_significance;
         }
 
+        if from_argv.flag_thousands_sep.is_none() && from_env.flag_thousands_sep.is_some() {
+            from_argv.flag_thousands_sep = from_env.flag_thousands_sep;
+        }
+
         if from_argv.flag_color.is_auto() && !from_env.flag_color.is_auto() {
             from_argv.flag_color = from_env.flag_color;
         }
@@ -549,7 +553,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut number_formatter = (args.flag_significance.is_some()
         || args.flag_thousands_sep.is_some())
-    .then(Formatter::new);
+    .then(|| Formatter::new().scales(Scales::none()));
 
     if let Some(mut formatter) = number_formatter {
         if let Some(s) = args.flag_significance {
@@ -565,57 +569,68 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         k.as_byte() as char
                     )
                 })?;
-        } else {
-            formatter = formatter.separator(None).unwrap();
         }
 
         number_formatter = Some(formatter);
     }
 
-    let records = {
+    let records: Vec<(StringRecord, Vec<DataType>)> = {
         let limit = args.flag_limit.unwrap();
+        let mut record = StringRecord::new();
+        let mut i: usize = 0;
 
-        let mut records_iter = rdr.into_records().enumerate();
+        let mut records = Vec::with_capacity(limit);
 
-        let mut records: Vec<StringRecord> = Vec::with_capacity(limit);
+        while rdr.read_record(&mut record)? {
+            let mut processed_record = StringRecord::new();
+            let mut data_types = Vec::with_capacity(record.len());
 
-        loop {
-            match records_iter.next() {
-                None => break,
-                Some((i, record)) => {
-                    let mut record = sel
-                        .select(&record?)
-                        .map(|cell| {
-                            let mut cell = util::sanitize_text_for_single_line_printing(cell);
+            if !args.flag_hide_index {
+                processed_record.push_field(&i.to_string());
+                data_types.push(DataType::Nullish);
+            }
 
-                            if let Some(sanitizer) = &emoji_sanitizer_opt {
-                                cell = sanitizer.sanitize(&cell);
-                            }
+            for cell in sel.select(&record) {
+                let mut cell = util::sanitize_text_for_single_line_printing(cell);
 
-                            if let Some(fmt) = number_formatter.as_mut() {
-                                if let Ok(f) = cell.parse::<f64>() {
-                                    cell = util::format_number_with_formatter(fmt, f).to_string();
-                                }
-                            }
-
-                            cell
-                        })
-                        .collect::<StringRecord>();
-
-                    if !args.flag_hide_index {
-                        record = prepend(&record, &i.to_string());
-                    }
-
-                    records.push(record);
-
-                    if limit > 0 && records.len() == limit {
-                        break;
-                    }
+                if let Some(sanitizer) = &emoji_sanitizer_opt {
+                    cell = sanitizer.sanitize(&cell);
                 }
-            };
+
+                if cell.is_empty() {
+                    cell = "<empty>".to_string();
+                }
+
+                let data_type = util::infer_data_type(&cell);
+
+                match data_type {
+                    DataType::Float(f) => {
+                        if let Some(fmt) = number_formatter.as_mut() {
+                            cell = util::format_number_with_formatter(fmt, f).to_string();
+                        }
+                    }
+                    DataType::Integer(i) => {
+                        if let Some(k) = args.flag_thousands_sep {
+                            cell = util::format_int(i, k.as_byte() as char)
+                        }
+                    }
+                    _ => (),
+                };
+
+                processed_record.push_field(&cell);
+                data_types.push(data_type);
+            }
+
+            records.push((processed_record, data_types));
+
+            i += 1;
+
+            if limit > 0 && records.len() == limit {
+                break;
+            }
         }
 
-        if records_iter.next().is_none() {
+        if !rdr.read_record(&mut record)? {
             all_records_buffered = true;
         }
 
@@ -655,14 +670,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .map(|(i, h)| {
             usize::max(
                 if args.flag_hide_headers { 0 } else { h.width() },
-                records
-                    .iter()
-                    .map(|c| match c[i].width() {
-                        0 => 7, // NOTE: taking <empty> into account
-                        v => v,
-                    })
-                    .max()
-                    .unwrap_or(0),
+                records.iter().map(|(c, _)| c[i].width()).max().unwrap_or(0),
             )
         })
         .collect();
@@ -683,11 +691,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
             }
 
-            records.iter().all(|r| {
-                let cell = &r[i];
-
-                cell.is_empty() || cell.parse::<i64>().is_ok()
-            })
+            records
+                .iter()
+                .all(|(_, t)| matches!(t[i], DataType::Nullish | DataType::Integer(_)))
         })
         .collect::<Vec<_>>();
 
@@ -938,15 +944,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         write_headers(&mut output, true)?;
     }
 
-    let mut last_group: Option<Vec<String>> = None;
+    let mut last_group: Option<StringRecord> = None;
     let mut record_i: usize = 0;
 
-    for record in records.iter() {
+    for (record, types) in records.iter() {
         let (need_to_draw_hr, need_to_erase_sel) = if let Some(groupby_sel) = &groupby_sel_opt {
-            let current_key = groupby_sel
-                .select(record)
-                .map(|cell| cell.to_string())
-                .collect::<Vec<_>>();
+            let current_key = groupby_sel.select(record).collect::<StringRecord>();
 
             match &last_group {
                 None => {
@@ -978,15 +981,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     }
                 }
 
-                let cell = match cell {
-                    "" => "<empty>",
-                    _ => cell,
-                };
-
                 let colorizer = if args.flag_rainbow {
                     util::colorizer_by_rainbow(i, cell)
                 } else {
-                    util::colorizer_by_type(cell)
+                    types[col.index].as_colorizer()
                 };
 
                 if !args.flag_hide_index && i == 0 {

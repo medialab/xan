@@ -392,6 +392,26 @@ pub fn format_number<T: Numeric>(x: T) -> String {
     NUMBER_FORMATTER.with_borrow_mut(|f| format_number_with_formatter(f, x).to_string())
 }
 
+pub fn format_int(n: i64, sep: char) -> String {
+    let s = n.unsigned_abs().to_string();
+    let len = s.len();
+    let separators = len.saturating_sub(1) / 3;
+    let mut r = String::with_capacity(len + separators * sep.len_utf8() + usize::from(n < 0));
+
+    if n < 0 {
+        r.push('-');
+    }
+
+    for (i, c) in s.chars().enumerate() {
+        if i > 0 && (len - i) % 3 == 0 {
+            r.push(sep);
+        }
+        r.push(c);
+    }
+
+    r
+}
+
 pub fn could_be_url(string: &str) -> bool {
     if string.starts_with("http://") || string.starts_with("https://") {
         return !string.contains(' ');
@@ -438,7 +458,8 @@ impl ColorOrStyles {
 #[derive(Debug, Clone, Copy)]
 pub enum DataType {
     String,
-    Number,
+    Float(f64),
+    Integer(i64),
     Temporal,
     Url,
     Nullish,
@@ -449,7 +470,8 @@ impl DataType {
     pub fn as_colorizer(&self) -> ColorOrStyles {
         match self {
             Self::String => ColorOrStyles::Color(Color::Green),
-            Self::Number => ColorOrStyles::Color(Color::Red),
+            Self::Float(_) => ColorOrStyles::Color(Color::Red),
+            Self::Integer(_) => ColorOrStyles::Color(Color::Red),
             Self::Temporal => ColorOrStyles::Color(Color::Magenta),
             Self::Url => ColorOrStyles::Color(Color::Blue),
             Self::Nullish => ColorOrStyles::Styles(Styles::Dimmed),
@@ -463,22 +485,25 @@ pub fn infer_data_type(string: &str) -> DataType {
         "true" | "TRUE" | "True" | "false" | "FALSE" | "False" | "yes" | "no" => {
             return DataType::Boolean;
         }
-        "NULL" | "null" | "na" | "NA" | "None" | "n/a" | "N/A" | "nan" | "NaN" | "<empty>"
+        "" | "NULL" | "null" | "na" | "NA" | "None" | "n/a" | "N/A" | "nan" | "NaN" | "<empty>"
         | "<rest>" | "." | "-" => return DataType::Nullish,
         _ => (),
     };
 
-    match string.trim_start().parse::<f64>() {
-        Ok(_) => DataType::Number,
-        Err(_) => {
-            if could_be_url(string) {
-                DataType::Url
-            } else if temporal::looks_temporal(string) {
-                DataType::Temporal
-            } else {
-                DataType::String
-            }
-        }
+    if let Ok(i) = string.parse::<i64>() {
+        return DataType::Integer(i);
+    }
+
+    if let Ok(f) = string.parse::<f64>() {
+        return DataType::Float(f);
+    }
+
+    if could_be_url(string) {
+        DataType::Url
+    } else if temporal::looks_temporal(string) {
+        DataType::Temporal
+    } else {
+        DataType::String
     }
 }
 
