@@ -293,8 +293,8 @@ view options:
                                 as well as --repeat-headers=never. Incompatible with -p/--pager,
                                 but takes precedence over it when set through the
                                 \"XAN_VIEW_ARGS\" environment variable.
-    --ignore-defaults           Ignore the defaults set through the \"XAN_VIEW_ARGS\"
-                                environment variable.
+    --ignore-env                Ignore flags overrides given to the \"XAN_VIEW_ARGS\" environment
+                                variable.
 
 Common options:
     -h, --help             Display this message
@@ -329,7 +329,7 @@ struct Args {
     flag_repeat_headers: ComplexToggle,
     flag_reveal_whitespace: ComplexToggle,
     flag_tee: bool,
-    flag_ignore_defaults: bool,
+    flag_ignore_env: bool,
     flag_name: Option<String>,
 }
 
@@ -417,7 +417,7 @@ impl Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let cli_args: Args = util::get_args(USAGE, argv)?;
 
-    let mut args = if cli_args.flag_ignore_defaults {
+    let mut args = if cli_args.flag_ignore_env {
         cli_args
     } else {
         let mut env_var_argv = vec!["xan", "view"];

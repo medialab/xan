@@ -91,8 +91,8 @@ view options:
                                 as well as --repeat-headers=never. Incompatible with -p/--pager,
                                 but takes precedence over it when set through the
                                 "XAN_VIEW_ARGS" environment variable.
-    --ignore-defaults           Ignore the defaults set through the "XAN_VIEW_ARGS"
-                                environment variable.
+    --ignore-env                Ignore flags overrides given to the "XAN_VIEW_ARGS" environment
+                                variable.
 
 Common options:
     -h, --help             Display this message
