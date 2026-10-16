@@ -435,28 +435,55 @@ impl ColorOrStyles {
     }
 }
 
-pub fn colorizer_by_type(string: &str) -> ColorOrStyles {
+#[derive(Debug, Clone, Copy)]
+pub enum DataType {
+    String,
+    Number,
+    Temporal,
+    Url,
+    Nullish,
+    Boolean,
+}
+
+impl DataType {
+    pub fn as_colorizer(&self) -> ColorOrStyles {
+        match self {
+            Self::String => ColorOrStyles::Color(Color::Green),
+            Self::Number => ColorOrStyles::Color(Color::Red),
+            Self::Temporal => ColorOrStyles::Color(Color::Magenta),
+            Self::Url => ColorOrStyles::Color(Color::Blue),
+            Self::Nullish => ColorOrStyles::Styles(Styles::Dimmed),
+            Self::Boolean => ColorOrStyles::Color(Color::Cyan),
+        }
+    }
+}
+
+pub fn infer_data_type(string: &str) -> DataType {
     match string {
         "true" | "TRUE" | "True" | "false" | "FALSE" | "False" | "yes" | "no" => {
-            return ColorOrStyles::Color(Color::Cyan);
+            return DataType::Boolean;
         }
         "NULL" | "null" | "na" | "NA" | "None" | "n/a" | "N/A" | "nan" | "NaN" | "<empty>"
-        | "<rest>" | "." | "-" => return ColorOrStyles::Styles(Styles::Dimmed),
+        | "<rest>" | "." | "-" => return DataType::Nullish,
         _ => (),
     };
 
     match string.trim_start().parse::<f64>() {
-        Ok(_) => ColorOrStyles::Color(Color::Red),
+        Ok(_) => DataType::Number,
         Err(_) => {
             if could_be_url(string) {
-                ColorOrStyles::Color(Color::Blue)
+                DataType::Url
             } else if temporal::looks_temporal(string) {
-                ColorOrStyles::Color(Color::Magenta)
+                DataType::Temporal
             } else {
-                ColorOrStyles::Color(Color::Green)
+                DataType::String
             }
         }
     }
+}
+
+pub fn colorizer_by_type(string: &str) -> ColorOrStyles {
+    infer_data_type(string).as_colorizer()
 }
 
 pub fn colorizer_by_rainbow(index: usize, string: &str) -> ColorOrStyles {
