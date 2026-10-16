@@ -1,6 +1,6 @@
 use std::env;
 use std::io::{self, IsTerminal, Write};
-use std::num::NonZeroUsize;
+use std::num::NonZeroU8;
 use std::str::FromStr;
 
 use colored::{self, Colorize};
@@ -271,6 +271,7 @@ view options:
                                 a pager such as \"less\", with larger width constraints.
     -E, --sanitize-emojis       Replace emojis by their shortcode to avoid formatting issues.
     -S, --significance <n>      Maximum floating point significance used to format numbers.
+    -k, --thousands-sep <sep>   Thousands separator to use when formatting values detected as numbers.
     -I, --hide-index            Hide the row index on the left.
     -H, --hide-headers          Hide the headers. Implied when -n, --no-headers is given.
     -M, --hide-info             Hide information about number of displayed columns, rows etc.
@@ -325,7 +326,8 @@ struct Args {
     flag_hide_info: bool,
     flag_groupby: Option<SelectedColumns>,
     flag_right: Option<SelectedColumns>,
-    flag_significance: Option<NonZeroUsize>,
+    flag_significance: Option<NonZeroU8>,
+    flag_thousands_sep: Option<Delimiter>,
     flag_repeat_headers: ComplexToggle,
     flag_reveal_whitespace: ComplexToggle,
     flag_tee: bool,
@@ -545,12 +547,30 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut all_records_buffered = false;
 
-    let mut number_formatter = args.flag_significance.map(|s| {
-        Formatter::new()
-            .precision(Precision::Significance(s.get() as u8))
-            .separator(None)
-            .unwrap()
-    });
+    let mut number_formatter = (args.flag_significance.is_some()
+        || args.flag_thousands_sep.is_some())
+    .then(Formatter::new);
+
+    if let Some(mut formatter) = number_formatter {
+        if let Some(s) = args.flag_significance {
+            formatter = formatter.precision(Precision::Significance(s.get()));
+        }
+
+        if let Some(k) = args.flag_thousands_sep {
+            formatter = formatter
+                .separator(Some(k.as_byte() as char))
+                .map_err(|_| {
+                    format!(
+                        "invalid character given as -k/--thousands-sep \"{}\"",
+                        k.as_byte() as char
+                    )
+                })?;
+        } else {
+            formatter = formatter.separator(None).unwrap();
+        }
+
+        number_formatter = Some(formatter);
+    }
 
     let records = {
         let limit = args.flag_limit.unwrap();

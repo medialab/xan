@@ -69,6 +69,7 @@ view options:
                                 a pager such as "less", with larger width constraints.
     -E, --sanitize-emojis       Replace emojis by their shortcode to avoid formatting issues.
     -S, --significance <n>      Maximum floating point significance used to format numbers.
+    -k, --thousands-sep <sep>   Thousands separator to use when formatting values detected as numbers.
     -I, --hide-index            Hide the row index on the left.
     -H, --hide-headers          Hide the headers. Implied when -n, --no-headers is given.
     -M, --hide-info             Hide information about number of displayed columns, rows etc.
