@@ -7,7 +7,7 @@ use crate::CliResult;
 use crate::cmd::sort::{Number, compare_num, parse_num};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
-use crate::util;
+use crate::utils;
 
 #[derive(Clone, PartialEq, Debug)]
 enum Value {
@@ -162,7 +162,7 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
 
     if args.flag_exclude && args.flag_search {
         Err("The -E/--exclude and -S/--search flags cannot be used together")?;

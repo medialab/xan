@@ -6,7 +6,7 @@ use crate::collections::ClusteredInsertHashmap;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{WindowAggregationArray, WindowAggregationProgram};
 use crate::select::{SelectedColumns, Selection};
-use crate::util;
+use crate::utils;
 
 #[inline]
 fn build_along_columns_record(
@@ -193,7 +193,7 @@ struct Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
 
     if args.flag_sorted && args.flag_groupby.is_none() {
         Err("-S/--sorted only makes sense with -g/--groubpy!")?;

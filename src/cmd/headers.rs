@@ -4,7 +4,7 @@ use colored::Colorize;
 
 use crate::CliResult;
 use crate::config::{Config, Delimiter};
-use crate::util::{self, ColorMode};
+use crate::utils::{self, ColorMode};
 
 fn find_duplicates(headers: &[String]) -> Vec<String> {
     let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
@@ -60,10 +60,10 @@ struct Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
     args.flag_color.apply();
 
-    let configs = util::many_configs(&args.arg_input, args.flag_delimiter, true, None)?;
+    let configs = utils::many_configs(&args.arg_input, args.flag_delimiter, true, None)?;
 
     let mut headers_per_input: Vec<Vec<String>> = Vec::with_capacity(configs.len());
 
@@ -177,7 +177,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 write!(
                     &mut out,
                     "{}",
-                    util::unicode_aware_rpad(
+                    utils::unicode_aware_rpad(
                         &(args.flag_start + j).to_string(),
                         left_column_size,
                         " "
@@ -185,8 +185,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 )?;
             }
 
-            let display_header = util::highlight_problematic_string_features(
-                &util::sanitize_text_for_single_line_printing(&header),
+            let display_header = utils::highlight_problematic_string_features(
+                &utils::sanitize_text_for_single_line_printing(&header),
             );
 
             writeln!(
@@ -236,8 +236,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 .filter_map(|(name, count)| {
                     if *count < configs.len() {
                         Some(
-                            util::highlight_problematic_string_features(
-                                &util::sanitize_text_for_single_line_printing(name),
+                            utils::highlight_problematic_string_features(
+                                &utils::sanitize_text_for_single_line_printing(name),
                             )
                             .cyan()
                             .to_string(),

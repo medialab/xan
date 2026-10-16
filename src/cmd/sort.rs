@@ -14,7 +14,7 @@ use crate::CliResult;
 use crate::cmd::merge::{MergeHeap, MergeHeapComparator};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
-use crate::util;
+use crate::utils;
 
 use self::Number::{Float, Int};
 
@@ -128,7 +128,7 @@ struct Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
     let numeric = args.flag_numeric;
     let reverse = args.flag_reverse;
     let rconfig = Config::new(&args.arg_input)

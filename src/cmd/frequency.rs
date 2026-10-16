@@ -8,7 +8,7 @@ use crate::cmd::parallel::Args as ParallelArgs;
 use crate::collections::{ApproxCounterAlgorithm, ClusteredInsertHashmap, Counter, CounterSpec};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
-use crate::util;
+use crate::utils;
 
 type GroupKey = ByteRecord;
 type ValueKey = Vec<u8>;
@@ -118,7 +118,7 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let mut args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = utils::get_args(USAGE, argv)?;
 
     if args.flag_parallel || args.flag_threads.is_some() {
         if args.flag_groupby.is_some() {

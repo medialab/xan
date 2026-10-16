@@ -5,7 +5,7 @@ use crate::collections::{HashMap, IndexSet, new_index_set};
 use crate::config::{Config, Delimiter};
 use crate::moonblade::agg::CovarianceWelford;
 use crate::select::SelectedColumns;
-use crate::util;
+use crate::utils;
 
 enum Axes {
     Homogeneous(IndexSet<Vec<u8>>),
@@ -450,15 +450,15 @@ impl Args {
         for _ in 0..(nb_cols - 1) {
             x_labels.push(format!(
                 ">= {} < {}",
-                util::format_number(x_lower_bound),
-                util::format_number(x_lower_bound + cell_width)
+                utils::format_number(x_lower_bound),
+                utils::format_number(x_lower_bound + cell_width)
             ));
             x_lower_bound += cell_width;
         }
         x_labels.push(format!(
             ">= {} <= {}",
-            util::format_number(x_lower_bound),
-            util::format_number(max_x)
+            utils::format_number(x_lower_bound),
+            utils::format_number(max_x)
         ));
 
         let mut y_labels = Vec::with_capacity(nb_rows);
@@ -466,15 +466,15 @@ impl Args {
         for _ in 0..(nb_cols - 1) {
             y_labels.push(format!(
                 ">= {} < {}",
-                util::format_number(y_lower_bound),
-                util::format_number(y_lower_bound + cell_height)
+                utils::format_number(y_lower_bound),
+                utils::format_number(y_lower_bound + cell_height)
             ));
             y_lower_bound += cell_height;
         }
         y_labels.push(format!(
             ">= {} <= {}",
-            util::format_number(y_lower_bound),
-            util::format_number(max_y)
+            utils::format_number(y_lower_bound),
+            utils::format_number(max_y)
         ));
 
         let mut writer = Config::new(&self.flag_output).simd_writer()?;
@@ -520,7 +520,7 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
 
     if args.cmd_adj || args.cmd_count {
         args.adj_or_count()

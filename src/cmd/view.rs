@@ -12,7 +12,7 @@ use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::read::LeakySponge;
 use crate::select::SelectedColumns;
-use crate::util::{self, ColorMode, DataType};
+use crate::utils::{self, ColorMode, DataType};
 
 #[derive(Debug, Clone, Copy, Default, Deserialize)]
 pub enum ComplexToggle {
@@ -421,7 +421,7 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let cli_args: Args = util::get_args(USAGE, argv)?;
+    let cli_args: Args = utils::get_args(USAGE, argv)?;
 
     let mut args = if cli_args.flag_ignore_env {
         cli_args
@@ -434,7 +434,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             env_var_argv.push(env_arg);
         }
 
-        let env_args: Args = util::get_args(USAGE, &env_var_argv)?;
+        let env_args: Args = utils::get_args(USAGE, &env_var_argv)?;
 
         Args::merge(env_args, cli_args)
     };
@@ -446,7 +446,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("-T/--tee does not work with -p/--pager!")?;
     }
 
-    let emoji_sanitizer_opt = args.flag_sanitize_emojis.then(util::EmojiSanitizer::new);
+    let emoji_sanitizer_opt = args.flag_sanitize_emojis.then(utils::EmojiSanitizer::new);
 
     let mut output: Box<dyn Write> = if args.flag_tee {
         Box::new(io::stderr())
@@ -454,7 +454,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Box::new(io::stdout())
     };
 
-    let cols = util::acquire_term_cols_ratio(&args.flag_cols)?;
+    let cols = utils::acquire_term_cols_ratio(&args.flag_cols)?;
     let rows = termsize::get().map(|size| size.rows as usize);
 
     // Theme
@@ -546,7 +546,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     headers = headers
         .into_iter()
-        .map(util::sanitize_text_for_single_line_printing)
+        .map(utils::sanitize_text_for_single_line_printing)
         .collect();
 
     let mut all_records_buffered = false;
@@ -591,7 +591,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
 
             for cell in sel.select(&record) {
-                let mut cell = util::sanitize_text_for_single_line_printing(cell);
+                let mut cell = utils::sanitize_text_for_single_line_printing(cell);
 
                 if let Some(sanitizer) = &emoji_sanitizer_opt {
                     cell = sanitizer.sanitize(&cell);
@@ -601,17 +601,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     cell = "<empty>".to_string();
                 }
 
-                let data_type = util::infer_data_type(&cell);
+                let data_type = utils::infer_data_type(&cell);
 
                 match data_type {
                     DataType::Float(f) => {
                         if let Some(fmt) = number_formatter.as_mut() {
-                            cell = util::format_number_with_formatter(fmt, f).to_string();
+                            cell = utils::format_number_with_formatter(fmt, f).to_string();
                         }
                     }
                     DataType::Integer(i) => {
                         if let Some(k) = args.flag_thousands_sep {
-                            cell = util::format_int(i, k.as_byte() as char)
+                            cell = utils::format_int(i, k.as_byte() as char)
                         }
                     }
                     _ => (),
@@ -729,10 +729,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         let len_offset = if args.flag_hide_index { 0 } else { 1 };
 
-        let pretty_records_len = util::format_number(records.len());
-        let pretty_headers_len = util::format_number(headers.len() - len_offset);
+        let pretty_records_len = utils::format_number(records.len());
+        let pretty_headers_len = utils::format_number(headers.len() - len_offset);
         let pretty_displayed_headers_len =
-            util::format_number(displayed_columns.len().saturating_sub(len_offset));
+            utils::format_number(displayed_columns.len().saturating_sub(len_offset));
 
         writeln!(
             out,
@@ -895,7 +895,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .map(|col| (col, &headers[col.index]))
             .enumerate()
             .map(|(i, (col, h))| {
-                let cell = util::unicode_aware_highlighted_pad_with_ellipsis(
+                let cell = utils::unicode_aware_highlighted_pad_with_ellipsis(
                     false,
                     h,
                     col.allowed_width,
@@ -982,15 +982,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
 
                 let colorizer = if args.flag_rainbow {
-                    util::colorizer_by_rainbow(i, cell)
+                    utils::colorizer_by_rainbow(i, cell)
                 } else {
                     types[col.index].as_colorizer()
                 };
 
                 if !args.flag_hide_index && i == 0 {
-                    util::unicode_aware_rpad_with_ellipsis(cell, col.allowed_width, " ").dimmed()
+                    utils::unicode_aware_rpad_with_ellipsis(cell, col.allowed_width, " ").dimmed()
                 } else {
-                    colorizer.colorize(&util::unicode_aware_highlighted_pad_with_ellipsis(
+                    colorizer.colorize(&utils::unicode_aware_highlighted_pad_with_ellipsis(
                         alignments[col.index],
                         cell,
                         col.allowed_width,
@@ -1009,7 +1009,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let row: Vec<colored::ColoredString> = displayed_columns
             .iter()
             .map(|col| {
-                util::unicode_aware_pad_with_ellipsis(
+                utils::unicode_aware_pad_with_ellipsis(
                     alignments[col.index],
                     "…",
                     col.allowed_width,

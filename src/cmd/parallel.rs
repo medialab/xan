@@ -27,7 +27,7 @@ use crate::config::{Compression, Config, Delimiter};
 use crate::moonblade::{AggregationProgram, GroupAggregationProgram, Stats};
 use crate::processing::{Children, parse_pipeline};
 use crate::select::SelectedColumns;
-use crate::util::{self, FilenameTemplate};
+use crate::utils::{self, FilenameTemplate};
 use crate::{CliError, CliResult};
 
 fn get_spinner_style(path: ColoredString, unspecified: bool) -> ProgressStyle {
@@ -812,7 +812,7 @@ impl Args {
 
         let threads = self
             .flag_threads
-            .unwrap_or_else(|| NonZeroUsize::new(crate::util::default_num_cpus()).unwrap())
+            .unwrap_or_else(|| NonZeroUsize::new(crate::utils::default_num_cpus()).unwrap())
             .get();
 
         // One thread per input or more inputs than threads
@@ -1797,6 +1797,6 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
     args.run()
 }

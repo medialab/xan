@@ -5,7 +5,7 @@ use std::path::Path;
 
 use crate::CliResult;
 use crate::config::{Config, Delimiter};
-use crate::util::{self, FilenameTemplate};
+use crate::utils::{self, FilenameTemplate};
 
 static USAGE: &str = "
 Splits the given CSV data into smaller files having a fixed number of
@@ -60,7 +60,7 @@ struct Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
 
     if args.flag_chunks.is_some() {
         if args.flag_segments {

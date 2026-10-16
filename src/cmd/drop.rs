@@ -1,7 +1,7 @@
 use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
-use crate::util;
+use crate::utils;
 
 static USAGE: &str = "
 Drop columns of a CSV file using the same DSL as \"xan select\".
@@ -32,7 +32,7 @@ struct Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let mut args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = utils::get_args(USAGE, argv)?;
 
     args.arg_selection.invert();
 

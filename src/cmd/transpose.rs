@@ -1,6 +1,6 @@
 use crate::CliResult;
 use crate::config::{Config, Delimiter};
-use crate::util;
+use crate::utils;
 
 static USAGE: &str = "
 Transpose the given CSV file.
@@ -36,7 +36,7 @@ struct Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
 
     let rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)

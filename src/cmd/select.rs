@@ -6,7 +6,7 @@ use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::SelectionProgram;
 use crate::select::{SelectedColumn, SelectedColumns, Selection};
-use crate::util;
+use crate::utils;
 
 static USAGE: &str = "
 Select columns from CSV data using a shorthand notation or by evaluating an expression
@@ -190,7 +190,7 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let mut args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = utils::get_args(USAGE, argv)?;
     args.resolve()?;
 
     let rconfig = Config::new(&args.arg_input)

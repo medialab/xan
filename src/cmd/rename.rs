@@ -8,7 +8,7 @@ use unidecode::unidecode;
 use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::select::{SelectedColumns, Selection};
-use crate::util;
+use crate::utils;
 
 lazy_static! {
     static ref TO_UNDERSCORE_REGEX: Regex = Regex::new(r"[\s\-]").unwrap();
@@ -109,7 +109,7 @@ struct Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
 
     let mut rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
@@ -144,7 +144,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         } else if let Some(suffix) = &args.flag_suffix {
             (0..expected_len).map(|i| format!("{i}{suffix}")).collect()
         } else {
-            util::str_to_csv_byte_record(&args.arg_columns.unwrap())
+            utils::str_to_csv_byte_record(&args.arg_columns.unwrap())
         };
 
         if expected_len != rename_as.len() {
@@ -245,7 +245,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             })
             .collect()
     } else {
-        let mut rename_as = util::str_to_csv_byte_record(&args.arg_columns.unwrap());
+        let mut rename_as = utils::str_to_csv_byte_record(&args.arg_columns.unwrap());
 
         if let Some(ignored) = ignored_in_rename_as {
             rename_as = rename_as

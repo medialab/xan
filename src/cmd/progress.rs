@@ -9,7 +9,7 @@ use indicatif::{HumanCount, ProgressBar, ProgressStyle};
 
 use crate::CliResult;
 use crate::config::{Config, Delimiter};
-use crate::util;
+use crate::utils;
 
 fn get_progress_style_template(total: u64, color: &str, bytes: bool, unit: &str) -> String {
     let mut f = String::new();
@@ -156,7 +156,7 @@ struct Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
 
     console::set_colors_enabled_stderr(true);
     console::set_colors_enabled(true);

@@ -2,7 +2,7 @@ use std::io::{self, Write};
 
 use crate::CliResult;
 use crate::config::{Config, Delimiter};
-use crate::util;
+use crate::utils;
 
 static USAGE: &str = "
 Enumerate a CSV file by preprending an index column to each row.
@@ -48,7 +48,7 @@ struct Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
 
     if args.flag_accumulate && args.flag_byte_offset {
         Err("-B/--byte-offset is not compatible with -A/--accumulate!")?;

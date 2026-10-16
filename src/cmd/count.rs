@@ -5,7 +5,7 @@ use numfmt::{Formatter, Precision, Scales};
 use crate::CliResult;
 use crate::cmd::parallel::Args as ParallelArgs;
 use crate::config::{Config, Delimiter};
-use crate::util;
+use crate::utils;
 
 static USAGE: &str = "
 Print the number of records in given CSV data.
@@ -67,7 +67,7 @@ struct Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
 
     if args.flag_approx && args.flag_check_alignment {
         Err("-a/--approx does not work with -c/--check-alignment!")?;
@@ -121,7 +121,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if args.flag_human_readable {
         if count < 10_000 {
-            writeln!(writer, "{}", util::format_number(count),)?;
+            writeln!(writer, "{}", utils::format_number(count),)?;
         } else {
             let mut si_formatter = Formatter::default()
                 .scales(Scales::short())
@@ -130,7 +130,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             writeln!(
                 writer,
                 "{} ({})",
-                util::format_number(count),
+                utils::format_number(count),
                 si_formatter.fmt2(count).replace(".0", "")
             )?;
         }

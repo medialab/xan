@@ -4,7 +4,7 @@ use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::PivotAggregationProgram;
 use crate::select::{SelectedColumns, Selection};
-use crate::util;
+use crate::utils;
 
 // TODO: optimize when names are known beforehand
 // TODO: -S/--sorted
@@ -98,7 +98,7 @@ struct Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
 
     if args.flag_p >= 3 {
         writeln!(

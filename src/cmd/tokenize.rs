@@ -15,7 +15,7 @@ use crate::collections::{HashMap, HashSet};
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{GlobalVariables, Program};
 use crate::select::SelectedColumns;
-use crate::util;
+use crate::utils;
 
 fn get_stemmer(name: &str) -> Result<fn(&str) -> Cow<str>, String> {
     Ok(match name {
@@ -252,7 +252,7 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
 
     args.validate()?;
 
@@ -329,7 +329,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         wtr.write_byte_record(&headers)?;
     }
 
-    let threads = util::parallelization(args.flag_parallel, args.flag_threads);
+    let threads = utils::parallelization(args.flag_parallel, args.flag_threads);
 
     let mut tokenizer_builder = WordTokenizerBuilder::new();
 

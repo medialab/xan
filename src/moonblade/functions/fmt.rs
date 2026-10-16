@@ -157,7 +157,7 @@ pub fn fmt_number(args: BoundArguments) -> FunctionResult {
             formatter = formatter.precision(numfmt::Precision::Significance(5));
         }
 
-        let formatted = crate::util::format_number_with_formatter(&mut formatter, number);
+        let formatted = crate::utils::format_number_with_formatter(&mut formatter, number);
 
         if !thousands_sep.is_none() {
             Ok(DynamicValue::from(
@@ -167,7 +167,7 @@ pub fn fmt_number(args: BoundArguments) -> FunctionResult {
             Ok(DynamicValue::from(formatted))
         }
     } else {
-        Ok(DynamicValue::from(crate::util::format_number(number)))
+        Ok(DynamicValue::from(crate::utils::format_number(number)))
     }
 }
 

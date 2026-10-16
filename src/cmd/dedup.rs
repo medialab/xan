@@ -15,7 +15,7 @@ use crate::collections::{
 use crate::config::{Config, Delimiter};
 use crate::moonblade::ChooseProgram;
 use crate::select::{SelectedColumns, Selection};
-use crate::util;
+use crate::utils;
 
 static USAGE: &str = "
 Deduplicate the rows of a CSV file. Runs in O(n) time, consuming O(c) memory, c being
@@ -113,7 +113,7 @@ struct Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let mut args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = utils::get_args(USAGE, argv)?;
 
     if args.flag_external {
         if args.flag_keep_last {

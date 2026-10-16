@@ -12,7 +12,7 @@ use crate::config::{Config, Delimiter};
 use crate::scales::{Scale, ScaleType};
 use crate::select::SelectedColumns;
 use crate::temporal;
-use crate::util::{self, ColorMode};
+use crate::utils::{self, ColorMode};
 
 const SMALL_BAR_CHARS: [&str; 2] = ["╸", "━"]; // "╾"
 const MEDIUM_BAR_CHARS: [&str; 1] = ["■"];
@@ -118,7 +118,7 @@ struct Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let mut args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = utils::get_args(USAGE, argv)?;
 
     if args.flag_log {
         args.flag_scale = ScaleType::ln();
@@ -177,7 +177,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Some(field_pos) => String::from_utf8_lossy(&record[field_pos]).into_owned(),
             None => args.flag_name.clone(),
         };
-        let label = util::sanitize_text_for_single_line_printing(&String::from_utf8_lossy(
+        let label = utils::sanitize_text_for_single_line_printing(&String::from_utf8_lossy(
             &record[label_pos],
         ));
         let value = fast_float::parse::<f64, &[u8]>(&record[value_pos])
@@ -222,7 +222,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
-    let cols = util::acquire_term_cols_ratio(&args.flag_cols)?;
+    let cols = utils::acquire_term_cols_ratio(&args.flag_cols)?;
 
     let unit = args.flag_unit.as_deref().unwrap_or("");
 
@@ -258,10 +258,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             &mut out,
             "\nHistogram for {} (bars: {}, sum: {}{}, max: {}{}){}:\n",
             histogram.field.green(),
-            util::format_number(histogram.len()).cyan(),
-            util::format_number(sum).cyan(),
+            utils::format_number(histogram.len()).cyan(),
+            utils::format_number(sum).cyan(),
             unit.cyan(),
-            util::format_number(histogram.max().unwrap()).cyan(),
+            utils::format_number(histogram.max().unwrap()).cyan(),
             unit.cyan(),
             if args.flag_scale.is_linear() {
                 "".to_string()
@@ -331,12 +331,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             };
 
             let mut bar_as_chars =
-                util::unicode_aware_rpad(&create_bar(chars, bar_width), bar_cols, " ").clear();
+                utils::unicode_aware_rpad(&create_bar(chars, bar_width), bar_cols, " ").clear();
 
             // Categorical colors
             if category_column_index.is_some() {
                 if let Some(color_index) = bar.category {
-                    bar_as_chars = util::colorizer_by_rainbow(color_index, &bar_as_chars)
+                    bar_as_chars = utils::colorizer_by_rainbow(color_index, &bar_as_chars)
                         .colorize(&bar_as_chars);
                 } else {
                     bar_as_chars = bar_as_chars.dimmed();
@@ -344,7 +344,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
             // Rainbow
             else if args.flag_rainbow {
-                bar_as_chars = util::colorizer_by_rainbow(i, &bar_as_chars).colorize(&bar_as_chars);
+                bar_as_chars =
+                    utils::colorizer_by_rainbow(i, &bar_as_chars).colorize(&bar_as_chars);
             }
             // Stripes
             else {
@@ -358,14 +359,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 odd = !odd;
             }
 
-            let label = util::unicode_aware_rpad_with_ellipsis(&bar.label, label_cols, " ");
+            let label = utils::unicode_aware_rpad_with_ellipsis(&bar.label, label_cols, " ");
             let label = match bar.label.as_str() {
                 "<rest>" | "<null>" | "<NaN>" | "<empty>" => label.dimmed(),
                 _ => label.normal(),
             };
 
-            let count = util::unicode_aware_lpad_with_ellipsis(
-                &util::format_number(bar.value),
+            let count = utils::unicode_aware_lpad_with_ellipsis(
+                &utils::format_number(bar.value),
                 count_cols,
                 " ",
             );
@@ -400,8 +401,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 writeln!(
                     &mut out,
                     " {}  {}",
-                    util::colorizer_by_rainbow(*color_index, "■").colorize("■"),
-                    &util::colorizer_by_rainbow(*color_index, category).colorize(category),
+                    utils::colorizer_by_rainbow(*color_index, "■").colorize("■"),
+                    &utils::colorizer_by_rainbow(*color_index, category).colorize(category),
                 )?;
             }
 
@@ -524,7 +525,7 @@ impl Histogram {
     fn value_max_width(&self) -> Option<usize> {
         self.bars
             .iter()
-            .map(|bar| util::format_number(bar.value).len())
+            .map(|bar| utils::format_number(bar.value).len())
             .max()
     }
 

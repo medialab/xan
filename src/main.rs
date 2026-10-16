@@ -20,13 +20,13 @@ mod json;
 mod moonblade;
 mod parquet;
 mod processing;
-mod ratatui;
 mod read;
 mod scales;
 mod select;
 mod temporal;
+mod tui;
 mod urls;
-mod util;
+mod utils;
 mod xml;
 
 #[cfg(all(target_env = "musl", target_pointer_width = "64"))]
@@ -192,7 +192,7 @@ fn main() {
         .and_then(|d| {
             d.options_first(true)
             .argv(&argv)
-                .version(Some(util::version()))
+                .version(Some(utils::version()))
                 .deserialize()
         })
         .unwrap_or_else(|e| {
@@ -211,7 +211,7 @@ fn main() {
                     );
                 }
                 docopt::Error::WithProgramUsage(_, usage) => {
-                    success!("{}", util::colorize_help(&util::colorize_main_help(&usage)));
+                    success!("{}", utils::colorize_help(&utils::colorize_main_help(&usage)));
                 }
                 _ => {
                     e.exit();
@@ -223,11 +223,11 @@ fn main() {
         None => {
             success!(
                 "{}",
-                util::colorize_main_help(&format!(
+                utils::colorize_main_help(&format!(
                     "xan (v{}) is a suite of CSV command line utilities.
 
 Please choose one of the following commands/flags:\n{}",
-                    util::version(),
+                    utils::version(),
                     command_list!()
                 ))
             );
@@ -464,7 +464,7 @@ impl From<docopt::Error> for CliError {
     fn from(err: docopt::Error) -> Self {
         match err {
             docopt::Error::WithProgramUsage(kind, usage) => {
-                let usage = util::colorize_help(&usage);
+                let usage = utils::colorize_help(&usage);
 
                 let format_error_msg = |msg: &str| -> String {
                     format!(

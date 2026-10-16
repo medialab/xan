@@ -7,7 +7,7 @@ use textwrap::{fill, indent};
 
 use crate::CliResult;
 use crate::scales::GradientName;
-use crate::util;
+use crate::utils;
 
 fn wrap(string: &str) -> String {
     fill(string, 81)
@@ -807,7 +807,7 @@ struct Args {
     flag_section: Option<String>,
     flag_json: bool,
     flag_md: bool,
-    flag_color: util::ColorMode,
+    flag_color: utils::ColorMode,
 }
 
 impl Args {
@@ -858,7 +858,7 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
     args.flag_color.apply();
 
     if args.flag_open {

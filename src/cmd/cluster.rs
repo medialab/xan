@@ -5,7 +5,7 @@ use crate::collections::{HashMap, hash_map::Entry};
 use crate::config::{Config, Delimiter};
 use crate::moonblade::Program;
 use crate::select::SelectedColumns;
-use crate::util;
+use crate::utils;
 
 static USAGE: &str = "
 TODO...
@@ -38,7 +38,7 @@ struct Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
 
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)

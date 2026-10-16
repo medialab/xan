@@ -6,7 +6,7 @@ use super::aggregators::{
 };
 use crate::moonblade::types::DynamicNumber;
 use crate::temporal;
-use crate::util;
+use crate::utils;
 
 fn map_to_field<T: ToString>(opt: Option<T>) -> Vec<u8> {
     opt.map(|m| m.to_string().as_bytes().to_vec())
@@ -253,7 +253,7 @@ impl Stats {
             }
         } else if let Ok(t) = temporal::parse_any_temporal(cell) {
             self.types.set_from_any_temporal(&t);
-        } else if util::could_be_url(cell) {
+        } else if utils::could_be_url(cell) {
             self.types.set(Type::Url);
         } else {
             self.types.set(Type::String);

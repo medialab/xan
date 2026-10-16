@@ -1,5 +1,5 @@
 use crate::CliResult;
-use crate::util;
+use crate::utils;
 
 static USAGE: &str = "
 Print script parts necessary to activate xan completions, tailored
@@ -72,7 +72,7 @@ struct Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
 
     if args.cmd_bash {
         println!("{}", BASH_COMPLETE_FUNCTION.trim_end());

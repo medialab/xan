@@ -3,7 +3,7 @@ use std::iter::repeat_n;
 
 use crate::CliResult;
 use crate::config::{Config, Delimiter};
-use crate::util;
+use crate::utils;
 
 static USAGE: &str = "
 Transforms CSV data so that all rows have the same number of columns. The number
@@ -48,7 +48,7 @@ struct Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
 
     if args.flag_length.is_some() && args.flag_trust_header {
         Err("-l/--length cannot be used with -H/--trust-header!")?;

@@ -8,7 +8,7 @@ use colorgrad::{Gradient, GradientBuilder};
 use jiff::{Timestamp, Unit, tz::TimeZone};
 
 use crate::temporal::ZonedExt;
-use crate::util;
+use crate::utils;
 
 // Taken straight from d3: https://github.com/d3/d3-array/blob/main/src/ticks.js
 const E10: f64 = 7.0710678118654755; // sqrt(50)
@@ -822,7 +822,7 @@ impl LinearScale {
     fn formatted_ticks(&self, count: usize) -> Vec<String> {
         self.ticks(count)
             .into_iter()
-            .map(util::format_number)
+            .map(utils::format_number)
             .collect()
     }
 }
@@ -1049,7 +1049,7 @@ impl LogScale {
     fn formatted_ticks(&self, count: usize) -> Vec<String> {
         self.ticks(count)
             .into_iter()
-            .map(util::format_number)
+            .map(utils::format_number)
             .collect()
     }
 }
@@ -1115,7 +1115,7 @@ impl PowerScale {
     fn formatted_ticks(&self, count: usize) -> Vec<String> {
         self.ticks(count)
             .into_iter()
-            .map(util::format_number)
+            .map(utils::format_number)
             .collect()
     }
 }

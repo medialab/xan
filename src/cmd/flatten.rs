@@ -9,7 +9,7 @@ use unicode_width::UnicodeWidthStr;
 use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
-use crate::util::{self, ColorMode};
+use crate::utils::{self, ColorMode};
 
 static USAGE: &str = "
 Prints flattened records such that fields are labeled separated by a new line.
@@ -99,7 +99,7 @@ struct Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
     args.flag_color.apply();
 
     if args.flag_rainbow && args.flag_highlight.is_some() {
@@ -183,7 +183,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         })
         .transpose()?;
 
-    let cols = util::acquire_term_cols_ratio(&args.flag_cols)?;
+    let cols = utils::acquire_term_cols_ratio(&args.flag_cols)?;
 
     let potential_headers = rdr.byte_headers()?.clone().into_string_record()?;
     let potential_headers = sel.select(&potential_headers).collect::<StringRecord>();
@@ -199,7 +199,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     headers = headers
         .into_iter()
-        .map(|name| util::sanitize_text_for_single_line_printing(&name))
+        .map(|name| utils::sanitize_text_for_single_line_printing(&name))
         .collect();
 
     let max_header_width = headers
@@ -220,19 +220,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         };
 
         let cell_colorizer = if args.flag_rainbow {
-            util::colorizer_by_rainbow(i, cell)
+            utils::colorizer_by_rainbow(i, cell)
         } else {
-            util::colorizer_by_type(cell)
+            utils::colorizer_by_type(cell)
         };
 
         let cell = if args.flag_condense {
-            util::unicode_aware_ellipsis(
-                &util::sanitize_text_for_single_line_printing(cell),
+            utils::unicode_aware_ellipsis(
+                &utils::sanitize_text_for_single_line_printing(cell),
                 max_value_width.saturating_sub(offset),
             )
         } else if args.flag_wrap {
-            util::wrap(
-                &util::sanitize_text_for_multi_line_printing(cell),
+            utils::wrap(
+                &utils::sanitize_text_for_multi_line_printing(cell),
                 max_value_width.saturating_sub(offset),
                 max_header_width + 1 + offset,
             )
@@ -255,7 +255,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         };
 
         if !args.flag_condense {
-            cell = util::highlight_problematic_string_features(&cell);
+            cell = utils::highlight_problematic_string_features(&cell);
         }
 
         cell_colorizer.colorize(&cell).to_string()
@@ -265,9 +265,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .iter()
         .map(|header| {
             if args.flag_flatter {
-                util::highlight_problematic_string_features(header)
+                utils::highlight_problematic_string_features(header)
             } else {
-                util::unicode_aware_highlighted_pad_with_ellipsis(
+                utils::unicode_aware_highlighted_pad_with_ellipsis(
                     false,
                     header,
                     max_header_width + 1,

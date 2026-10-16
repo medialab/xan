@@ -8,7 +8,7 @@ use crate::cmd::parallel::Args as ParallelArgs;
 use crate::collections::new_index_set;
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
-use crate::util;
+use crate::utils;
 
 static USAGE: &str = "
 Concatenates CSV data by column or by row.
@@ -124,7 +124,7 @@ struct Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
 
     if args.flag_paths.is_some() && !args.arg_inputs.is_empty() {
         Err("--paths cannot be used with other positional arguments!")?;

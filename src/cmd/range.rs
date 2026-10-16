@@ -2,7 +2,7 @@ use std::io::Write;
 
 use crate::CliResult;
 use crate::config::Config;
-use crate::util;
+use crate::utils;
 
 static USAGE: &str = "
 Create a CSV file with one column representing a numerical range. This is mostly
@@ -47,7 +47,7 @@ struct Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
 
     let mut wtr = Config::new(&args.flag_output).buf_io_writer()?;
 

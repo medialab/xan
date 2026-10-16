@@ -20,7 +20,7 @@ use crate::config::{Config, Delimiter};
 use crate::moonblade::{DynamicValue, ScrapingProgram};
 use crate::select::{SelectedColumns, Selection};
 use crate::urls::should_follow_href;
-use crate::util;
+use crate::utils;
 use crate::{CliError, CliResult};
 
 fn create_dummy_csv_reader(
@@ -892,7 +892,7 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let mut args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = utils::get_args(USAGE, argv)?;
     args.resolve()?;
 
     let input_modes = !args.arg_inputs.is_empty() as u8
@@ -924,7 +924,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let headers = reader.byte_headers()?.clone();
 
-    let threads = util::parallelization(args.flag_parallel, args.flag_threads);
+    let threads = utils::parallelization(args.flag_parallel, args.flag_threads);
 
     if args.flag_evaluate.is_none() && args.flag_foreach.is_some() {
         Err("--foreach only works with -e/--evaluate!")?;

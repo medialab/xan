@@ -14,7 +14,7 @@ use crate::config::{Config, Delimiter};
 use crate::json::{JSONEmptyMode, JSONTypeInferrenceBuffer, OmittableAttributes};
 use crate::moonblade::DynamicNumber;
 use crate::select::{SelectedColumns, Selection};
-use crate::util;
+use crate::utils;
 use crate::xml::XMLWriter;
 
 fn is_numeric_column(records: &[Vec<String>], column_index: usize) -> bool {
@@ -603,7 +603,7 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
 
     match args.arg_format.as_str() {
         "html" => args.convert_to_html(),

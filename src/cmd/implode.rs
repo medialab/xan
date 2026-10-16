@@ -1,7 +1,7 @@
 use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::select::{SelectedColumns, Selection};
-use crate::util;
+use crate::utils;
 
 fn pluralize(name: &[u8]) -> Vec<u8> {
     let mut vec = name.to_vec();
@@ -107,7 +107,7 @@ fn compare_sel(
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
 
     if args.flag_pluralize && args.flag_rename.is_some() {
         Err("-P/--plural cannot work with -r/--rename!")?;
@@ -132,7 +132,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let sel_mask = sel.indexed_mask(headers.len());
 
     if let Some(new_names) = args.flag_rename {
-        let new_names = util::str_to_csv_byte_record(&new_names);
+        let new_names = utils::str_to_csv_byte_record(&new_names);
 
         if new_names.len() != sel.len() {
             Err(format!(

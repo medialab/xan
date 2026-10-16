@@ -11,7 +11,7 @@ use crate::config::{Config, Delimiter};
 use crate::scales::{Extent, ExtentBuilder};
 use crate::select::SelectedColumns;
 use crate::temporal;
-use crate::util;
+use crate::utils;
 
 static USAGE: &str = r#"
 Complete CSV data by adding rows for missing values of a given column.
@@ -205,7 +205,7 @@ fn mutate_record_to_emit(
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
 
     if args.flag_groupby.is_some() && args.flag_sorted {
         Err("--groupby cannot be used with --sorted")?;

@@ -23,13 +23,13 @@ use ratatui::widgets::{
 use crate::collections::{HashMap, IndexMap};
 use crate::config::{Config, Delimiter};
 use crate::moonblade::agg::Welford;
-use crate::ratatui::print_ratatui_frame_to_stdout;
 use crate::scales::{ExtentBuilder, GradientName, Scale, ScaleType};
 use crate::select::SelectedColumns;
 use crate::temporal::{
     TimeZoneArg, TimestampExt, ZonedExt, infer_temporal_granularity, parse_fuzzy_temporal,
 };
-use crate::util::{self, ColorMode};
+use crate::tui::print_ratatui_frame_to_stdout;
+use crate::utils::{self, ColorMode};
 use crate::{CliError, CliResult};
 
 const TYPICAL_COLS: usize = 35;
@@ -436,7 +436,7 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let mut args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = utils::get_args(USAGE, argv)?;
     args.resolve();
     args.flag_color.apply();
 
@@ -750,13 +750,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     // Solving cols & rows
-    let mut cols = util::acquire_term_cols_ratio(&args.flag_cols)?;
+    let mut cols = utils::acquire_term_cols_ratio(&args.flag_cols)?;
 
     if cols < 10 {
         Err("not enough cols to draw!")?;
     }
 
-    let mut rows = util::acquire_term_rows_ratio(&args.flag_rows)?;
+    let mut rows = utils::acquire_term_rows_ratio(&args.flag_rows)?;
 
     if rows < 3 {
         Err("not enough rows to draw!")?;

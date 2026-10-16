@@ -7,7 +7,7 @@ use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::scales::LinearScale;
 use crate::select::SelectedColumns;
-use crate::util;
+use crate::utils;
 
 static USAGE: &str = "
 Discretize selection of columns containing continuous data into bins.
@@ -101,7 +101,7 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
     let conf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers)
@@ -137,12 +137,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Some(bins) => {
                 let max_lower_bound_width = bins
                     .iter()
-                    .map(|bin| util::format_number(bin.lower_bound).len())
+                    .map(|bin| utils::format_number(bin.lower_bound).len())
                     .max()
                     .unwrap();
                 let max_upper_bound_width = bins
                     .iter()
-                    .map(|bin| util::format_number(bin.upper_bound).len())
+                    .map(|bin| utils::format_number(bin.upper_bound).len())
                     .max()
                     .unwrap();
 
@@ -154,8 +154,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         DataType::Integer => (bin.lower_bound.ceil(), bin.upper_bound.ceil()),
                     };
 
-                    let lower_bound = util::format_number(lower_bound);
-                    let upper_bound = util::format_number(upper_bound);
+                    let lower_bound = utils::format_number(lower_bound);
+                    let upper_bound = utils::format_number(upper_bound);
 
                     let label_format = if bin.is_constant() {
                         lower_bound

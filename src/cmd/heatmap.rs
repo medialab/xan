@@ -11,7 +11,7 @@ use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::scales::{Extent, ExtentBuilder, GradientName, Scale, ScaleType};
 use crate::select::{SelectedColumns, Selection};
-use crate::util::{self, ColorMode};
+use crate::utils::{self, ColorMode};
 
 static ASCII_GRADIENT: [char; 4] = ['░', '▒', '▓', '█'];
 
@@ -357,7 +357,7 @@ impl Args {
             Some(n) => {
                 if n == "auto" {
                     Ok(Some(
-                        util::acquire_term_rows(&None).saturating_sub(2).max(1)
+                        utils::acquire_term_rows(&None).saturating_sub(2).max(1)
                             / self.flag_size.get(),
                     ))
                 } else {
@@ -374,7 +374,7 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let mut args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = utils::get_args(USAGE, argv)?;
     args.resolve();
     args.flag_color.apply();
 
@@ -452,7 +452,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut matrix = Matrix::new(column_labels, forced_extent, args.flag_scale);
 
     while rdr.read_byte_record(&mut record)? {
-        let label = util::sanitize_text_for_single_line_printing(
+        let label = utils::sanitize_text_for_single_line_printing(
             std::str::from_utf8(&record[label_column_index]).expect("could not decode utf8"),
         );
 
@@ -479,7 +479,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     matrix.finalize();
 
-    let cols = util::acquire_term_cols(&None);
+    let cols = utils::acquire_term_cols(&None);
     let label_cols =
         ((cols as f64 * 0.3).floor() as usize).min(matrix.max_row_label_width().unwrap() + 1);
     let left_padding = " ".repeat(label_cols);
@@ -536,7 +536,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         writeln!(
             &out,
             "{}",
-            util::wrap(&column_info, cols.saturating_sub(label_cols), label_cols)
+            utils::wrap(&column_info, cols.saturating_sub(label_cols), label_cols)
         )?;
         writeln!(&out)?;
 
@@ -554,7 +554,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 col_label.to_string()
             };
 
-            let formatted_label = util::unicode_aware_rpad_with_ellipsis(&label, width, " ");
+            let formatted_label = utils::unicode_aware_rpad_with_ellipsis(&label, width, " ");
 
             write!(
                 &out,
@@ -609,7 +609,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         for i in 0..size {
             if !args.flag_hide_row_labels {
                 if i == 0 {
-                    let formatted_label = util::unicode_aware_rpad_with_ellipsis(
+                    let formatted_label = utils::unicode_aware_rpad_with_ellipsis(
                         row_label,
                         label_cols.saturating_sub(1),
                         " ",
@@ -674,8 +674,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                             let body = match formatter.as_mut() {
                                 Some(fmt) if i == midpoint => {
-                                    let formatted = util::unicode_aware_ellipsis(
-                                        util::format_number_with_formatter(
+                                    let formatted = utils::unicode_aware_ellipsis(
+                                        utils::format_number_with_formatter(
                                             fmt,
                                             if args.flag_show_normalized {
                                                 percent_opt.unwrap()

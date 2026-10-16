@@ -4,7 +4,7 @@ use colored::Colorize;
 
 use crate::CliResult;
 use crate::moonblade::Program;
-use crate::util;
+use crate::utils;
 
 static USAGE: &str = "
 Evaluate a single moonblade expression.
@@ -32,7 +32,7 @@ struct Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
 
     let mut out = io::stdout();
 

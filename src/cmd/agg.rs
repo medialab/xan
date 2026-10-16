@@ -5,7 +5,7 @@ use crate::cmd::parallel::Args as ParallelArgs;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::AggregationProgram;
 use crate::select::SelectedColumns;
-use crate::util;
+use crate::utils;
 
 // NOTE: what was tried for parallelization:
 //   1. Horizontal parallelization (by execution unit of the aggregation planner)
@@ -207,7 +207,7 @@ struct Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
 
     let agg_modes = args.flag_along_cols.is_some() as u8
         + args.flag_along_rows.is_some() as u8

@@ -8,7 +8,7 @@ use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::SelectionProgram;
 use crate::select::SelectedColumns;
-use crate::util;
+use crate::utils;
 
 static USAGE: &str = r#"
 The map command evaluates an expression for each row of the given CSV file and
@@ -175,7 +175,7 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let mut args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = utils::get_args(USAGE, argv)?;
     args.resolve()?;
 
     if args.flag_filter && args.flag_along_columns.is_some() {
@@ -186,7 +186,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .no_headers(args.flag_no_headers)
         .delimiter(args.flag_delimiter);
 
-    let threads = util::parallelization(args.flag_parallel, args.flag_threads);
+    let threads = utils::parallelization(args.flag_parallel, args.flag_threads);
 
     let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 

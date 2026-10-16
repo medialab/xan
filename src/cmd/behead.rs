@@ -3,7 +3,7 @@ use std::io::{self, Write};
 
 use crate::CliResult;
 use crate::config::{Config, Delimiter};
-use crate::util;
+use crate::utils;
 
 static USAGE: &str = "
 Drop a CSV file's header.
@@ -36,7 +36,7 @@ struct Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
 
     if args.flag_append && args.flag_output.is_none() {
         Err(

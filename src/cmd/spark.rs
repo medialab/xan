@@ -24,7 +24,7 @@ use crate::moonblade::{TemporalExtent, Welford};
 use crate::scales::{Extent, ExtentBuilder, GradientName, HistogramBuilder, Scale, ScaleType};
 use crate::select::{SelectedColumns, Selection};
 use crate::temporal::{FuzzyTemporal, TimestampExt, ZonedExt, parse_fuzzy_temporal};
-use crate::util::{self, ColorMode, ColorOrStyles, format_number};
+use crate::utils::{self, ColorMode, ColorOrStyles, format_number};
 
 fn compute_name_hash(name: &[u8]) -> usize {
     let mut sum: usize = 0;
@@ -269,7 +269,7 @@ impl SparklineRenderer {
                                 }
                             }
                             SparklineColorMode::Rainbow => {
-                                let color = util::colorizer_by_rainbow(sparkline_index, "spark");
+                                let color = utils::colorizer_by_rainbow(sparkline_index, "spark");
 
                                 write!(
                                     &mut self.draw_buffer,
@@ -279,7 +279,7 @@ impl SparklineRenderer {
                                 .unwrap();
                             }
                             SparklineColorMode::StripedRainbow => {
-                                let color = util::colorizer_by_rainbow(sparkline_index, "spark");
+                                let color = utils::colorizer_by_rainbow(sparkline_index, "spark");
 
                                 if i % 2 == 0 {
                                     write!(
@@ -350,8 +350,8 @@ impl SparklineRenderer {
 
         for name in names {
             self.draw_buffer.push_str(
-                &util::unicode_aware_ellipsis(
-                    &util::sanitize_text_for_single_line_printing(&String::from_utf8_lossy(name)),
+                &utils::unicode_aware_ellipsis(
+                    &utils::sanitize_text_for_single_line_printing(&String::from_utf8_lossy(name)),
                     width,
                 )
                 .pad_to_width_with_alignment(width, Alignment::Middle)
@@ -375,7 +375,7 @@ impl SparklineRenderer {
 
         for x in numbers.iter().copied() {
             self.draw_buffer.push_str(
-                &util::unicode_aware_ellipsis(
+                &utils::unicode_aware_ellipsis(
                     &(if let Some(denominator) = percentage_denominator {
                         let percentage = if denominator == 0.0 {
                             0.0
@@ -384,7 +384,7 @@ impl SparklineRenderer {
                         };
                         format!("{percentage:3.0}%")
                     } else {
-                        util::format_number(x)
+                        utils::format_number(x)
                     }),
                     width,
                 )
@@ -1104,7 +1104,7 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let mut args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = utils::get_args(USAGE, argv)?;
     args.resolve();
 
     if args.cmd_debate {
@@ -1189,7 +1189,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     args.flag_color.apply();
 
-    let mut cols = util::acquire_term_cols_ratio(&args.flag_cols)?;
+    let mut cols = utils::acquire_term_cols_ratio(&args.flag_cols)?;
 
     if cols < 10 {
         Err("not enough cols to draw!")?;
@@ -1393,7 +1393,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut cols_for_sparkline = cols;
     let sparkline_width = args.flag_width.get();
 
-    let rows = util::acquire_term_rows_ratio(&args.flag_height)?;
+    let rows = utils::acquire_term_rows_ratio(&args.flag_height)?;
 
     let sparkline_height = if args.flag_height.is_some() { rows } else { 1 };
 
@@ -1694,14 +1694,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                 for (category, name) in color_map.iter() {
                     let color =
-                        util::colorizer_by_rainbow_with_fallback(category, name_hash, "spark");
+                        utils::colorizer_by_rainbow_with_fallback(category, name_hash, "spark");
 
                     writeln!(
                         &mut out,
                         "{} {}",
                         color.colorize("■"),
-                        util::unicode_aware_ellipsis(
-                            &util::sanitize_text_for_single_line_printing(
+                        utils::unicode_aware_ellipsis(
+                            &utils::sanitize_text_for_single_line_printing(
                                 &String::from_utf8_lossy(name)
                             ),
                             full_cols.saturating_sub(2)
@@ -1719,8 +1719,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut name_opt = (!args.flag_hide_names).then(|| {
             format!(
                 "{:<width$} ",
-                util::unicode_aware_ellipsis(
-                    &util::sanitize_text_for_multi_line_printing(name),
+                utils::unicode_aware_ellipsis(
+                    &utils::sanitize_text_for_multi_line_printing(name),
                     cols_for_series_name.saturating_sub(1),
                 ),
                 width = cols_for_series_name.saturating_sub(1)
@@ -1735,7 +1735,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             colors_buffer.clear();
 
             for category in series.categories.iter().copied() {
-                colors_buffer.push(Some(util::colorizer_by_rainbow_with_fallback(
+                colors_buffer.push(Some(utils::colorizer_by_rainbow_with_fallback(
                     category, name_hash, "spark",
                 )));
             }

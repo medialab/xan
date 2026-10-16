@@ -8,7 +8,7 @@ use crate::CliResult;
 use crate::collections::{HashMap, HashSet, hash_map::Entry};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
-use crate::util::{self, FilenameTemplate};
+use crate::utils::{self, FilenameTemplate};
 
 static USAGE: &str = "
 Partition the given CSV data into chunks based on the values of a column.
@@ -74,7 +74,7 @@ struct Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
 
     if let Some(dir) = &args.flag_out_dir {
         fs::create_dir_all(dir)?;

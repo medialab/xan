@@ -8,7 +8,7 @@ use simd_csv::ByteRecord;
 use crate::cmd::sort::{iter_cmp, iter_cmp_num};
 use crate::config::{Config, Delimiter};
 use crate::select::{SelectedColumns, Selection};
-use crate::util;
+use crate::utils;
 use crate::{CliError, CliResult};
 
 type MergeHeapEntry = (ByteRecord, usize);
@@ -234,7 +234,7 @@ struct Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
 
     if args.flag_paths.is_some() && !args.arg_inputs.is_empty() {
         Err("--paths cannot be used with other positional arguments!")?;
@@ -370,7 +370,7 @@ impl Args {
                 .collect::<Result<Vec<_>, _>>();
         }
 
-        util::many_configs(
+        utils::many_configs(
             &self.arg_inputs,
             self.flag_delimiter,
             self.flag_no_headers,

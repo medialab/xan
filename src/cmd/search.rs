@@ -19,7 +19,7 @@ use crate::collections::{ContextBuffer, HashMap, IndexMap, new_index_map};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
 use crate::urls::{LRUStems, LRUTrieMap, TaggedUrl};
-use crate::util;
+use crate::utils;
 
 #[inline]
 fn try_any<'c, F, E>(cells: impl Iterator<Item = &'c [u8]>, predicate: F) -> Result<bool, E>
@@ -1062,7 +1062,7 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let mut args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = utils::get_args(USAGE, argv)?;
 
     args.resolve()?;
 
@@ -1165,7 +1165,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         )?;
     }
 
-    let threads = util::parallelization(args.flag_parallel, args.flag_threads);
+    let threads = utils::parallelization(args.flag_parallel, args.flag_threads);
 
     if threads.is_some() {
         if args.flag_fast_parser {

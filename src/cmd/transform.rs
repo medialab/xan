@@ -6,7 +6,7 @@ use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::Program;
 use crate::select::SelectedColumns;
-use crate::util;
+use crate::utils;
 
 static USAGE: &str = r#"
 The transform command can be used to edit a selection of columns for each row
@@ -91,7 +91,7 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let mut args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = utils::get_args(USAGE, argv)?;
     args.resolve()?;
 
     let rconf = Config::new(&args.arg_input)
@@ -99,7 +99,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .delimiter(args.flag_delimiter)
         .select(args.arg_column);
 
-    let threads = util::parallelization(args.flag_parallel, args.flag_threads);
+    let threads = utils::parallelization(args.flag_parallel, args.flag_threads);
 
     let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
@@ -115,7 +115,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if !rconf.no_headers {
         let output_headers = if let Some(new_names) = &args.flag_rename {
-            let renamed = util::str_to_csv_byte_record(new_names);
+            let renamed = utils::str_to_csv_byte_record(new_names);
 
             if renamed.len() != sel.len() {
                 Err(format!(

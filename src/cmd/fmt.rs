@@ -2,7 +2,7 @@ use std::fs;
 
 use crate::CliResult;
 use crate::config::{Config, Delimiter};
-use crate::util;
+use crate::utils;
 
 struct TempFileGuard(String);
 
@@ -97,7 +97,7 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let mut args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = utils::get_args(USAGE, argv)?;
     let temp_file_guard_opt = args.resolve()?;
 
     let rconfig = Config::new(&args.arg_input)

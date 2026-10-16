@@ -19,7 +19,7 @@ use crate::collections::ClusteredInsertHashmap;
 use crate::collections::{HashMap, hash_map::Entry};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
-use crate::util;
+use crate::utils;
 
 #[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(try_from = "String")]
@@ -217,7 +217,7 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let mut args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = utils::get_args(USAGE, argv)?;
     args.resolve();
 
     if args.flag_doc.is_none() && args.flag_sep.is_none() {

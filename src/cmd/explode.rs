@@ -8,7 +8,7 @@ use crate::CliError;
 use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
-use crate::util;
+use crate::utils;
 
 use crate::moonblade::{DynamicValue, Program};
 
@@ -119,7 +119,7 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let mut args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = utils::get_args(USAGE, argv)?;
     args.resolve()?;
 
     if args.flag_singularize && args.flag_rename.is_some() {
@@ -155,7 +155,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let new_names_opt = args
         .flag_rename
         .as_ref()
-        .map(|n| util::str_to_csv_byte_record(n));
+        .map(|n| utils::str_to_csv_byte_record(n));
 
     let mut new_headers = ByteRecord::new();
 

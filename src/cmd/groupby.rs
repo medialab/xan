@@ -9,7 +9,7 @@ use crate::moonblade::{
     AggregationProgram, GroupAggregationProgram, GroupAlongColumnsAggregationProgram,
 };
 use crate::select::SelectedColumns;
-use crate::util;
+use crate::utils;
 
 static USAGE: &str = "
 Group a CSV file by values contained in a column selection then aggregate data per
@@ -190,7 +190,7 @@ struct Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let mut args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = utils::get_args(USAGE, argv)?;
 
     if args.flag_parallel || args.flag_threads.is_some() {
         if args.flag_along_cols.is_some() {

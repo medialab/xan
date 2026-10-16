@@ -17,7 +17,7 @@ use crate::collections::{HashMap, HashSet, hash_map::Entry};
 use crate::config::{Config, Delimiter};
 use crate::select::{SelectedColumns, Selection};
 use crate::urls::LRUTrieMultiMap;
-use crate::util;
+use crate::utils;
 
 #[derive(Deserialize, Clone, Copy)]
 enum DropKey {
@@ -1065,7 +1065,7 @@ impl Args {
     fn fuzzy_join(self) -> CliResult<()> {
         let inner = !self.flag_left;
 
-        let threads = util::parallelization(self.flag_parallel, self.flag_threads);
+        let threads = utils::parallelization(self.flag_parallel, self.flag_threads);
 
         let joiner = self.build_fuzzy_joiner()?;
         let mut patterns_headers = joiner.headers.clone();
@@ -1169,7 +1169,7 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let mut args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = utils::get_args(USAGE, argv)?;
     args.resolve();
 
     let normal_operations = args.flag_inner as u8

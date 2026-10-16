@@ -8,7 +8,7 @@ use crate::config::{Config, Delimiter};
 use crate::graph::{GraphBuilder, GraphBuilderOptions};
 use crate::json::{Attributes, JSONEmptyMode, JSONTypeInferrenceBuffer};
 use crate::select::{SelectedColumns, Selection};
-use crate::util;
+use crate::utils;
 
 #[derive(Deserialize, Debug)]
 #[serde(try_from = "String")]
@@ -451,7 +451,7 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let mut args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = utils::get_args(USAGE, argv)?;
 
     if !args.flag_format.is_nodelist() {
         if args.flag_degrees {

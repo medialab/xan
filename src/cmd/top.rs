@@ -9,7 +9,7 @@ use crate::cmd::parallel::Args as ParallelArgs;
 use crate::collections::{ClusteredInsertHashmap, DynamicOrd, TopKHeapMapWithTies};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
-use crate::util;
+use crate::utils;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub enum Value {
@@ -146,7 +146,7 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
 
     if args.flag_parallel || args.flag_threads.is_some() {
         if args.flag_groupby.is_some() {

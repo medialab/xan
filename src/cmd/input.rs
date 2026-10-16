@@ -3,7 +3,7 @@ use regex::bytes::Regex;
 use crate::CliResult;
 use crate::config::{Compression, Config, Delimiter};
 use crate::read;
-use crate::util;
+use crate::utils;
 
 static USAGE: &str = "
 Read unusually formatted CSV data.
@@ -143,7 +143,7 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let mut args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = utils::get_args(USAGE, argv)?;
     args.resolve();
 
     let formats = args.flag_vcf as u8

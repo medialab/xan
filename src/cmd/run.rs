@@ -5,7 +5,7 @@ use std::process::{Command, Stdio};
 
 use crate::CliResult;
 use crate::processing::{Children, parse_pipeline};
-use crate::util;
+use crate::utils;
 
 static USAGE: &str = "
 Run the given xan pipeline or execute a xan script.
@@ -103,7 +103,7 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let mut args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = utils::get_args(USAGE, argv)?;
     let stdin_was_consumed = args.resolve()?;
 
     let exe = env::current_exe()?;

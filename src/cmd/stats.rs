@@ -20,7 +20,7 @@ use crate::moonblade::{DynamicNumber, Stats, TemporalExtent, Welford};
 use crate::scales::{Extent, ExtentBuilder, HistogramBuilder, Scale, ScaleType, sturges};
 use crate::select::SelectedColumns;
 use crate::temporal::{AnyTemporal, parse_fuzzy_temporal};
-use crate::util::{self, ColorMode, ColorOrStyles, format_number};
+use crate::utils::{self, ColorMode, ColorOrStyles, format_number};
 
 const LABELS_TO_SHOW: usize = 5;
 const CATEGORIES_TO_SHOW: usize = 10;
@@ -550,7 +550,7 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
 
     if args.flag_parallel || args.flag_threads.is_some() {
         if args.flag_groupby.is_some() {
@@ -619,7 +619,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         let mut out = stdout();
-        let cols = util::acquire_term_cols_ratio(&args.flag_cols)?;
+        let cols = utils::acquire_term_cols_ratio(&args.flag_cols)?;
 
         let mut estimators: Vec<_> = sel
             .select(&headers)
@@ -721,7 +721,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     let mut color_overrides = vec![None; histogram.len()];
 
                     for (i, (value, count)) in top.iter().enumerate() {
-                        let color = util::colorizer_by_rainbow_with_fallback(i, name_hash, value);
+                        let color = utils::colorizer_by_rainbow_with_fallback(i, name_hash, value);
                         histogram[i] = *count as f64;
                         color_overrides[i] = Some(color);
 
@@ -732,9 +732,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             (i + 1).to_string().dimmed(),
                             format_number(*count).cyan(),
                             format!("{:>6.2}%", (*count as f64 / total as f64) * 100.0).magenta(),
-                            util::highlight_problematic_string_features(
-                                &util::unicode_aware_ellipsis(
-                                    &util::sanitize_text_for_single_line_printing(value),
+                            utils::highlight_problematic_string_features(
+                                &utils::unicode_aware_ellipsis(
+                                    &utils::sanitize_text_for_single_line_printing(value),
                                     max_value_cols
                                 )
                             )
@@ -754,7 +754,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             format_number(remaining).cyan(),
                             format!("{:>6.2}%", (remaining as f64 / total as f64) * 100.0)
                                 .magenta(),
-                            util::unicode_aware_ellipsis("<rest>", max_value_cols).dimmed(),
+                            utils::unicode_aware_ellipsis("<rest>", max_value_cols).dimmed(),
                             width = max_count_width
                         )?;
                     }
@@ -901,8 +901,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         writeln!(
                             &mut out,
                             "  - {}",
-                            util::wrap(
-                                &util::unicode_aware_ellipsis(&value, 500),
+                            utils::wrap(
+                                &utils::unicode_aware_ellipsis(&value, 500),
                                 cols.saturating_sub(4),
                                 4
                             )

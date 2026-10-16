@@ -3,7 +3,7 @@ use std::io::{SeekFrom, Write};
 
 use crate::CliResult;
 use crate::config::{Config, Delimiter};
-use crate::util;
+use crate::utils;
 
 static USAGE: &str = "
 Shuffle the rows of a given CSV file. This requires loading the whole
@@ -46,7 +46,7 @@ fn run_external(args: Args) -> CliResult<()> {
     let wconf = Config::new(&args.flag_output);
 
     // Seedmemorying rng
-    let mut rng = util::acquire_rng(args.flag_seed);
+    let mut rng = utils::acquire_rng(args.flag_seed);
 
     let mut header_len: Option<usize> = None;
     let mut positions: Vec<(u64, usize)> = Vec::new();
@@ -108,7 +108,7 @@ fn run_in_memory(args: Args) -> CliResult<()> {
     let wconf = Config::new(&args.flag_output);
 
     // Seeding rng
-    let mut rng = util::acquire_rng(args.flag_seed);
+    let mut rng = utils::acquire_rng(args.flag_seed);
 
     let mut rdr = rconf.simd_reader()?;
     let mut wtr = wconf.simd_writer()?;
@@ -133,7 +133,7 @@ fn run_in_memory(args: Args) -> CliResult<()> {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
 
     if args.flag_external {
         run_external(args)

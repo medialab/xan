@@ -4,7 +4,7 @@ use std::io::{Read, SeekFrom, copy};
 use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::Program;
-use crate::util;
+use crate::utils;
 
 enum ControlFlow {
     Continue,
@@ -415,7 +415,7 @@ impl Args {
     }
 
     fn range(&self) -> Result<(usize, usize), String> {
-        util::range(
+        utils::range(
             self.flag_start,
             self.flag_end,
             self.flag_len,
@@ -473,6 +473,6 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
     args.run()
 }

@@ -12,7 +12,7 @@ use crate::collections::ClusteredInsertHashmap;
 use crate::collections::HashMap;
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
-use crate::util;
+use crate::utils;
 
 struct GroupReservoir {
     records: Vec<ByteRecord>,
@@ -126,7 +126,7 @@ impl Args {
     }
 
     fn rng(&self) -> Box<dyn Rng> {
-        util::acquire_rng(self.flag_seed)
+        utils::acquire_rng(self.flag_seed)
     }
 
     fn write<R: io::Read>(
@@ -500,7 +500,7 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
 
     if args.flag_cursed && (args.flag_groupby.is_some() || args.flag_weight.is_some()) {
         Err("-§/--cursed does not work with -g/--groubpy nor -w/--weight!")?;

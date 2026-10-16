@@ -9,7 +9,7 @@ use simd_csv::ByteRecord;
 use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::select::{SelectedColumns, Selection};
-use crate::util;
+use crate::utils;
 
 enum GenericReader<R: Read> {
     Csv(simd_csv::Reader<R>, Vec<ByteRecord>),
@@ -483,7 +483,7 @@ impl Splitter {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
 
     let segmenters_count = args.flag_fixed_width as u8
         + args.flag_widths as u8
@@ -525,7 +525,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut new_column_names = args
         .flag_into
         .as_ref()
-        .map(|names| util::str_to_csv_byte_record(names));
+        .map(|names| utils::str_to_csv_byte_record(names));
 
     match (args.flag_max, &new_column_names, &args.flag_prefix) {
         (_, Some(_), Some(_)) => {

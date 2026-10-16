@@ -19,7 +19,7 @@ use crate::config::Config;
 use crate::json::{GetPathOwned, JSONTabularizer, fill_record_from_tape_value};
 use crate::moonblade::Path as JSONPath;
 use crate::select::SelectedColumns;
-use crate::util::{self, ChunksIteratorExt};
+use crate::utils::{self, ChunksIteratorExt};
 
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(try_from = "String")]
@@ -392,7 +392,7 @@ impl Args {
             }
         }
 
-        let threads = util::parallelization(self.flag_parallel, self.flag_threads.map(|t| t.get()));
+        let threads = utils::parallelization(self.flag_parallel, self.flag_threads.map(|t| t.get()));
 
         if let Some(t) = threads {
             tabularizer.flush()?;
@@ -789,7 +789,7 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = utils::get_args(USAGE, argv)?;
 
     let target_format = {
         if let Some(format) = args.flag_format {
