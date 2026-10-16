@@ -345,18 +345,33 @@ impl Args {
             .map(|(_, reader)| reader.byte_headers().cloned())
             .collect::<Result<Vec<_>, _>>()?;
 
+        // TODO: we should also match by positional name...
         let mut headers_index = new_index_set::<Vec<u8>>();
 
-        for (i, headers) in all_headers.iter().enumerate() {
-            for name in headers {
-                if self.flag_intersection {
-                    if i == 0 {
+        if !self.flag_intersection {
+            for headers in all_headers.iter() {
+                for name in headers {
+                    headers_index.insert(name.to_vec());
+                }
+            }
+        } else {
+            for (i, headers) in all_headers.iter().enumerate() {
+                if i == 0 {
+                    for name in headers {
                         headers_index.insert(name.to_vec());
-                    } else if !headers_index.contains(name) {
-                        headers_index.shift_remove(name);
                     }
                 } else {
-                    headers_index.insert(name.to_vec());
+                    if headers_index.is_empty() {
+                        break;
+                    }
+
+                    let mut indexed_names = new_index_set::<Vec<u8>>();
+
+                    for name in headers {
+                        indexed_names.insert(name.to_vec());
+                    }
+
+                    headers_index.retain(|name| indexed_names.contains(name));
                 }
             }
         }
