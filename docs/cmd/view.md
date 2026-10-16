@@ -21,13 +21,16 @@ Finally, it is possible to customize the default behavior of this command throug
 the "XAN_VIEW_ARGS" environment variable. This variable takes a series of
 supported flags: -t/--theme, -p/--pager, -l/--limit, -R/--rainbow, -E/--sanitize-emojis,
 and -S/--significance, -I/--hide-index, --color, --repeat-headers, --reveal-whitespace
-& -M/--hide-info.
+& -M/--hide-info. Other flags are ignored.
 
 To use the `borderless` theme, hide the index column and restrict the number of
 floating points decimals to be shown by default, here is how it would be done
 through the "XAN_VIEW_ARGS" variable:
 
     $ XAN_VIEW_ARGS="-t borderless -S 5 -I"
+
+Use the --ignore-defaults flag to ignore this variable entirely, which is
+recommended in scripts where the output should not depend on user preferences.
 
 Usage:
     xan view [options] [<input>]
@@ -43,7 +46,10 @@ view options:
     --name <name>               Name for the viewed table. Will default to the path of the file
                                 if any or "<stdin>" when viewing standard input.
     -p, --pager                 Automatically use the "less" command to page the results.
-                                This flag does not work on windows!
+                                Ignored when stdout is not a terminal, e.g. when piping
+                                or redirecting to a file. This flag does not work on windows!
+    --no-pager                  Never page the results, even if -p/--pager is given or
+                                set through the "XAN_VIEW_ARGS" environment variable.
     -A, --all                   Remove the row limit and display everything.
     -l, --limit <number>        Maximum of rows to read into memory. Use -A, --all or
                                 set to 0 to disable the limit. Defaults to 100 rows, or 5 rows
@@ -82,7 +88,11 @@ view options:
     -T, --tee                   When used, will print the table to stderr and forward given stream
                                 to stdout. Very useful to print transitional tables in pipes.
                                 Default --limit will be set to 5 and implies --color=always
-                                as well as --repeat-headers=never. Incompatible with -p/--pager.
+                                as well as --repeat-headers=never. Incompatible with -p/--pager,
+                                but takes precedence over it when set through the
+                                "XAN_VIEW_ARGS" environment variable.
+    --ignore-defaults           Ignore the defaults set through the "XAN_VIEW_ARGS"
+                                environment variable.
 
 Common options:
     -h, --help             Display this message

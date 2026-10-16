@@ -1,5 +1,5 @@
 use std::env;
-use std::io::{self, Write};
+use std::io::{self, IsTerminal, Write};
 use std::num::NonZeroUsize;
 use std::str::FromStr;
 
@@ -223,13 +223,16 @@ Finally, it is possible to customize the default behavior of this command throug
 the \"XAN_VIEW_ARGS\" environment variable. This variable takes a series of
 supported flags: -t/--theme, -p/--pager, -l/--limit, -R/--rainbow, -E/--sanitize-emojis,
 and -S/--significance, -I/--hide-index, --color, --repeat-headers, --reveal-whitespace
-& -M/--hide-info.
+& -M/--hide-info. Other flags are ignored.
 
 To use the `borderless` theme, hide the index column and restrict the number of
 floating points decimals to be shown by default, here is how it would be done
 through the \"XAN_VIEW_ARGS\" variable:
 
     $ XAN_VIEW_ARGS=\"-t borderless -S 5 -I\"
+
+Use the --ignore-defaults flag to ignore this variable entirely, which is
+recommended in scripts where the output should not depend on user preferences.
 
 Usage:
     xan view [options] [<input>]
@@ -245,7 +248,10 @@ view options:
     --name <name>               Name for the viewed table. Will default to the path of the file
                                 if any or \"<stdin>\" when viewing standard input.
     -p, --pager                 Automatically use the \"less\" command to page the results.
-                                This flag does not work on windows!
+                                Ignored when stdout is not a terminal, e.g. when piping
+                                or redirecting to a file. This flag does not work on windows!
+    --no-pager                  Never page the results, even if -p/--pager is given or
+                                set through the \"XAN_VIEW_ARGS\" environment variable.
     -A, --all                   Remove the row limit and display everything.
     -l, --limit <number>        Maximum of rows to read into memory. Use -A, --all or
                                 set to 0 to disable the limit. Defaults to 100 rows, or 5 rows
@@ -284,7 +290,11 @@ view options:
     -T, --tee                   When used, will print the table to stderr and forward given stream
                                 to stdout. Very useful to print transitional tables in pipes.
                                 Default --limit will be set to 5 and implies --color=always
-                                as well as --repeat-headers=never. Incompatible with -p/--pager.
+                                as well as --repeat-headers=never. Incompatible with -p/--pager,
+                                but takes precedence over it when set through the
+                                \"XAN_VIEW_ARGS\" environment variable.
+    --ignore-defaults           Ignore the defaults set through the \"XAN_VIEW_ARGS\"
+                                environment variable.
 
 Common options:
     -h, --help             Display this message
@@ -299,6 +309,7 @@ struct Args {
     arg_input: Option<String>,
     flag_select: SelectedColumns,
     flag_pager: bool,
+    flag_no_pager: bool,
     flag_theme: String,
     flag_cols: Option<String>,
     flag_delimiter: Option<Delimiter>,
@@ -318,6 +329,7 @@ struct Args {
     flag_repeat_headers: ComplexToggle,
     flag_reveal_whitespace: ComplexToggle,
     flag_tee: bool,
+    flag_ignore_defaults: bool,
     flag_name: Option<String>,
 }
 
@@ -329,6 +341,12 @@ impl Args {
 
         if self.flag_no_headers {
             self.flag_hide_headers = true;
+        }
+
+        // NOTE: paging makes no sense when stdout is not a terminal, and we don't
+        // want the flag to force colors, expand the table etc. in this case.
+        if self.flag_no_pager || !io::stdout().is_terminal() {
+            self.flag_pager = false;
         }
 
         if (self.flag_pager || self.flag_tee) && !self.flag_color.is_never() {
@@ -357,7 +375,9 @@ impl Args {
             from_argv.flag_hide_info = true;
         }
 
-        if !from_argv.flag_pager && from_env.flag_pager {
+        // NOTE: -T/--tee is incompatible with the pager and should take precedence
+        // over a default
+        if !from_argv.flag_pager && from_env.flag_pager && !from_argv.flag_tee {
             from_argv.flag_pager = true;
         }
 
@@ -397,17 +417,22 @@ impl Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let cli_args: Args = util::get_args(USAGE, argv)?;
 
-    let mut env_var_argv = vec!["xan", "view"];
-    let env_var_split =
-        shlex::split(&env::var("XAN_VIEW_ARGS").unwrap_or("".to_string())).unwrap_or_default();
+    let mut args = if cli_args.flag_ignore_defaults {
+        cli_args
+    } else {
+        let mut env_var_argv = vec!["xan", "view"];
+        let env_var_split =
+            shlex::split(&env::var("XAN_VIEW_ARGS").unwrap_or("".to_string())).unwrap_or_default();
 
-    for env_arg in env_var_split.iter() {
-        env_var_argv.push(env_arg);
-    }
+        for env_arg in env_var_split.iter() {
+            env_var_argv.push(env_arg);
+        }
 
-    let env_args: Args = util::get_args(USAGE, &env_var_argv)?;
+        let env_args: Args = util::get_args(USAGE, &env_var_argv)?;
 
-    let mut args = Args::merge(env_args, cli_args);
+        Args::merge(env_args, cli_args)
+    };
+
     args.resolve();
     args.flag_color.apply();
 
