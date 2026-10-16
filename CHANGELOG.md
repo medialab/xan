@@ -30,6 +30,8 @@
 * Fixing moonblade float truthiness (non-zero floats were considered falsey).
 * `xan view -p/--pager` is now ignored when stdout is not a terminal, instead of still forcing colors & expanding the table.
 * `xan view -T/--tee` now takes precedence over a `-p/--pager` flag set through `XAN_VIEW_ARGS` instead of erroring.
+* Fixing `xan view` panicking when the terminal reports a size of 0x0 or when `--cols` is very small.
+* Fixing `xan cat rows -I/--intersection`.
 
 *Performance*
 

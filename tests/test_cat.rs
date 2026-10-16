@@ -153,13 +153,7 @@ fn cat_rows_intersection() {
     cmd.arg("rows").arg("-I").arg("a.csv").arg("b.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![
-        ["name", "surname"],
-        ["john", "landis"],
-        ["lucy", "sue"],
-        ["carry", ""],
-        ["kimmarc", ""],
-    ];
+    let expected = vec![["name"], ["john"], ["lucy"], ["carry"], ["kimmarc"]];
     assert_eq!(got, expected);
 }
 

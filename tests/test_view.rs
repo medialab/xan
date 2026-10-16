@@ -11,6 +11,20 @@ fn create_data(wrk: &Workdir) {
     );
 }
 
+#[test]
+fn view_tiny_cols() {
+    let wrk = Workdir::new("view_tiny_cols");
+    create_data(&wrk);
+
+    for cols in ["0", "1", "5", "10", "12"] {
+        let mut cmd = wrk.command("view");
+        cmd.arg("data.csv")
+            .args(["--cols", cols])
+            .env_remove("XAN_VIEW_ARGS");
+        wrk.assert_success(&mut cmd);
+    }
+}
+
 // NOTE: stdout is never a terminal when running tests
 #[test]
 fn view_pager_ignored_when_not_a_terminal() {
@@ -103,4 +117,12 @@ fn view_ignore_defaults() {
         .env("XAN_VIEW_ARGS", "--not-a-flag");
     let got: String = wrk.stdout(&mut cmd);
     assert_eq!(got, expected);
+
+    for cols in ["0", "1", "5", "10", "12"] {
+        let mut cmd = wrk.command("view");
+        cmd.arg("data.csv")
+            .args(["--cols", cols])
+            .env_remove("XAN_VIEW_ARGS");
+        wrk.assert_success(&mut cmd);
+    }
 }
