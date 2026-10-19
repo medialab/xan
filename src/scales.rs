@@ -591,7 +591,7 @@ pub enum PowerExponent {
 
 impl PowerExponent {
     #[inline(always)]
-    fn apply(&self, x: f64) -> f64 {
+    pub fn apply(&self, x: f64) -> f64 {
         match self {
             Self::Two => x * x,
             Self::Int(i) => x.powi(*i),
@@ -600,15 +600,15 @@ impl PowerExponent {
         }
     }
 
-    // #[inline(always)]
-    // fn invert(&self, x: f64) -> f64 {
-    //     match self {
-    //         Self::Two => x.sqrt(),
-    //         Self::Int(i) => x.powf(1.0 / *i as f64),
-    //         Self::Float(f) => x.powf(1.0 / *f),
-    //         Self::Sqrt => x * x,
-    //     }
-    // }
+    #[inline(always)]
+    pub fn invert(&self, x: f64) -> f64 {
+        match self {
+            Self::Two => x.sqrt(),
+            Self::Int(i) => x.powf(1.0 / *i as f64),
+            Self::Float(f) => x.powf(1.0 / *f),
+            Self::Sqrt => x * x,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
