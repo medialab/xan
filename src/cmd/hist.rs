@@ -253,11 +253,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 _ => Err("unknown -m/--domain-max. Should be one of \"sum\", \"max\".")?,
             },
         };
-        println!("{:?}", domain_max);
 
         if domain_max <= 0.0 {
             Err("-m/--domain-max should be >= 0!")?;
-        };
+        }
 
         writeln!(
             &mut out,
@@ -479,9 +478,9 @@ impl Histogram {
         self.bars.iter().map(|bar| bar.value).sum()
     }
 
-    fn inv_sum_of_pow(&self, scale: PowerExponent) -> f64 {
-        let sum_of_pow = self.bars.iter().map(|bar| scale.apply(bar.value)).sum();
-        scale.invert(sum_of_pow)
+    fn inv_sum_of_pow(&self, exponent: PowerExponent) -> f64 {
+        let sum_of_pow = self.bars.iter().map(|bar| exponent.apply(bar.value)).sum();
+        exponent.invert(sum_of_pow)
     }
 
     fn product(&self) -> f64 {
