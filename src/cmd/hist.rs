@@ -9,7 +9,7 @@ use unicode_width::UnicodeWidthStr;
 use crate::CliResult;
 use crate::collections::{IndexMap, index_map::Entry, new_index_map};
 use crate::config::{Config, Delimiter};
-use crate::scales::{Scale, ScaleType, PowerExponent};
+use crate::scales::{PowerExponent, Scale, ScaleType};
 use crate::select::SelectedColumns;
 use crate::temporal;
 use crate::utils::{self, ColorMode};

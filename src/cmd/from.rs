@@ -392,7 +392,8 @@ impl Args {
             }
         }
 
-        let threads = utils::parallelization(self.flag_parallel, self.flag_threads.map(|t| t.get()));
+        let threads =
+            utils::parallelization(self.flag_parallel, self.flag_threads.map(|t| t.get()));
 
         if let Some(t) = threads {
             tabularizer.flush()?;
