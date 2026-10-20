@@ -23,8 +23,11 @@ macro_rules! make_trim_fn {
                     }
                 }
                 Some(chars) => {
-                    let pattern = chars.try_as_str()?.chars().collect::<Vec<char>>();
-                    DynamicValue::from(args.get1_str()?.$trim_matches(|c| pattern.contains(&c)))
+                    let pattern = chars.try_as_str()?;
+                    DynamicValue::from(
+                        args.get1_str()?
+                            .$trim_matches(|c| pattern.chars().any(|p| p == c)),
+                    )
                 }
             })
         }
