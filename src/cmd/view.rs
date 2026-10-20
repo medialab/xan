@@ -549,8 +549,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .map(utils::sanitize_text_for_single_line_printing)
         .collect();
 
-    let mut all_records_buffered = false;
-
     let mut number_formatter = (args.flag_significance.is_some()
         || args.flag_thousands_sep.is_some())
     .then(|| Formatter::new().scales(Scales::none()));
@@ -573,6 +571,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         number_formatter = Some(formatter);
     }
+
+    let mut all_records_buffered = false;
 
     let records: Vec<(StringRecord, Vec<DataType>)> = {
         let limit = args.flag_limit.unwrap();
