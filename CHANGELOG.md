@@ -7,6 +7,7 @@
 * Bumping MSRV to `1.88.0`.
 * Dropping the `parquet` feature. Parquet integration is now a default.
 * `xan from -f (json|ndjson) --model` is now also used to rename the projected columns.
+* Renaming `xan flatten --row-separator` as `--row-sep` for harmonization purposes and add the `-W` short flag.
 
 *Features*
 

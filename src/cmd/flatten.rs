@@ -38,7 +38,7 @@ flatten options:
     -F, --flatter          Even flatter representation alternating column name and content
                            on different lines in the output. Useful to display cells containing
                            large chunks of text.
-    --row-separator <sep>  Separate rows in the output with the given string, instead of
+    -W, --row-sep <sep>    Separate rows in the output with the given string, instead of
                            displaying a header with row index. If an empty string is
                            given, e.g. --row-separator '', will not separate rows at all.
     --csv                  Write the result as a CSV file with the row,field,value columns
@@ -83,7 +83,7 @@ struct Args {
     flag_condense: bool,
     flag_wrap: bool,
     flag_flatter: bool,
-    flag_row_separator: Option<String>,
+    flag_row_sep: Option<String>,
     flag_cols: Option<String>,
     flag_rainbow: bool,
     flag_csv: bool,
@@ -280,7 +280,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     while rdr.read_record(&mut record)? {
         if record_index > 0 {
-            if let Some(separator) = &args.flag_row_separator {
+            if let Some(separator) = &args.flag_row_sep {
                 if !separator.is_empty() {
                     writeln!(&output, "{}", &separator)?;
                 }
@@ -289,7 +289,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
         }
 
-        if args.flag_row_separator.is_none() {
+        if args.flag_row_sep.is_none() {
             writeln!(&output, "{}", format!("Row n°{record_index}").bold())?;
             writeln!(&output, "{}", "─".repeat(cols).dimmed())?;
         }

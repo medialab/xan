@@ -28,7 +28,7 @@ flatten options:
     -F, --flatter          Even flatter representation alternating column name and content
                            on different lines in the output. Useful to display cells containing
                            large chunks of text.
-    --row-separator <sep>  Separate rows in the output with the given string, instead of
+    -W, --row-sep <sep>    Separate rows in the output with the given string, instead of
                            displaying a header with row index. If an empty string is
                            given, e.g. --row-separator '', will not separate rows at all.
     --csv                  Write the result as a CSV file with the row,field,value columns
