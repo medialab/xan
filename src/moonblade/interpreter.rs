@@ -1320,13 +1320,27 @@ mod tests {
             Ok(DynamicValue::from("Hello John"))
         );
         assert_eq!(
+            eval_code("fmt('Hello {} {}', 'John')"),
+            Ok(DynamicValue::from("Hello John {}"))
+        );
+        assert_eq!(
+            eval_code("fmt('Hello {} {}', ['John'])"),
+            Ok(DynamicValue::from("Hello John {}"))
+        );
+        assert_eq!(
             eval_code("fmt('Hello {} {}', 'John', 45)"),
+            Ok(DynamicValue::from("Hello John 45"))
+        );
+        assert_eq!(
+            eval_code("fmt('Hello {} {}', ['John', 45])"),
             Ok(DynamicValue::from("Hello John 45"))
         );
         assert_eq!(
             eval_code("fmt('Hello {name} {age}', {name: 'John', age: 45})"),
             Ok(DynamicValue::from("Hello John 45"))
         );
+        assert!(eval_code("fmt('Hello {name} {age}', ['John', 45], 32)").is_err());
+        assert!(eval_code("fmt('Hello {name} {age}', {name: 'John', age: 45}, 32)").is_err());
     }
 
     #[test]

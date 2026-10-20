@@ -1,4 +1,6 @@
 use bstr::ByteSlice;
+use std::borrow::Cow;
+
 use lazy_static::lazy_static;
 
 use super::FunctionResult;
@@ -77,14 +79,20 @@ lazy_static! {
 pub fn fmt(args: BoundArguments) -> FunctionResult {
     let pattern = args.get1().try_as_str()?;
 
-    let substitution_map = if args.len() == 2 {
-        args.get(1).unwrap().as_map()
+    let (substitution_map, substitution_list) = if args.len() > 1 {
+        let arg = args.get(1).unwrap();
+
+        (arg.as_map(), arg.as_list())
     } else {
-        None
+        (None, None)
     };
 
+    if (substitution_map.is_some() || substitution_list.is_some()) && args.len() > 2 {
+        return Err("expecting only a single substitution map or list")?;
+    }
+
     let mut formatted = String::with_capacity(pattern.len());
-    let mut current_positional: usize = 1;
+    let mut current_positional: usize = if substitution_list.is_some() { 0 } else { 1 };
     let mut last_match = 0;
 
     for capture in FMT_PATTERN.captures_iter(&pattern) {
@@ -95,12 +103,25 @@ pub fn fmt(args: BoundArguments) -> FunctionResult {
 
         match capture.get(1).unwrap().as_str() {
             "" => {
-                if current_positional < args.len() {
-                    formatted.push_str(&args.get(current_positional).unwrap().try_as_str()?);
-                    current_positional += 1;
+                if let Some(list) = substitution_list {
+                    formatted.push_str(
+                        &list
+                            .get(current_positional)
+                            .map(|arg| arg.try_as_str())
+                            .transpose()?
+                            .unwrap_or(Cow::Borrowed(fallback)),
+                    );
                 } else {
-                    formatted.push_str(fallback);
+                    formatted.push_str(
+                        &args
+                            .get(current_positional)
+                            .map(|arg| arg.try_as_str())
+                            .transpose()?
+                            .unwrap_or(Cow::Borrowed(fallback)),
+                    );
                 }
+
+                current_positional += 1;
             }
             key => {
                 if let Some(map) = &substitution_map {

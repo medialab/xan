@@ -250,9 +250,12 @@
       {
         "name": "fmt",
         "arguments": ["string", "*arguments"],
-        "alternatives": [["string", "map"]],
+        "alternatives": [
+          ["string", "list"],
+          ["string", "map"]
+        ],
         "returns": "string",
-        "help": "Format a string by replacing \"{}\" occurrences by subsequent arguments.\n\nExample: `fmt(\"Hello {} {}\", name, surname)` will replace the first \"{}\" by the value of the name column, then the second one by the value of the surname column.\n\nCan also be given a substitution map like so:\n`fmt(\"Hello {name}\", {name: \"John\"})`."
+        "help": "Format a string by replacing \"{}\" occurrences by subsequent arguments.\n\nExample: `fmt(\"Hello {} {}\", name, surname)` will replace the first \"{}\" by the value of the name column, then the second one by the value of the surname column.\n\nCan also be given a substitution list or map like so:\n`fmt(\"Hello {name}\", {name: \"John\"})`."
       },
       {
         "name": "lower",
