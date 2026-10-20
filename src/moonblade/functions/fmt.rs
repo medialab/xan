@@ -75,26 +75,16 @@ lazy_static! {
 }
 
 pub fn fmt(args: BoundArguments) -> FunctionResult {
-    let mut args_iter = args.into_iter();
-    let first_arg = args_iter.next().unwrap();
-    let mut rest = args_iter.collect::<Vec<_>>();
-    let substitution_map = if rest.len() == 1 {
-        let v = rest.pop().unwrap();
+    let pattern = args.get1().try_as_str()?;
 
-        if let Some(map) = v.as_map() {
-            Some(map.clone())
-        } else {
-            rest.push(v);
-            None
-        }
+    let substitution_map = if args.len() == 2 {
+        args.get(1).unwrap().as_map()
     } else {
         None
     };
 
-    let pattern = first_arg.try_as_str()?;
-
     let mut formatted = String::with_capacity(pattern.len());
-    let mut current_positional: usize = 0;
+    let mut current_positional: usize = 1;
     let mut last_match = 0;
 
     for capture in FMT_PATTERN.captures_iter(&pattern) {
@@ -105,8 +95,8 @@ pub fn fmt(args: BoundArguments) -> FunctionResult {
 
         match capture.get(1).unwrap().as_str() {
             "" => {
-                if current_positional < rest.len() {
-                    formatted.push_str(&rest[current_positional].try_as_str()?);
+                if current_positional < args.len() {
+                    formatted.push_str(&args.get(current_positional).unwrap().try_as_str()?);
                     current_positional += 1;
                 } else {
                     formatted.push_str(fallback);

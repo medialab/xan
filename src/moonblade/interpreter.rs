@@ -1323,6 +1323,10 @@ mod tests {
             eval_code("fmt('Hello {} {}', 'John', 45)"),
             Ok(DynamicValue::from("Hello John 45"))
         );
+        assert_eq!(
+            eval_code("fmt('Hello {name} {age}', {name: 'John', age: 45})"),
+            Ok(DynamicValue::from("Hello John 45"))
+        );
     }
 
     #[test]

@@ -43,6 +43,7 @@
 * Faster JSON parsing.
 * Only collecting/allocating command line arguments once.
 * Improving performance of `xan view`.
+* Improving performance of the `fmt` moonblade function.
 
 ## 0.61.0
 
