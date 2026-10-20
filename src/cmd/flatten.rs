@@ -63,6 +63,7 @@ flatten options:
     -i, --ignore-case      If given, pattern given to -H/--highlight will be case-insensitive.
     -N, --non-empty        For each row, only show non-empty values. This can be useful
                            when the data is sparse.
+    --hide-headers         Don't print header names before cell values.
 
 Common options:
     -h, --help             Display this message
@@ -94,6 +95,7 @@ struct Args {
     flag_ignore_case: bool,
     flag_no_headers: bool,
     flag_non_empty: bool,
+    flag_hide_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_output: Option<String>,
 }
@@ -304,7 +306,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             {
                 let mut first: bool = true;
 
-                write!(&output, "{header}")?;
+                if !args.flag_hide_headers {
+                    write!(&output, "{header}")?;
+                }
 
                 for sub_cell in cell.split(&args.flag_sep) {
                     let sub_cell = prepare_cell(i, sub_cell, 2);
@@ -331,10 +335,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let cell = prepare_cell(i, cell, 0);
 
             if args.flag_flatter {
-                writeln!(&output, "{header}")?;
+                if !args.flag_hide_headers {
+                    writeln!(&output, "{header}")?;
+                }
                 writeln!(&output, "{cell}\n")?;
             } else {
-                writeln!(&output, "{header}{cell}")?;
+                if !args.flag_hide_headers {
+                    write!(&output, "{header}")?;
+                }
+                writeln!(&output, "{cell}")?;
             }
         }
 

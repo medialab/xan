@@ -24,6 +24,7 @@
 * Adding an optional default value to the `try` moonblade function.
 * Adding `xan select -M/--add-missing`.
 * Adding `xan view --no-pager, --ignore-env, -k/--thousands-sep`.
+* Adding `xan flatten --hide-headers`.
 
 *Fixes*
 

@@ -53,6 +53,7 @@ flatten options:
     -i, --ignore-case      If given, pattern given to -H/--highlight will be case-insensitive.
     -N, --non-empty        For each row, only show non-empty values. This can be useful
                            when the data is sparse.
+    --hide-headers         Don't print header names before cell values.
 
 Common options:
     -h, --help             Display this message
