@@ -472,34 +472,12 @@ impl<'a> BoundArguments<'a> {
     }
 }
 
-pub struct BoundArgumentsIntoIterator<'a>(
-    arrayvec::IntoIter<BoundArgument<'a>, BOUND_ARGUMENTS_CAPACITY>,
-);
-
-// impl BoundArgumentsIntoIterator {
-//     pub fn next_not_none(&mut self) -> Option<DynamicValue> {
-//         self.next().and_then(|value| match value {
-//             DynamicValue::None => None,
-//             _ => Some(value),
-//         })
-//     }
-// }
-
-impl<'a> Iterator for BoundArgumentsIntoIterator<'a> {
-    type Item = BoundArgument<'a>;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next()
-    }
-}
-
 impl<'a> IntoIterator for BoundArguments<'a> {
     type Item = BoundArgument<'a>;
-    type IntoIter = BoundArgumentsIntoIterator<'a>;
+    type IntoIter = arrayvec::IntoIter<Self::Item, BOUND_ARGUMENTS_CAPACITY>;
 
     fn into_iter(self) -> Self::IntoIter {
-        BoundArgumentsIntoIterator(self.stack.into_iter())
+        self.stack.into_iter()
     }
 }
 
