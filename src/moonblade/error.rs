@@ -53,7 +53,10 @@ impl Display for ConcretizationError {
             Self::InvalidRegex(pattern) => write!(f, "invalid regex {pattern}"),
             Self::InvalidArity(name, arity) => write!(f, "{name}: {arity}"),
             Self::TooManyArguments(actual) => {
-                write!(f, "got {actual} arguments. Cannot exceed 8.")
+                write!(
+                    f,
+                    "some function was passed {actual} arguments. The expression language cannot usually accept more than 8 arguments per function call"
+                )
             }
             Self::InvalidCSSSelector(css) => write!(f, "invalid css selector: {css}"),
             Self::StaticEvaluationError(error) => error.fmt(f),
