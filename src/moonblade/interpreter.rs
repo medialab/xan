@@ -496,7 +496,7 @@ fn concretize_arguments(
 }
 
 fn concretize_call(
-    call: FunctionCall,
+    mut call: FunctionCall,
     headers_index: &HeadersIndex,
     globals: Option<&GlobalNames>,
 ) -> Result<ConcreteExpr, ConcretizationError> {
@@ -504,7 +504,17 @@ fn concretize_call(
     let actual_arity = call.args.len();
 
     if actual_arity > BOUND_ARGUMENTS_CAPACITY {
-        return Err(ConcretizationError::TooManyArguments(actual_arity));
+        if call.name == "fmt" && call.args[1..].iter().all(|(name, _)| name.is_none()) {
+            let rest = call
+                .args
+                .split_off(1)
+                .into_iter()
+                .map(|(_, arg)| arg)
+                .collect();
+            call.args.push((None, Expr::List(rest)));
+        } else {
+            return Err(ConcretizationError::TooManyArguments(actual_arity));
+        }
     }
 
     // Dealing with special functions
@@ -1338,6 +1348,10 @@ mod tests {
         assert_eq!(
             eval_code("fmt('Hello {name} {age}', {name: 'John', age: 45})"),
             Ok(DynamicValue::from("Hello John 45"))
+        );
+        assert_eq!(
+            eval_code("fmt('{}{}{}{}{}{}{}{}', 1, 2, 3, 4, 5, 6, 7, 8)"),
+            Ok(DynamicValue::from("12345678"))
         );
         assert!(eval_code("fmt('Hello {name} {age}', ['John', 45], 32)").is_err());
         assert!(eval_code("fmt('Hello {name} {age}', {name: 'John', age: 45}, 32)").is_err());

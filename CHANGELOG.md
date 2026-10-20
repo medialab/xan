@@ -25,7 +25,7 @@
 * Adding `xan select -M/--add-missing`.
 * Adding `xan view --no-pager, --ignore-env, -k/--thousands-sep`.
 * Adding `xan flatten --hide-headers`.
-* The `fmt` function now accepts a list as substitutions.
+* The `fmt` function now accepts a list as substitutions, is more robust to errors and is able to accept more than 8 arguments.
 
 *Fixes*
 

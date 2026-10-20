@@ -88,7 +88,7 @@ pub fn fmt(args: BoundArguments) -> FunctionResult {
     };
 
     if (substitution_map.is_some() || substitution_list.is_some()) && args.len() > 2 {
-        return Err("expecting only a single substitution map or list")?;
+        Err("expecting only a single substitution map or list")?;
     }
 
     let mut formatted = String::with_capacity(pattern.len());
