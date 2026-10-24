@@ -2,6 +2,7 @@ use crate::CliResult;
 use crate::cmd::view::DisplayedColumn;
 use crate::tui::{ViewStyle, view_debug::ViewInfo};
 
+use std::time::Duration;
 use simd_csv::StringRecord;
 use ratatui::{
     Frame,
@@ -186,10 +187,22 @@ impl App {
     pub fn run(mut self, terminal: &mut DefaultTerminal) -> CliResult<()> {
         while !self.quit {
             terminal.draw(|f| self.draw(f))?;
+
+            // treating all recorded events, and *then* drawing
+            let mut has_event = event::poll(Duration::from_millis(250))?;
+
+            while has_event {
                 if let Event::Key(key) = event::read()? {
-                if key.kind == KeyEventKind::Press {
+                    #[cfg(not(windows))]
+                    if key.kind == KeyEventKind::Press {
                         self.handle_key(key.code);
+                    }
+                    #[cfg(windows)]
+                    if key.kind == KeyEventKind::Press || key.kind == KeyEventKind::Repeat {
+                        self.handle_key(key.code);
+                    }
                 }
+                has_event = event::poll(Duration::ZERO)?;
             }
         }
         Ok(())
