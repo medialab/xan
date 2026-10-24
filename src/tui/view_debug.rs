@@ -22,7 +22,7 @@ fn popup_area(area: Rect, width: u16, height: u16) -> Rect {
         .flex(Flex::Center)
         .areas(area);
     let [area] = Layout::horizontal([Constraint::Length(width.min(area.width))])
-        .flex(Flex::Start)
+        .flex(Flex::Center)
         .areas(area);
     area
 }
@@ -48,9 +48,8 @@ impl ViewInfo {
         } else {
             format!("{}-{} / {}", y + 1, (y + vh).min(app.n_rows()), app.n_rows())
         };
-        let first = app.get_left_col(x);
-        //let last = ((x + vw).saturating_sub(1) / step).min(scrollable.len().saturating_sub(1));
-        let last = first + 3;
+        let first = app.next_col_idx(x) - 1;
+        let last = app.last_col_view(x, vw);
         let visible_cols: Vec<String> = scrollable
             .get(first..=last)
             .unwrap_or_default()
@@ -78,7 +77,7 @@ impl ViewInfo {
                  .chain(self.get_all_infos(app))
                  .collect::<Vec<_>>();
 
-        let area = popup_area(frame.area(), 162, lines.len() as u16 + 2);
+        let area = popup_area(frame.area(), 80, lines.len() as u16 + 2);
         let block = Block::bordered()
             .title(" Infos · i pour fermer ")
             .border_style(Style::new().fg(Color::Yellow));

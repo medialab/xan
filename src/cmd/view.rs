@@ -16,8 +16,6 @@ use crate::utils::{self, ColorMode, DataType};
 
 use crate::tui::{App, CLASSIC_VIEWSTYLE, sanitize_emoji};
 
-use ratatui::crossterm::terminal;
-
 #[derive(Debug, Clone, Copy, Default, Deserialize)]
 pub enum ComplexToggle {
     #[default]
@@ -1093,9 +1091,8 @@ pub struct DisplayedColumn {
 
 impl DisplayedColumn {
     // used in tui/app.rs
-    pub fn get_allowed_width(&self) -> usize {
+    pub fn allowed_width(&self) -> usize {
         self.allowed_width
-        // Ratatui implements Into<Constraint> for u16 (and not for usize)
     }
 }
 
@@ -1124,25 +1121,6 @@ impl DisplayedColumns {
 
     fn split_point(&self) -> Option<usize> {
         self.left.last().map(|col| col.index)
-    }
-
-    fn from_widths(cols: usize, widths: Vec<usize>) -> Self {
-        let left = widths
-            .iter()
-            .copied()
-            .enumerate()
-            .map(|(i, w)| DisplayedColumn {
-                index: i,
-                allowed_width: w,
-                max_width: w,
-            })
-            .collect::<Vec<_>>();
-
-        DisplayedColumns {
-            max_allowed_cols: cols,
-            left,
-            right: Vec::new(),
-        }
     }
 
     fn len(&self) -> usize {

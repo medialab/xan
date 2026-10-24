@@ -49,7 +49,7 @@ pub struct App {
 impl App {
     pub fn new(headers: StringRecord, rows: Vec<StringRecord>, cols: Vec<DisplayedColumn>, style: ViewStyle) -> Self {
         let mut sum = 0_usize;
-        let cum_sum = cols.iter().map(|col| {let tmp = sum; sum += col.get_allowed_width() + style.col_spacing; tmp}).collect();
+        let cum_sum = cols.iter().map(|col| {let tmp = sum; sum += col.allowed_width() + style.col_spacing; tmp}).collect();
         let infos = vec![
             ("Lignes", "".to_string()),
             ("Colonnes", "".to_string()),
@@ -63,6 +63,7 @@ impl App {
         &self.infos
     }
 
+    #[cfg(debug_assertions)]
     fn log(&mut self, label: &'static str, info: String) {
         self.infos.push((label, info));
     }
@@ -75,32 +76,29 @@ impl App {
         self.rows.len() as u16
     }
 
-    fn get_col_step(&self, col: usize) -> usize {
-        if let Some(selected_col) = self.cols.iter().nth(col) {
-            selected_col.get_allowed_width() + self.style.col_spacing
+    fn col_step(&self, col: usize) -> usize {
+        if let Some(selected_col) = self.cols.get(col) {
+            selected_col.allowed_width() + self.style.col_spacing
         } else { 0 }
     }
 
-    fn get_widths(&self) -> impl Iterator <Item=u16> {
-        self.cols.iter().map(|col| col.get_allowed_width() as u16)
+    fn col_widths(&self) -> impl Iterator <Item=u16> {
+        self.cols.iter().map(|col| col.allowed_width() as u16)
     }
 
-    // width of 'col' is included
-    fn get_widths_until_col(&self, col: usize) -> usize {
-        self.cum_sum[col]
+    pub fn next_col_idx(&self, off_x: u16) -> usize {
+        self.cum_sum.partition_point(|&x| x as u16 <= off_x)
     }
 
-    pub fn get_left_col(&self, off_x: u16) -> usize {
-        (0..self.cols.len())
-            .find(|&i| off_x < self.get_widths_until_col(i + 1) as u16)
-            .unwrap_or(self.cols.len() - 1)
+    pub fn last_col_view(&self, off_x: u16, view_width: u16) -> usize {
+        self.cum_sum.partition_point(|&s| s as u16 <= off_x+view_width) - 1
     }
 
     fn table_from(&self, scrollable_cols: &[usize]) -> Table<'_> {
         let rows = self.rows.iter().map(|record| row_of(record, scrollable_cols));
         Table::new(
             rows,
-            self.get_widths()
+            self.col_widths()
         )
         .column_spacing(self.style.col_spacing as u16)
         .style(self.style.body)
@@ -110,7 +108,7 @@ impl App {
         let head = row_of(&self.headers, scrollable_cols);
         Table::new(
             [head],
-            self.get_widths()
+            self.col_widths()
         )
         .column_spacing(self.style.col_spacing as u16)
         .style(self.style.header)
@@ -128,25 +126,19 @@ impl App {
 
 
     pub fn scroll_col(&mut self, right: bool) {
-        // self.log("Displayed:", list_to_string(self.cols.iter()));
-        // self.log("Displayed:", list_to_string(self.cum_sum.iter()));
         let off_x = self.scroll.offset().x;
+        let next_col_idx = self.next_col_idx(off_x);
 
-        let next_col_idx = self.cum_sum
-            .partition_point(|&x| x as u16 <= off_x);
-
-
-        let mut target_x: u16 = if right {
-            self.cum_sum[next_col_idx] as u16
-        } else {
-        let current_start = self.cum_sum[next_col_idx - 1] as u16;
-            if off_x > current_start {
-                current_start
-            } else if next_col_idx > 2 {
-                if let Some(val) = self.cum_sum.get(next_col_idx - 2) {
-                    *val as u16
-                } else {0}
+        let target_x: u16 = if right {
+            if let Some(next_col) = self.cum_sum.get(next_col_idx) {
+                *next_col as u16
             } else { 0 }
+        } else {
+            let current_start = self.cum_sum[next_col_idx - 1] as u16;
+
+            if off_x > current_start { current_start }
+            else if next_col_idx > 2 { self.cum_sum[next_col_idx - 2] as u16 }
+            else { 0 }
         };
 
         let mut off = self.scroll.offset();
@@ -166,7 +158,6 @@ impl App {
         };
     }
 
-    /// Fige la colonne située au bord gauche de la zone scrollable (ou défige).
     fn toggle_freeze(&mut self) {
         if self.frozen.take().is_some() || self.n_cols() < 2 {
             return;
@@ -174,16 +165,15 @@ impl App {
 
         self.frozen = Some(self.selected_col);
 
-
         // On cale l'offset sur une frontière de colonne.
         let mut off = self.scroll.offset();
-        off.x = self.get_widths_until_col(self.selected_col) as u16;
+        off.x = self.cum_sum[self.selected_col] as u16;
         self.scroll.set_offset(off);
     }
 
     fn get_frozen_space(&self) -> u16 {
         if let Some(frozen_col) = self.frozen {
-            self.get_col_step(frozen_col).saturating_add(1) as u16
+            self.col_step(frozen_col).saturating_add(1) as u16
         } else { 0 }
     }
 
@@ -195,11 +185,10 @@ impl App {
 
     pub fn run(mut self, terminal: &mut DefaultTerminal) -> CliResult<()> {
         while !self.quit {
-            //terminal.clear();
             terminal.draw(|f| self.draw(f))?;
-            if let Event::Key(key) = event::read()? {
+                if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
-                    self.handle_key(key.code);
+                        self.handle_key(key.code);
                 }
             }
         }
@@ -249,7 +238,10 @@ impl App {
         let [header_area, body_area] =
             Layout::vertical([Constraint::Length(1), Constraint::Min(0)]).areas(right);
 
-        let body_size = Size::new(self.get_widths().sum(), self.rows.len() as u16);
+        let body_size = Size::new(
+            self.col_widths().sum::<u16>() + (self.style.col_spacing * (self.cols.len() - 1)) as u16,
+            self.rows.len() as u16
+        );
         let mut body = ScrollView::new(body_size)
                                             .scrollbars_visibility(ScrollbarVisibility::Always);
 
@@ -279,7 +271,7 @@ impl App {
             frame.render_widget(self.headers_from(&[fc]), corner);
 
             let column_area = Rect { height: column_area.height.saturating_sub(1), ..column_area }; // -1 : scrollbar
-            let mut column = ScrollView::new(Size::new(self.get_col_step(fc) as u16, self.n_rows()))
+            let mut column = ScrollView::new(Size::new(self.col_step(fc) as u16, self.n_rows()))
                 .scrollbars_visibility(ScrollbarVisibility::Never);
             column.render_widget(self.table_from(&[fc]), column.area());
             let mut column_state = ScrollViewState::with_offset(Position::new(0, off.y));
@@ -299,10 +291,7 @@ impl App {
             let infos: [String; 4] = [
                 self.rows.len().to_string(),
                 self.n_cols().to_string(),
-                self.get_widths()
-                    .map(|w| w.to_string())
-                    .collect::<Vec<_>>()
-                    .join(", "),
+                list_to_string(self.col_widths()),
                 frozen_name.to_string(),
             ];
 
