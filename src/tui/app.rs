@@ -121,9 +121,9 @@ impl App {
         match code {
             KeyCode::Char('q') | KeyCode::Esc => self.quit = true,
 
-            KeyCode::Down => self.scroll_table.scroll_down(),
-            KeyCode::Up => self.scroll_table.scroll_up(),
-            KeyCode::Tab => self.scroll_table.scroll_col_right(),
+            KeyCode::Down => self.scroll_table.select_next_row(),
+            KeyCode::Up => self.scroll_table.select_previous_row(),
+            // KeyCode::Tab => self.scroll_table.scroll_col_right(),
             KeyCode::BackTab => self.scroll_table.scroll_col_left(),
 
             KeyCode::Right => {
@@ -131,13 +131,13 @@ impl App {
                 self.log("info", text)},
             KeyCode::Left => self.scroll_table.select_previous_col(),
 
-            KeyCode::Char('l') => self.scroll_table.scroll_right(),
-            KeyCode::Char('h') => self.scroll_table.scroll_left(),
+            // KeyCode::Char('l') => self.scroll_table.scroll_right(),
+            // KeyCode::Char('h') => self.scroll_table.scroll_left(),
 
             KeyCode::PageDown => self.scroll_table.scroll_page_down(),
             KeyCode::PageUp => self.scroll_table.scroll_page_up(),
-            KeyCode::Home => self.scroll_table.scroll_to_top(),
-            KeyCode::End => self.scroll_table.scroll_to_bottom(),
+            // KeyCode::Home => self.scroll_table.scroll_to_top(),
+            // KeyCode::End => self.scroll_table.scroll_to_bottom(),
 
             KeyCode::Char('f') => self.toggle_freeze(),
             KeyCode::Char('i') => self.show_info = !self.show_info,

@@ -10,16 +10,6 @@ use ratatui::{
 };
 use tui_scrollview::{ScrollView, ScrollViewState, ScrollbarVisibility};
 
-macro_rules! derive_scroll_state_methods {
-    ($($method:ident),* $(,)?) => {
-        $(
-            pub fn $method(&mut self) {
-                self.scroll_state.$method();
-            }
-        )*
-    };
-}
-
 fn row_of<'a>(record: &'a StringRecord, cols: &[usize]) -> Row<'a> {
     Row::new(cols
         .iter()
@@ -88,7 +78,7 @@ impl ScrollTable {
         );
 
         Self {headers, rows, cols, cum_sum,
-            table_state: TableState::new(),
+            table_state: TableState::new().with_selected_column(0).with_selected(0),
             scroll_state: ScrollViewState::new(),
             body_size, viewport: Size::new(0,0),
             style}
@@ -102,8 +92,8 @@ impl ScrollTable {
         self.cols.len()
     }
 
-    pub fn n_rows(&self) -> u16 {
-        self.rows.len() as u16
+    pub fn n_rows(&self) -> usize {
+        self.rows.len()
     }
 
     pub fn no_rows(&self) -> bool {
@@ -153,35 +143,40 @@ impl ScrollTable {
     }
 
 
-    pub fn next_col_idx(&self, off_x: u16) -> usize {
+    fn next_col_idx(&self, off_x: u16) -> usize {
         self.cum_sum.partition_point(|&x| x as u16 <= off_x)
     }
 
-    pub fn last_col_view(&self, off_x: u16) -> usize {
+    fn next_row_idx(&self, off_y: u16) -> usize {
+        off_y as usize
+    }
+
+    fn last_col_view(&self, off_x: u16) -> usize {
         self.cum_sum.partition_point(|&s| s as u16 <= off_x+self.viewport.width) - 1
+    }
+
+    fn n_rows_view(&self) -> u16 {
+        (self.viewport.height.saturating_sub(1)) / 4 - 2
+    }
+
+    fn last_row_view(&self, off_y: u16) -> u16 {
+        off_y + self.n_rows_view()
     }
 
     // ---------------------------------------------------------------------------------
 
-
-    derive_scroll_state_methods!(scroll_down, scroll_up,
-                                scroll_right, scroll_left,
-                                scroll_page_down, scroll_page_up,
-                                scroll_to_top, scroll_to_bottom);
-
-
-
-    pub fn scroll_col_right(&mut self) {
+    pub fn scroll_col_right(&mut self) -> String {
         let off_x = self.scroll_state.offset().x;
-        let next_col_idx = self.next_col_idx(off_x);
+        let last_col_idx = self.last_col_view(off_x);
 
-        let target_x = if let Some(&next_col) = self.cum_sum.get(next_col_idx) {
+        let target_x = if let Some(&next_col) = self.cum_sum.get(last_col_idx) {
             next_col
         } else { self.cum_sum[self.n_cols() - 1] };
 
         let mut off = self.scroll_state.offset();
         off.x = target_x as u16;
         self.scroll_state.set_offset(off);
+        last_col_idx.to_string()
     }
 
     pub fn scroll_col_left(&mut self) {
@@ -199,31 +194,59 @@ impl ScrollTable {
         self.scroll_state.set_offset(off);
     }
 
-
-
     pub fn select_previous_col(&mut self) {
         let off_x = self.scroll_state.offset().x;
-        if let Some(selected_col) = self.table_state.selected_column() {
-            if self.next_col_idx(off_x) - 1 == selected_col {
-                self.scroll_col_left();
-            }
-
-            self.table_state.select_previous_column();
+        let selected_col = self.table_state.selected_column().unwrap();
+        if self.next_col_idx(off_x) > selected_col {
+            self.scroll_col_left();
         }
+
+        self.table_state.select_previous_column();
     }
 
     pub fn select_next_col(&mut self) -> String {
         let off_x = self.scroll_state.offset().x;
-        let text = if let Some(selected_col) = self.table_state.selected_column() {
-            if self.last_col_view(off_x) == selected_col {
-                self.scroll_col_right();
-            }
+        let selected_col = self.table_state.selected_column().unwrap();
+        let mut text = String::new();
+        if self.last_col_view(off_x) - 1 < selected_col {
+            text = self.scroll_col_right();
+        }
 
-            self.table_state.select_next_column();
-            format!("{}", selected_col)
-        } else { "-".to_string() };
-        text
+        self.table_state.select_next_column();
+        format!("{} - {} : {}", self.last_col_view(off_x), selected_col, text)
     }
+
+    pub fn select_next_row(&mut self) {
+        let selected = self.table_state.selected().unwrap();
+        if selected < self.n_rows() - 1 {
+            let off_y = self.scroll_state.offset().y;
+            if self.last_row_view(off_y) < selected as u16 {
+                self.scroll_state.scroll_down();
+            }
+            self.table_state.scroll_down_by(1);
+        }
+    }
+
+    pub fn select_previous_row(&mut self) {
+        // safe: usize cannot be negative
+        let selected = self.table_state.selected().unwrap();
+        let off_y = self.scroll_state.offset().y;
+        if self.next_row_idx(off_y) + 1 > selected {
+            self.scroll_state.scroll_up();
+        }
+        self.table_state.scroll_up_by(1);
+    }
+
+    pub fn scroll_page_down(&mut self) {
+        self.table_state.scroll_down_by(self.viewport.height);
+        self.scroll_state.scroll_page_down();
+    }
+
+    pub fn scroll_page_up(&mut self) {
+        self.table_state.scroll_up_by(self.viewport.height);
+        self.scroll_state.scroll_page_up();
+    }
+
 
     pub fn draw(&mut self, cols_idx: &Vec<usize>, frame: &mut Frame, area: Rect) {
 
@@ -236,8 +259,7 @@ impl ScrollTable {
         let body_table = table_from_parts(&self.rows, &self.cols, &self.style.table, cols_idx)
                                         .column_spacing(self.style.col_spacing as u16)
                                         .column_highlight_style(self.style.body_col_highlight)
-                                        .cell_highlight_style(self.style.body_cell_highlight)
-                                        .highlight_symbol(self.style.highlight_symbol);
+                                        .cell_highlight_style(self.style.body_cell_highlight);
 
         body.render_stateful_widget(body_table, body.area(), &mut self.table_state);
         frame.render_stateful_widget(body, body_area, &mut self.scroll_state);
@@ -263,18 +285,18 @@ impl ScrollTable {
         let left_inner = separator.inner(area);
         frame.render_widget(separator, area);
 
-        let [corner, column_area] =
+        let [corner, left_column_area] =
             Layout::vertical([Constraint::Length(1), Constraint::Min(0)]).areas(left_inner);
         frame.render_widget(headers_from_parts(&self.headers, &self.cols, &style.header, &[cols_idx]), corner);
 
-        let column_area = Rect { height: column_area.height.saturating_sub(1), ..column_area }; // -1 : scrollbar
-        let mut column = ScrollView::new(Size::new(self.col_step(cols_idx) as u16, self.n_rows()))
+        let left_column_area = Rect { height: left_column_area.height.saturating_sub(1), ..left_column_area }; // -1 : scrollbar
+        let mut left_column = ScrollView::new(Size::new(self.col_step(cols_idx) as u16, self.n_rows() as u16))
             .scrollbars_visibility(ScrollbarVisibility::Never);
         let table = table_from_parts(&self.rows, &self.cols, style, &[cols_idx]);
 
-        column.render_widget(table, column.area());
+        left_column.render_widget(table, left_column.area());
         let off = self.scroll_state.offset(); // after ScrollView's clamp
-        let mut column_state = ScrollViewState::with_offset(Position::new(0, off.y));
-        frame.render_stateful_widget(column, column_area, &mut column_state);
+        let mut left_column_state = ScrollViewState::with_offset(Position::new(0, off.y));
+        frame.render_stateful_widget(left_column, left_column_area, &mut left_column_state);
     }
 }
