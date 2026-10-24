@@ -124,7 +124,7 @@ impl App {
             KeyCode::Down => self.scroll_table.select_next_row(),
             KeyCode::Up => self.scroll_table.select_previous_row(),
             KeyCode::Tab => self.scroll_table.scroll_col_right(),
-            KeyCode::BackTab => self.scroll_table.select_previous_col(),
+            KeyCode::BackTab => self.scroll_table.scroll_col_left(),
 
             KeyCode::Right => self.scroll_table.select_next_col(),
             KeyCode::Left => self.scroll_table.select_previous_col(),

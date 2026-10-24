@@ -165,60 +165,79 @@ impl ScrollTable {
 
     // ---------------------------------------------------------------------------------
 
-    fn scroll_col_right_by(&mut self, col_idx: usize, mut off: Position) {
-        let target_x = if let Some(&next_col) = self.cum_sum.get(col_idx) {
+    pub fn scroll_col_right(&mut self) {
+        let mut off = self.scroll_state.offset();
+        let next_col_idx = self.next_col_idx(off.x);
+
+        let target_x = if let Some(&next_col) = self.cum_sum.get(next_col_idx) {
             next_col
         } else { self.cum_sum[self.n_cols() - 1] };
 
         off.x = target_x as u16;
         self.scroll_state.set_offset(off);
+        if self.table_state.selected_column().unwrap() < next_col_idx {
+            self.table_state.select_next_column();
+        }
     }
-
-    pub fn scroll_col_right(&mut self) {
-        let off = self.scroll_state.offset();
-        let next_col_idx = self.next_col_idx(off.x);
-
-        self.scroll_col_right_by(next_col_idx, off);
-        self.table_state.select_next_column();
-    }
-
-    pub fn select_previous_col(&mut self) {
-        let off_x = self.scroll_state.offset().x;
-        let next_col_idx = self.next_col_idx(off_x);
-
-        let current_start = self.cum_sum[next_col_idx - 1] as u16;
-        let target_x: u16 =
-            if off_x > current_start { current_start }
-            else if next_col_idx > 2 { self.cum_sum[next_col_idx - 2] as u16 }
-            else { 0 };
-
-        let mut off = self.scroll_state.offset();
-        off.x = target_x;
-        self.scroll_state.set_offset(off);
-        self.table_state.select_previous_column();
-    }
-
-    // pub fn select_previous_col(&mut self) {
-    //     let off_x = self.scroll_state.offset().x;
-    //     let selected_col = self.table_state.selected_column().unwrap();
-    //     if self.next_col_idx(off_x) > selected_col {
-    //         self.scroll_col_left();
-    //     }
-
-    //     self.table_state.select_previous_column();
-    // }
 
     pub fn select_next_col(&mut self) {
-        let off_x = self.scroll_state.offset().x;
+        let mut off = self.scroll_state.offset();
         let selected_col = self.table_state.selected_column().unwrap();
-        if self.last_col_view(off_x) - 1 < selected_col {
-            let off = self.scroll_state.offset();
-            let last_col_idx = self.last_col_view(off.x);
+        let last_col_idx = self.last_col_view(off.x);
+        if last_col_idx <= selected_col {
+            let last_col_step = self.col_step(last_col_idx);
+            let mut i = self.next_col_idx(off.x) - 1;
+            let mut target_x = off.x as usize + self.col_step(i);
+            while target_x < last_col_step {
+                i += 1;
+                target_x += self.col_step(i);
+            }
 
-            self.scroll_col_right_by(last_col_idx, off);
+            off.x = target_x as u16;
+            self.scroll_state.set_offset(off);
         }
 
         self.table_state.select_next_column();
+    }
+
+    pub fn scroll_col_left(&mut self) {
+        let mut off = self.scroll_state.offset();
+        let next_col_idx = self.next_col_idx(off.x);
+
+        let current_start = self.cum_sum[next_col_idx - 1] as u16 ;
+        let target_x: u16 =
+            if off.x > current_start { current_start }
+            else if next_col_idx > 2 { self.cum_sum[next_col_idx - 2] as u16 }
+            else { 0 };
+
+        off.x = target_x;
+        self.scroll_state.set_offset(off);
+        let selected_col = (self.table_state.selected_column().unwrap()).min(self.last_col_view(off.x));
+        self.table_state.select_column(Some(selected_col));
+    }
+
+    pub fn select_previous_col(&mut self) {
+        let mut off = self.scroll_state.offset();
+        let selected_col = self.table_state.selected_column().unwrap();
+
+        let next_col_idx = self.next_col_idx(off.x);
+        if next_col_idx > selected_col {
+            off.x = self.cum_sum[next_col_idx.saturating_sub(2)] as u16 ;
+            self.scroll_state.set_offset(off);
+        }
+
+        let selected_col = selected_col.max(next_col_idx - 1);
+        self.table_state.select_column(Some(selected_col.saturating_sub(1)));
+    }
+
+    pub fn select_previous_row(&mut self) {
+        // safe: usize cannot be negative
+        let selected = self.table_state.selected().unwrap();
+        let off_y = self.scroll_state.offset().y;
+        if self.next_row_idx(off_y) + 1 > selected {
+            self.scroll_state.scroll_up();
+        }
+        self.table_state.scroll_up_by(1);
     }
 
     pub fn select_next_row(&mut self) {
@@ -230,16 +249,6 @@ impl ScrollTable {
             }
             self.table_state.scroll_down_by(1);
         }
-    }
-
-    pub fn select_previous_row(&mut self) {
-        // safe: usize cannot be negative
-        let selected = self.table_state.selected().unwrap();
-        let off_y = self.scroll_state.offset().y;
-        if self.next_row_idx(off_y) + 1 > selected {
-            self.scroll_state.scroll_up();
-        }
-        self.table_state.scroll_up_by(1);
     }
 
     pub fn scroll_page_down(&mut self) {
