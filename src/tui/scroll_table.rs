@@ -165,21 +165,24 @@ impl ScrollTable {
 
     // ---------------------------------------------------------------------------------
 
-    pub fn scroll_col_right(&mut self) -> String {
-        let off_x = self.scroll_state.offset().x;
-        let last_col_idx = self.last_col_view(off_x);
-
-        let target_x = if let Some(&next_col) = self.cum_sum.get(last_col_idx) {
+    fn scroll_col_right_by(&mut self, col_idx: usize, mut off: Position) {
+        let target_x = if let Some(&next_col) = self.cum_sum.get(col_idx) {
             next_col
         } else { self.cum_sum[self.n_cols() - 1] };
 
-        let mut off = self.scroll_state.offset();
         off.x = target_x as u16;
         self.scroll_state.set_offset(off);
-        last_col_idx.to_string()
     }
 
-    pub fn scroll_col_left(&mut self) {
+    pub fn scroll_col_right(&mut self) {
+        let off = self.scroll_state.offset();
+        let next_col_idx = self.next_col_idx(off.x);
+
+        self.scroll_col_right_by(next_col_idx, off);
+        self.table_state.select_next_column();
+    }
+
+    pub fn select_previous_col(&mut self) {
         let off_x = self.scroll_state.offset().x;
         let next_col_idx = self.next_col_idx(off_x);
 
@@ -192,28 +195,30 @@ impl ScrollTable {
         let mut off = self.scroll_state.offset();
         off.x = target_x;
         self.scroll_state.set_offset(off);
-    }
-
-    pub fn select_previous_col(&mut self) {
-        let off_x = self.scroll_state.offset().x;
-        let selected_col = self.table_state.selected_column().unwrap();
-        if self.next_col_idx(off_x) > selected_col {
-            self.scroll_col_left();
-        }
-
         self.table_state.select_previous_column();
     }
 
-    pub fn select_next_col(&mut self) -> String {
+    // pub fn select_previous_col(&mut self) {
+    //     let off_x = self.scroll_state.offset().x;
+    //     let selected_col = self.table_state.selected_column().unwrap();
+    //     if self.next_col_idx(off_x) > selected_col {
+    //         self.scroll_col_left();
+    //     }
+
+    //     self.table_state.select_previous_column();
+    // }
+
+    pub fn select_next_col(&mut self) {
         let off_x = self.scroll_state.offset().x;
         let selected_col = self.table_state.selected_column().unwrap();
-        let mut text = String::new();
         if self.last_col_view(off_x) - 1 < selected_col {
-            text = self.scroll_col_right();
+            let off = self.scroll_state.offset();
+            let last_col_idx = self.last_col_view(off.x);
+
+            self.scroll_col_right_by(last_col_idx, off);
         }
 
         self.table_state.select_next_column();
-        format!("{} - {} : {}", self.last_col_view(off_x), selected_col, text)
     }
 
     pub fn select_next_row(&mut self) {
