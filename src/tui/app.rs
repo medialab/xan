@@ -1,31 +1,20 @@
 use crate::CliResult;
 use crate::cmd::view::DisplayedColumn;
-use crate::tui::{ViewStyle, view_debug::ViewInfo};
+use crate::tui::{ViewStyle, ScrollTableStyle, BasicTableStyle, view_debug::ViewInfo, scroll_table::ScrollTable};
 
 use std::time::Duration;
 use simd_csv::StringRecord;
 use ratatui::{
     Frame,
-    layout::{Constraint, Layout, Position, Size, Rect},
-    style::Style,
-    widgets::{Block, Paragraph, Borders, Row, Table},
+    layout::{Constraint, Layout},
+    widgets::{Block, Paragraph},
     text::Text,
     crossterm::event::{self, Event, KeyEventKind, KeyCode},
     DefaultTerminal,
 };
-use tui_scrollview::{ScrollView, ScrollViewState, ScrollbarVisibility};
-
-fn row_of<'a>(record: &'a StringRecord, cols: &[usize]) -> Row<'a> {
-    Row::new(cols
-        .iter()
-        .map(|&c| record.get(c)
-        .unwrap_or("")))
-}
 
 fn list_to_string<I>(list: I) -> String
-where
-    I: Iterator,
-    I::Item: ToString,
+where I: Iterator, I::Item: ToString,
 {
     list.map(|w| w.to_string())
         .collect::<Vec<_>>()
@@ -34,30 +23,25 @@ where
 
 #[derive(Debug)]
 pub struct App {
-    headers: StringRecord,
-    rows: Vec<StringRecord>,
-    cols: Vec<DisplayedColumn>,
-    cum_sum: Vec<usize>,
-    style: ViewStyle,
-    selected_col: usize,
+    scroll_table: ScrollTable,
     frozen: Option<usize>,
+    frozen_style: BasicTableStyle,
     show_info: bool,
     quit: bool,
-    scroll: ScrollViewState,
+
     infos: Vec<(&'static str, String)>,
 }
 
 impl App {
     pub fn new(headers: StringRecord, rows: Vec<StringRecord>, cols: Vec<DisplayedColumn>, style: ViewStyle) -> Self {
-        let mut sum = 0_usize;
-        let cum_sum = cols.iter().map(|col| {let tmp = sum; sum += col.allowed_width() + style.col_spacing; tmp}).collect();
+        let scroll_table = ScrollTable::new(headers, rows, cols, style.scroll_table);
         let infos = vec![
             ("Lignes", "".to_string()),
             ("Colonnes", "".to_string()),
             ("Largeur colonne", "".to_string()),
             ("Colonne figée", "".to_string()),
         ];
-        Self { headers, rows, cols, cum_sum, style, selected_col: 0, frozen: None, show_info: false, quit: false, scroll: ScrollViewState::new(), infos}
+        Self { scroll_table, frozen: None, frozen_style: style.frozen, show_info: false, quit: false, infos}
     }
 
     pub fn get_infos(&self) -> &Vec<(&'static str, String)> {
@@ -69,112 +53,37 @@ impl App {
         self.infos.push((label, info));
     }
 
-    fn n_cols(&self) -> usize {
-        self.cols.len()
-    }
-
-    pub fn n_rows(&self) -> u16 {
-        self.rows.len() as u16
-    }
-
-    fn col_step(&self, col: usize) -> usize {
-        if let Some(selected_col) = self.cols.get(col) {
-            selected_col.allowed_width() + self.style.col_spacing
-        } else { 0 }
-    }
-
-    fn col_widths(&self) -> impl Iterator <Item=u16> {
-        self.cols.iter().map(|col| col.allowed_width() as u16)
-    }
-
-    pub fn next_col_idx(&self, off_x: u16) -> usize {
-        self.cum_sum.partition_point(|&x| x as u16 <= off_x)
-    }
-
-    pub fn last_col_view(&self, off_x: u16, view_width: u16) -> usize {
-        self.cum_sum.partition_point(|&s| s as u16 <= off_x+view_width) - 1
-    }
-
-    fn table_from(&self, scrollable_cols: &[usize]) -> Table<'_> {
-        let rows = self.rows.iter().map(|record| row_of(record, scrollable_cols));
-        Table::new(
-            rows,
-            self.col_widths()
-        )
-        .column_spacing(self.style.col_spacing as u16)
-        .style(self.style.body)
-    }
-
-    fn headers_from(&self, scrollable_cols: &[usize]) -> Table<'_> {
-        let head = row_of(&self.headers, scrollable_cols);
-        Table::new(
-            [head],
-            self.col_widths()
-        )
-        .column_spacing(self.style.col_spacing as u16)
-        .style(self.style.header)
-    }
 
     fn footer(&self, frozen_name: &str) -> Text<'static> {
         Text::raw(format!(
             " {} lines | {} columns | Home/End : top/end | Arrows : scroll | q : quit | Frozen : {frozen_name}",
-            self.rows.len(),self.n_cols()))
+            self.scroll_table.n_rows(), self.scroll_table.n_cols()))
     }
 
     pub fn scrollable_columns(&self) -> Vec<usize> {
-        (0..self.n_cols()).filter(|&i| Some(i) != self.frozen).collect()
-    }
-
-
-    pub fn scroll_col(&mut self, right: bool) {
-        let off_x = self.scroll.offset().x;
-        let next_col_idx = self.next_col_idx(off_x);
-
-        let target_x: u16 = if right {
-            if let Some(next_col) = self.cum_sum.get(next_col_idx) {
-                *next_col as u16
-            } else { 0 }
-        } else {
-            let current_start = self.cum_sum[next_col_idx - 1] as u16;
-
-            if off_x > current_start { current_start }
-            else if next_col_idx > 2 { self.cum_sum[next_col_idx - 2] as u16 }
-            else { 0 }
-        };
-
-        let mut off = self.scroll.offset();
-        off.x = target_x;
-        self.scroll.set_offset(off);
-    }
-
-    fn select_col_beside(&mut self, right: bool) {
-        self.selected_col = if right {
-            if self.selected_col < self.n_cols() {
-                self.selected_col + 1
-            } else { self.selected_col }
-        } else {
-            if self.selected_col > 0 {
-                self.selected_col - 1
-            } else { self.selected_col }
-        };
+        (0..self.scroll_table.n_cols()).filter(|&i| Some(i) != self.frozen).collect()
     }
 
     fn toggle_freeze(&mut self) {
-        if self.frozen.take().is_some() || self.n_cols() < 2 {
+        if self.frozen.take().is_some() || self.scroll_table.n_cols() < 2 {
             return;
         }
 
-        self.frozen = Some(self.selected_col);
 
-        // On cale l'offset sur une frontière de colonne.
-        let mut off = self.scroll.offset();
-        off.x = self.cum_sum[self.selected_col] as u16;
-        self.scroll.set_offset(off);
+        let mut off = self.scroll_table.offset();
+
+        self.frozen = self.scroll_table
+            .selected_col()
+            .and_then(|selected_col| {
+                off.x = self.scroll_table.width_until(selected_col) as u16;
+                self.scroll_table.set_offset(off);
+                Some(selected_col)
+            });
     }
 
     fn get_frozen_space(&self) -> u16 {
         if let Some(frozen_col) = self.frozen {
-            self.col_step(frozen_col).saturating_add(1) as u16
+            self.scroll_table.col_step(frozen_col).saturating_add(1) as u16
         } else { 0 }
     }
 
@@ -199,7 +108,7 @@ impl App {
                     }
                     #[cfg(windows)]
                     if key.kind == KeyEventKind::Press || key.kind == KeyEventKind::Repeat {
-                        self.handle_key(key.code);
+                        self.handle_key(key.code, viewport_width);
                     }
                 }
                 has_event = event::poll(Duration::ZERO)?;
@@ -212,22 +121,23 @@ impl App {
         match code {
             KeyCode::Char('q') | KeyCode::Esc => self.quit = true,
 
-            KeyCode::Down => self.scroll.scroll_down(),
-            KeyCode::Up => self.scroll.scroll_up(),
-            KeyCode::Tab => self.scroll_col(true),
-            KeyCode::BackTab => self.scroll_col(false),
+            KeyCode::Down => self.scroll_table.scroll_down(),
+            KeyCode::Up => self.scroll_table.scroll_up(),
+            KeyCode::Tab => self.scroll_table.scroll_col_right(),
+            KeyCode::BackTab => self.scroll_table.scroll_col_left(),
 
-            KeyCode::Right => self.scroll.scroll_right(),
-            KeyCode::Left => self.scroll.scroll_left(),
+            KeyCode::Right => {
+                let text = self.scroll_table.select_next_col();
+                self.log("info", text)},
+            KeyCode::Left => self.scroll_table.select_previous_col(),
 
-            KeyCode::Char('l') => self.select_col_beside(true),
-            KeyCode::Char('h') => self.select_col_beside(false),
+            KeyCode::Char('l') => self.scroll_table.scroll_right(),
+            KeyCode::Char('h') => self.scroll_table.scroll_left(),
 
-
-            KeyCode::PageDown => self.scroll.scroll_page_down(),
-            KeyCode::PageUp => self.scroll.scroll_page_up(),
-            KeyCode::Home => self.scroll.scroll_to_top(),
-            KeyCode::End => self.scroll.scroll_to_bottom(),
+            KeyCode::PageDown => self.scroll_table.scroll_page_down(),
+            KeyCode::PageUp => self.scroll_table.scroll_page_up(),
+            KeyCode::Home => self.scroll_table.scroll_to_top(),
+            KeyCode::End => self.scroll_table.scroll_to_bottom(),
 
             KeyCode::Char('f') => self.toggle_freeze(),
             KeyCode::Char('i') => self.show_info = !self.show_info,
@@ -248,63 +158,28 @@ impl App {
         let left_w = self.get_frozen_space();
         let [left, right] =
             Layout::horizontal([Constraint::Length(left_w), Constraint::Min(0)]).areas(inner);
-        let [header_area, body_area] =
-            Layout::vertical([Constraint::Length(1), Constraint::Min(0)]).areas(right);
 
-        let body_size = Size::new(
-            self.col_widths().sum::<u16>() + (self.style.col_spacing * (self.cols.len() - 1)) as u16,
-            self.rows.len() as u16
-        );
-        let mut body = ScrollView::new(body_size)
-                                            .scrollbars_visibility(ScrollbarVisibility::Always);
+        self.scroll_table.draw(&scrollable, frame, right);
 
-        let body_table = self.table_from(&scrollable);
-        body.render_widget(body_table, body.area());
+        let frozen_name = if let Some(frozen_col) = self.frozen {
+                self.scroll_table.draw_frozen(frozen_col, frame, left, &self.frozen_style);
+                self.scroll_table.header(frozen_col)
+            } else { None }
+            .unwrap_or("-");
 
-        frame.render_stateful_widget(body, body_area, &mut self.scroll);
-
-        let off = self.scroll.offset(); // after ScrollView's clamp
-
-        let mut header = ScrollView::new(Size::new(body_size.width, 1))
-                                            .scrollbars_visibility(ScrollbarVisibility::Never);
-        header.render_widget(self.headers_from(&scrollable), header.area());
-
-        let header_area = Rect { width: header_area.width.saturating_sub(1), ..header_area };
-        let mut header_state = ScrollViewState::with_offset(Position::new(off.x, 0));
-        frame.render_stateful_widget(header, header_area, &mut header_state);
-
-
-        if let Some(fc) = self.frozen {
-            let separator = Block::new().borders(Borders::RIGHT).style(Style::new().red());
-            let left_inner = separator.inner(left);
-            frame.render_widget(separator, left);
-
-            let [corner, column_area] =
-                Layout::vertical([Constraint::Length(1), Constraint::Min(0)]).areas(left_inner);
-            frame.render_widget(self.headers_from(&[fc]), corner);
-
-            let column_area = Rect { height: column_area.height.saturating_sub(1), ..column_area }; // -1 : scrollbar
-            let mut column = ScrollView::new(Size::new(self.col_step(fc) as u16, self.n_rows()))
-                .scrollbars_visibility(ScrollbarVisibility::Never);
-            column.render_widget(self.table_from(&[fc]), column.area());
-            let mut column_state = ScrollViewState::with_offset(Position::new(0, off.y));
-            frame.render_stateful_widget(column, column_area, &mut column_state);
-        }
-
-        let frozen_name = self.frozen.and_then(|i| self.headers.get(i)).unwrap_or("-");
         frame.render_widget(Paragraph::new(self.footer(frozen_name)), footer);
 
         let view = ViewInfo {
-            canvas: body_size,
-            viewport: Size::new(body_area.width.saturating_sub(1), body_area.height.saturating_sub(1)),
-            offset: off,
+            canvas: self.scroll_table.body_size(),
+            viewport: self.scroll_table.viewport(),
+            offset: self.scroll_table.offset(),
         };
 
         if self.show_info {
             let infos: [String; 4] = [
-                self.rows.len().to_string(),
-                self.n_cols().to_string(),
-                list_to_string(self.col_widths()),
+                self.scroll_table.n_rows().to_string(),
+                self.scroll_table.n_cols().to_string(),
+                list_to_string(self.scroll_table.col_widths()),
                 frozen_name.to_string(),
             ];
 
@@ -315,6 +190,6 @@ impl App {
     }
 
     pub fn no_rows(&self) -> bool {
-        self.rows.is_empty()
+        self.scroll_table.no_rows()
     }
 }

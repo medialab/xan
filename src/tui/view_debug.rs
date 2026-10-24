@@ -46,10 +46,14 @@ impl ViewInfo {
         let visible_rows = if app.no_rows() {
             "-".to_string()
         } else {
-            format!("{}-{} / {}", y + 1, (y + vh).min(app.n_rows()), app.n_rows())
+            //format!("{}-{} / {}", y + 1, (y + vh).min(app.n_rows()), app.n_rows())
+            "jsp".to_string()
         };
-        let first = app.next_col_idx(x) - 1;
-        let last = app.last_col_view(x, vw);
+        // let first = app.next_col_idx(x) - 1;
+        // let last = app.last_col_view(x, vw);
+        let first = 0;
+        let last = 3;
+
         let visible_cols: Vec<String> = scrollable
             .get(first..=last)
             .unwrap_or_default()
