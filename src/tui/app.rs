@@ -101,13 +101,13 @@ impl App {
             KeyCode::BackTab => self.scroll_table.select_previous_col(),
 
 
-            // KeyCode::Char('l') => self.scroll_table.scroll_right(),
-            // KeyCode::Char('h') => self.scroll_table.scroll_left(),
+            KeyCode::Char('l') => self.scroll_table.scroll_right(),
+            KeyCode::Char('h') => self.scroll_table.scroll_left(),
 
             KeyCode::PageDown => self.scroll_table.scroll_page_down(),
             KeyCode::PageUp => self.scroll_table.scroll_page_up(),
-            // KeyCode::Home => self.scroll_table.scroll_to_top(),
-            // KeyCode::End => self.scroll_table.scroll_to_bottom(),
+            KeyCode::Home => self.scroll_table.scroll_to_top(),
+            KeyCode::End => self.scroll_table.scroll_to_bottom(),
 
             KeyCode::Char('f') => self.scroll_table.toggle_freeze(),
             KeyCode::Char('i') => self.show_info = !self.show_info,

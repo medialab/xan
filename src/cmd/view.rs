@@ -343,6 +343,10 @@ struct Args {
 
 impl Args {
     fn resolve(&mut self) {
+        if self.flag_tui && self.flag_limit.is_none() {
+            self.flag_all = true;
+        }
+
         if self.flag_all {
             self.flag_limit = Some(0);
         }

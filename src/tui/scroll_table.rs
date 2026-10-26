@@ -255,6 +255,16 @@ impl ScrollTable {
 
     // ---------------------------------------------------------------------------------
 
+    pub fn scroll_right(&mut self) {
+        self.scroll_state.scroll_right();
+        self.clamp_selection_to_view();
+    }
+
+    pub fn scroll_left(&mut self) {
+        self.scroll_state.scroll_left();
+        self.clamp_selection_to_view();
+    }
+
     pub fn scroll_col_right(&mut self) {
         let off = self.offset_x();
         let next = self.cum_sum.partition_point(|&x| x <= off);
@@ -314,14 +324,26 @@ impl ScrollTable {
         }
     }
 
-    pub fn scroll_page_down(&mut self) {
-        self.table_state.scroll_down_by(self.viewport.height);
-        self.scroll_state.scroll_page_down();
-    }
-
     pub fn scroll_page_up(&mut self) {
         self.table_state.scroll_up_by(self.viewport.height);
         self.scroll_state.scroll_page_up();
+        self.scroll_state.scroll_up();
+    }
+
+    pub fn scroll_page_down(&mut self) {
+        self.table_state.scroll_down_by(self.viewport.height);
+        self.scroll_state.scroll_page_down();
+        self.scroll_state.scroll_down();
+    }
+
+    pub fn scroll_to_top(&mut self) {
+        self.table_state.select(Some(0));
+        self.scroll_state.scroll_to_top();
+    }
+
+    pub fn scroll_to_bottom(&mut self) {
+        self.table_state.select(Some(self.n_rows()-1));
+        self.scroll_state.scroll_to_bottom();
     }
 
     // ---------------------------------------------------------------------------------
