@@ -1,19 +1,21 @@
 use crate::cmd::view::DisplayedColumn;
 use crate::tui::{BasicTableStyle, ScrollTableStyle};
+use crate::utils::{ColorOrStyles, DataType};
 
+use colored::{Color as DataColor, Styles};
 use simd_csv::StringRecord;
 use ratatui::{
     Frame,
     layout::{Constraint, Layout, Position, Size, Rect},
-    style::Style,
-    widgets::{Block, Borders, Row, Table, TableState},
+    style::{Color, Modifier, Style},
+    widgets::{Block, Borders, Cell, Row, Table, TableState},
 };
 use tui_scrollview::{ScrollView, ScrollViewState, ScrollbarVisibility};
 
 #[derive(Debug)]
 pub struct ScrollTable {
     headers: StringRecord,
-    rows: Vec<StringRecord>,
+    rows: Vec<(StringRecord, Vec<DataType>)>,
     cols: Vec<DisplayedColumn>,
     cum_sum: Vec<usize>, // beginning of each scrollable column
     table_state: TableState,
@@ -25,7 +27,7 @@ pub struct ScrollTable {
 }
 
 impl ScrollTable {
-    pub fn new(headers: StringRecord, rows: Vec<StringRecord>, cols: Vec<DisplayedColumn>, style: &'static ScrollTableStyle) -> Self {
+    pub fn new(headers: StringRecord, rows: Vec<(StringRecord, Vec<DataType>)>, cols: Vec<DisplayedColumn>, style: &'static ScrollTableStyle) -> Self {
         let body_size = Size::new(0, rows.len() as u16);
         let mut table = Self {
             headers, rows, cols,
@@ -391,20 +393,53 @@ impl ScrollTable {
 }
 
 
-fn row_of<'a>(record: &'a StringRecord, cols: &[usize]) -> Row<'a> {
+fn colorizer_style(colorizer: ColorOrStyles, base: Style) -> Style {
+    match colorizer {
+        ColorOrStyles::Color(color) => {
+            let color = match color {
+                DataColor::White => Color::White,
+                DataColor::Red => Color::Red,
+                DataColor::Blue => Color::Blue,
+                DataColor::Cyan => Color::Cyan,
+                DataColor::Green => Color::Green,
+                DataColor::Yellow => Color::Yellow,
+                DataColor::Magenta => Color::Magenta,
+                _ => return base,
+            };
+            base.fg(color)
+        }
+        // ColorOrStyles::Styles(Styles::Dimmed) => base.add_modifier(Modifier::DIM).fg(Color::DarkGray),
+        ColorOrStyles::Styles(Styles::Dimmed) => base.fg(Color::DarkGray),
+        _ => base,
+    }
+}
+
+fn row_of<'a>(
+    record: &'a StringRecord,
+    data_types: Option<&[DataType]>,
+    cols: &[usize],
+    base_style: Style,
+) -> Row<'a> {
     Row::new(cols
         .iter()
-        .map(|&c| record.get(c)
-        .unwrap_or("")))
+        .map(|&c| {
+            let mut cell_style = base_style;
+            if let Some(data_type) = data_types.and_then(|types| types.get(c)) {
+                cell_style = colorizer_style(data_type.as_colorizer(), base_style);
+            }
+            Cell::new(record.get(c).unwrap_or("")).style(cell_style)
+        }))
 }
 
 fn table_from_parts<'a>(
-    rows: &'a [StringRecord],
+    rows: &'a [(StringRecord, Vec<DataType>)],
     cols: &[DisplayedColumn],
     style: &BasicTableStyle,
     scrollable_cols: &[usize],
 ) -> Table<'a> {
-    let rows = rows.iter().map(|record| row_of(record, scrollable_cols));
+    let rows = rows.iter().map(|(record, data_types)| {
+        row_of(record, Some(data_types), scrollable_cols, style.body_text)
+    });
     Table::new(
         rows,
         scrollable_cols.iter().map(|&index| cols[index].allowed_width() as u16)
@@ -418,7 +453,7 @@ fn headers_from_parts<'a>(
     style: &Style,
     scrollable_cols: &[usize],
 ) -> Table<'a> {
-    let head = row_of(&table.headers, scrollable_cols);
+    let head = row_of(&table.headers, None, scrollable_cols, *style);
     Table::new(
         [head],
         scrollable_cols

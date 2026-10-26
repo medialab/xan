@@ -1,6 +1,7 @@
 use crate::CliResult;
 use crate::cmd::view::DisplayedColumn;
-use crate::tui::{ViewStyle, ScrollTableStyle, BasicTableStyle, CLASSIC_VIEWSTYLE, view_debug::ViewInfo, scroll_table, scroll_table::ScrollTable};
+use crate::utils::DataType;
+use crate::tui::{ViewStyle, CLASSIC_VIEWSTYLE, view_debug::ViewInfo, scroll_table, scroll_table::ScrollTable};
 
 use std::time::Duration;
 use simd_csv::StringRecord;
@@ -23,23 +24,24 @@ where I: Iterator, I::Item: ToString,
 
 #[derive(Debug)]
 pub struct App {
+    name: String,
     scroll_table: ScrollTable,
     show_info: bool,
     quit: bool,
-
     infos: Vec<(&'static str, String)>,
 }
 
 impl App {
-    pub fn new(headers: StringRecord, rows: Vec<StringRecord>, cols: Vec<DisplayedColumn>, style: Option<&'static ViewStyle>) -> Self {
+    pub fn new(name: String, headers: StringRecord, rows: Vec<(StringRecord, Vec<DataType>)>, cols: Vec<DisplayedColumn>, style: Option<&'static ViewStyle>) -> Self {
         let viewstyle = style.unwrap_or(&CLASSIC_VIEWSTYLE);
         let scroll_table = ScrollTable::new(headers, rows, cols, &viewstyle.scroll_table);
         let infos = vec![
             ("Lignes", "".to_string()),
             ("Colonnes", "".to_string()),
             ("Largeur colonne", "".to_string()),
+            ("Colonne figée", "".to_string()),
         ];
-        Self { scroll_table, show_info: false, quit: false, infos}
+        Self { name, scroll_table, show_info: false, quit: false, infos}
     }
 
     pub fn get_infos(&self) -> &Vec<(&'static str, String)> {
@@ -54,11 +56,11 @@ impl App {
 
     fn footer(&self) -> Text<'static> {
         Text::raw(format!(
-            " {} lines | {} columns | Home/End : top/end | Arrows : scroll | q : quit | Frozen : {}",
-            self.scroll_table.n_rows(), self.scroll_table.n_cols(), self.scroll_table.frozen_name()))
+            " {} lines | {} columns | Home/End : top/end | Arrows : scroll | Tab (BackTab) : next (previous) column | \
+            f: freeze | i : infos | q : quit", self.scroll_table.n_rows(), self.scroll_table.n_cols()))
     }
 
-    fn update_infos(&mut self, infos: [String; 3]) {
+    fn update_infos(&mut self, infos: [String; 4]) {
         for ((_, info), new_info) in self.infos.iter_mut().take(4).zip(infos) {
             *info = new_info;
         }
@@ -121,7 +123,7 @@ impl App {
         let [main, footer] =
             Layout::vertical([Constraint::Min(3), Constraint::Length(1)]).areas(frame.area());
 
-        let block = Block::bordered().title(" XAN-V-UI ");
+        let block = Block::bordered().title(format!(" {} ", self.name));
         let inner = block.inner(main);
         frame.render_widget(block, main);
 
@@ -136,10 +138,11 @@ impl App {
         };
 
         if self.show_info {
-            let infos: [String; 3] = [
+            let infos: [String; 4] = [
                 self.scroll_table.n_rows().to_string(),
                 self.scroll_table.n_cols().to_string(),
                 list_to_string(self.scroll_table.col_widths()),
+                self.scroll_table.frozen_name(),
             ];
             self.update_infos(infos);
 

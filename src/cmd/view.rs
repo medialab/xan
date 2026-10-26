@@ -752,11 +752,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
+    let name = match (&args.flag_name, &args.arg_input) {
+        (Some(name), _) => name,
+        (None, Some(filename)) => filename,
+        (None, None) => "<stdin>",
+    };
+
     if args.flag_tui {
-        let rows = records.into_iter().map(|(record, _)| sanitize_emoji(&record)).collect();
+        let rows = records
+            .into_iter()
+            .map(|(record, types)| (sanitize_emoji(&record), types))
+            .collect();
         let mut terminal = ratatui::init();
         let theme = theme_by_name("dracula");
-        let result = App::new(headers, rows, displayed_columns.left, theme).run(&mut terminal);
+        let result = App::new(name.to_string(), headers, rows, displayed_columns.left, theme).run(&mut terminal);
         ratatui::restore();
         return Ok(result?);
     }
@@ -791,12 +800,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             } else {
                 format!("{} first rows", pretty_records_len.cyan())
             },
-            match (&args.flag_name, &args.arg_input) {
-                (Some(name), _) => name,
-                (None, Some(filename)) => filename,
-                (None, None) => "<stdin>",
-            }
-            .dimmed()
+            name.dimmed()
         )?;
 
         Ok(())

@@ -59,7 +59,7 @@ pub const CLASSIC_VIEWSTYLE: ViewStyle = ViewStyle {
 // Palette : 8 couleurs suffisent à décrire un thème complet
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct Palette {
     /// Fond général du tableau (mettre `Color::Reset` pour garder le fond du terminal).
     pub bg: Color,
@@ -109,7 +109,7 @@ impl ViewStyle {
             scroll_table: ScrollTableStyle {
                 table,
                 col_spacing: 1,
-                body_col_highlight: Style::new().fg(p.col_hl),
+                body_col_highlight: Style::new().bg(p.col_hl),
                 body_cell_highlight: Style::new()
                     .fg(p.bg)
                     .bg(p.cell_hl)
@@ -131,7 +131,7 @@ pub const DRACULA: ViewStyle = ViewStyle::from_palette(Palette {
     accent: hex(0xbd93f9),    // violet
     accent2: hex(0x50fa7b),   // vert
     row_hl: hex(0x44475a),
-    col_hl: hex(0xff79c6),    // rose
+    col_hl: hex(0x593d52),    // rose désaturé pour un fond
     cell_hl: hex(0xf1fa8c),   // jaune
     separator: hex(0x6272a4), // commentaire
 });
@@ -142,7 +142,7 @@ pub const NORD: ViewStyle = ViewStyle::from_palette(Palette {
     accent: hex(0x88c0d0),
     accent2: hex(0xa3be8c),
     row_hl: hex(0x434c5e),
-    col_hl: hex(0x81a1c1),
+    col_hl: hex(0x3d536b),
     cell_hl: hex(0xebcb8b),
     separator: hex(0x4c566a),
 });
@@ -153,7 +153,7 @@ pub const GRUVBOX_DARK: ViewStyle = ViewStyle::from_palette(Palette {
     accent: hex(0x83a598),
     accent2: hex(0x8ec07c),
     row_hl: hex(0x504945),
-    col_hl: hex(0xfe8019),
+    col_hl: hex(0x5a4632),
     cell_hl: hex(0xfabd2f),
     separator: hex(0x928374),
 });
@@ -164,7 +164,7 @@ pub const SOLARIZED_DARK: ViewStyle = ViewStyle::from_palette(Palette {
     accent: hex(0x268bd2),
     accent2: hex(0x859900),
     row_hl: hex(0x073642),
-    col_hl: hex(0xd33682),
+    col_hl: hex(0x4a3044),
     cell_hl: hex(0xb58900),
     separator: hex(0x586e75),
 });
@@ -176,7 +176,7 @@ pub const SOLARIZED_LIGHT: ViewStyle = ViewStyle::from_palette(Palette {
     accent: hex(0x268bd2),
     accent2: hex(0x6c71c4),
     row_hl: hex(0xeee8d5),
-    col_hl: hex(0xd33682),
+    col_hl: hex(0xf2d9e3),
     cell_hl: hex(0xcb4b16),
     separator: hex(0x93a1a1),
 });
@@ -187,7 +187,7 @@ pub const MONOKAI: ViewStyle = ViewStyle::from_palette(Palette {
     accent: hex(0xa6e22e),
     accent2: hex(0x66d9ef),
     row_hl: hex(0x49483e),
-    col_hl: hex(0xf92672),
+    col_hl: hex(0x59404a),
     cell_hl: hex(0xe6db74),
     separator: hex(0x75715e),
 });
@@ -198,7 +198,7 @@ pub const TOKYO_NIGHT: ViewStyle = ViewStyle::from_palette(Palette {
     accent: hex(0x7aa2f7),
     accent2: hex(0x9ece6a),
     row_hl: hex(0x292e42),
-    col_hl: hex(0xbb9af7),
+    col_hl: hex(0x443d5e),
     cell_hl: hex(0xe0af68),
     separator: hex(0x414868),
 });
@@ -209,7 +209,7 @@ pub const CATPPUCCIN_MOCHA: ViewStyle = ViewStyle::from_palette(Palette {
     accent: hex(0xcba6f7),
     accent2: hex(0xa6e3a1),
     row_hl: hex(0x313244),
-    col_hl: hex(0xfab387),
+    col_hl: hex(0x5a463f),
     cell_hl: hex(0xf9e2af),
     separator: hex(0x585b70),
 });
@@ -220,7 +220,7 @@ pub const ONE_DARK: ViewStyle = ViewStyle::from_palette(Palette {
     accent: hex(0x61afef),
     accent2: hex(0x98c379),
     row_hl: hex(0x3e4451),
-    col_hl: hex(0xc678dd),
+    col_hl: hex(0x4b3d55),
     cell_hl: hex(0xe5c07b),
     separator: hex(0x5c6370),
 });
@@ -232,7 +232,7 @@ pub const MATRIX: ViewStyle = ViewStyle::from_palette(Palette {
     accent: hex(0x00ff41),
     accent2: hex(0xb6ffb6),
     row_hl: hex(0x003b00),
-    col_hl: hex(0x66ff99),
+    col_hl: hex(0x003b1f),
     cell_hl: hex(0xccffcc),
     separator: hex(0x006600),
 });
