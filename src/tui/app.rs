@@ -1,6 +1,6 @@
 use crate::CliResult;
 use crate::cmd::view::DisplayedColumn;
-use crate::tui::{ViewStyle, ScrollTableStyle, BasicTableStyle, view_debug::ViewInfo, scroll_table::ScrollTable};
+use crate::tui::{ViewStyle, ScrollTableStyle, BasicTableStyle, CLASSIC_VIEWSTYLE, view_debug::ViewInfo, scroll_table, scroll_table::ScrollTable};
 
 use std::time::Duration;
 use simd_csv::StringRecord;
@@ -24,7 +24,6 @@ where I: Iterator, I::Item: ToString,
 #[derive(Debug)]
 pub struct App {
     scroll_table: ScrollTable,
-    frozen: Option<usize>,
     show_info: bool,
     quit: bool,
 
@@ -32,15 +31,16 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(headers: StringRecord, rows: Vec<StringRecord>, cols: Vec<DisplayedColumn>, style: &'static ViewStyle) -> Self {
-        let scroll_table = ScrollTable::new(headers, rows, cols, &style.scroll_table);
+    pub fn new(headers: StringRecord, rows: Vec<StringRecord>, cols: Vec<DisplayedColumn>, style: Option<&'static ViewStyle>) -> Self {
+        let viewstyle = style.unwrap_or(&CLASSIC_VIEWSTYLE);
+        let scroll_table = ScrollTable::new(headers, rows, cols, &viewstyle.scroll_table);
         let infos = vec![
             ("Lignes", "".to_string()),
             ("Colonnes", "".to_string()),
             ("Largeur colonne", "".to_string()),
             ("Colonne figée", "".to_string()),
         ];
-        Self { scroll_table, frozen: None, show_info: false, quit: false, infos}
+        Self { scroll_table, show_info: false, quit: false, infos}
     }
 
     pub fn get_infos(&self) -> &Vec<(&'static str, String)> {
@@ -54,36 +54,10 @@ impl App {
 
 
     fn footer(&self, frozen_name: &str) -> Text<'static> {
+
         Text::raw(format!(
-            " {} lines | {} columns | Home/End : top/end | Arrows : scroll | q : quit | Frozen : {frozen_name}",
-            self.scroll_table.n_rows(), self.scroll_table.n_cols()))
-    }
-
-    pub fn scrollable_columns(&self) -> Vec<usize> {
-        (0..self.scroll_table.n_cols()).filter(|&i| Some(i) != self.frozen).collect()
-    }
-
-    fn toggle_freeze(&mut self) {
-        if self.frozen.take().is_some() || self.scroll_table.n_cols() < 2 {
-            return;
-        }
-
-
-        let mut off = self.scroll_table.offset();
-
-        self.frozen = self.scroll_table
-            .selected_col()
-            .and_then(|selected_col| {
-                off.x = self.scroll_table.width_until(selected_col) as u16;
-                self.scroll_table.set_offset(off);
-                Some(selected_col)
-            });
-    }
-
-    fn get_frozen_space(&self) -> u16 {
-        if let Some(frozen_col) = self.frozen {
-            self.scroll_table.col_step(frozen_col).saturating_add(1) as u16
-        } else { 0 }
+            " {} lines | {} columns | Home/End : top/end | Arrows : scroll | q : quit | Frozen : {}",
+            self.scroll_table.n_rows(), self.scroll_table.n_cols(), self.scroll_table.frozen_name()))
     }
 
     fn update_infos(&mut self, infos: [String; 4]) {
@@ -122,11 +96,12 @@ impl App {
 
             KeyCode::Down => self.scroll_table.select_next_row(),
             KeyCode::Up => self.scroll_table.select_previous_row(),
-            KeyCode::Tab => self.scroll_table.scroll_col_right(),
-            KeyCode::BackTab => self.scroll_table.scroll_col_left(),
+            KeyCode::Right => self.scroll_table.scroll_col_right(),
+            KeyCode::Left => self.scroll_table.scroll_col_left(),
 
-            KeyCode::Right => self.scroll_table.select_next_col(),
-            KeyCode::Left => self.scroll_table.select_previous_col(),
+            KeyCode::Tab => self.scroll_table.select_next_col(),
+            KeyCode::BackTab => self.scroll_table.select_previous_col(),
+
 
             // KeyCode::Char('l') => self.scroll_table.scroll_right(),
             // KeyCode::Char('h') => self.scroll_table.scroll_left(),
@@ -136,14 +111,22 @@ impl App {
             // KeyCode::Home => self.scroll_table.scroll_to_top(),
             // KeyCode::End => self.scroll_table.scroll_to_bottom(),
 
-            KeyCode::Char('f') => self.toggle_freeze(),
+            KeyCode::Char('f') => self.scroll_table.toggle_freeze(),
             KeyCode::Char('i') => self.show_info = !self.show_info,
+
+            KeyCode::Char('l') => {
+                let selected = self.scroll_table.selected_col();
+                self.log("Cum", list_to_string(self.scroll_table.cum_sum.iter()));
+                self.log("Selected col", selected.to_string());
+                self.log("Selected col", self.scroll_table.col_step(selected).to_string());
+                self.log("Nombre col", self.scroll_table.n_cols().to_string());
+
+            },
             _ => {}
         }
     }
 
     pub fn draw(&mut self, frame: &mut Frame) {
-        let scrollable = self.scrollable_columns();
 
         let [main, footer] =
             Layout::vertical([Constraint::Min(3), Constraint::Length(1)]).areas(frame.area());
@@ -152,17 +135,9 @@ impl App {
         let inner = block.inner(main);
         frame.render_widget(block, main);
 
-        let left_w = self.get_frozen_space();
-        let [left, right] =
-            Layout::horizontal([Constraint::Length(left_w), Constraint::Min(0)]).areas(inner);
+        scroll_table::draw(frame, &mut self.scroll_table, inner);
 
-        self.scroll_table.draw(&scrollable, frame, right);
-
-        let frozen_name = if let Some(frozen_col) = self.frozen {
-                self.scroll_table.draw_frozen(frozen_col, frame, left);
-                self.scroll_table.header(frozen_col)
-            } else { None }
-            .unwrap_or("-");
+        let frozen_name = &self.scroll_table.frozen_name() ;
 
         frame.render_widget(Paragraph::new(self.footer(frozen_name)), footer);
 
@@ -179,7 +154,6 @@ impl App {
                 list_to_string(self.scroll_table.col_widths()),
                 frozen_name.to_string(),
             ];
-
             self.update_infos(infos);
 
             view.draw_info(frame, &self);
@@ -188,5 +162,9 @@ impl App {
 
     pub fn no_rows(&self) -> bool {
         self.scroll_table.no_rows()
+    }
+
+    pub fn scrollable_columns(&self) -> Vec<usize> {
+        self.scroll_table.scrollable_columns()
     }
 }

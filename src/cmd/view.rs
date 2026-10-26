@@ -751,7 +751,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if args.flag_tui {
         let rows = records.into_iter().map(|(record, _)| sanitize_emoji(&record)).collect();
         let mut terminal = ratatui::init();
-        let theme = theme_by_name("dracula").unwrap();
+        let theme = theme_by_name("dracula");
         let result = App::new(headers, rows, displayed_columns.left, theme).run(&mut terminal);
         ratatui::restore();
         return Ok(result?);
