@@ -25,7 +25,6 @@ where I: Iterator, I::Item: ToString,
 pub struct App {
     scroll_table: ScrollTable,
     frozen: Option<usize>,
-    frozen_style: BasicTableStyle,
     show_info: bool,
     quit: bool,
 
@@ -33,15 +32,15 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(headers: StringRecord, rows: Vec<StringRecord>, cols: Vec<DisplayedColumn>, style: ViewStyle) -> Self {
-        let scroll_table = ScrollTable::new(headers, rows, cols, style.scroll_table);
+    pub fn new(headers: StringRecord, rows: Vec<StringRecord>, cols: Vec<DisplayedColumn>, style: &'static ViewStyle) -> Self {
+        let scroll_table = ScrollTable::new(headers, rows, cols, &style.scroll_table);
         let infos = vec![
             ("Lignes", "".to_string()),
             ("Colonnes", "".to_string()),
             ("Largeur colonne", "".to_string()),
             ("Colonne figée", "".to_string()),
         ];
-        Self { scroll_table, frozen: None, frozen_style: style.frozen, show_info: false, quit: false, infos}
+        Self { scroll_table, frozen: None, show_info: false, quit: false, infos}
     }
 
     pub fn get_infos(&self) -> &Vec<(&'static str, String)> {
@@ -160,7 +159,7 @@ impl App {
         self.scroll_table.draw(&scrollable, frame, right);
 
         let frozen_name = if let Some(frozen_col) = self.frozen {
-                self.scroll_table.draw_frozen(frozen_col, frame, left, &self.frozen_style);
+                self.scroll_table.draw_frozen(frozen_col, frame, left);
                 self.scroll_table.header(frozen_col)
             } else { None }
             .unwrap_or("-");

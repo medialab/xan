@@ -58,11 +58,11 @@ pub struct ScrollTable {
     scroll_state: ScrollViewState,
     body_size: Size,
     viewport: Size,
-    style: ScrollTableStyle,
+    style: &'static ScrollTableStyle,
 }
 
 impl ScrollTable {
-    pub fn new(headers: StringRecord, rows: Vec<StringRecord>, cols: Vec<DisplayedColumn>, style: ScrollTableStyle) -> Self {
+    pub fn new(headers: StringRecord, rows: Vec<StringRecord>, cols: Vec<DisplayedColumn>, style: &'static ScrollTableStyle) -> Self {
         let mut sum = 0_usize;
         let cum_sum = cols.iter()
             .map(|col| {
@@ -294,19 +294,19 @@ impl ScrollTable {
         self.set_viewport(body_area);
     }
 
-    pub fn draw_frozen(&self, cols_idx: usize, frame: &mut Frame, area: Rect, style: &BasicTableStyle) {
+    pub fn draw_frozen(&self, cols_idx: usize, frame: &mut Frame, area: Rect) {
         let separator = Block::new().borders(Borders::RIGHT).style(Style::new().red());
         let left_inner = separator.inner(area);
         frame.render_widget(separator, area);
 
         let [corner, left_column_area] =
             Layout::vertical([Constraint::Length(1), Constraint::Min(0)]).areas(left_inner);
-        frame.render_widget(headers_from_parts(&self.headers, &self.cols, &style.header, &[cols_idx]), corner);
+        frame.render_widget(headers_from_parts(&self.headers, &self.cols, &self.style.frozen.header, &[cols_idx]), corner);
 
         let left_column_area = Rect { height: left_column_area.height.saturating_sub(1), ..left_column_area }; // -1 : scrollbar
         let mut left_column = ScrollView::new(Size::new(self.col_step(cols_idx) as u16, self.n_rows() as u16))
             .scrollbars_visibility(ScrollbarVisibility::Never);
-        let table = table_from_parts(&self.rows, &self.cols, style, &[cols_idx]);
+        let table = table_from_parts(&self.rows, &self.cols, &self.style.frozen, &[cols_idx]);
 
         left_column.render_widget(table, left_column.area());
         let off = self.scroll_state.offset(); // after ScrollView's clamp

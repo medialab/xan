@@ -14,7 +14,7 @@ use crate::read::LeakySponge;
 use crate::select::SelectedColumns;
 use crate::utils::{self, ColorMode, DataType};
 
-use crate::tui::{App, CLASSIC_VIEWSTYLE, sanitize_emoji};
+use crate::tui::{App, theme_by_name, CLASSIC_VIEWSTYLE, sanitize_emoji};
 
 #[derive(Debug, Clone, Copy, Default, Deserialize)]
 pub enum ComplexToggle {
@@ -751,7 +751,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if args.flag_tui {
         let rows = records.into_iter().map(|(record, _)| sanitize_emoji(&record)).collect();
         let mut terminal = ratatui::init();
-        let result = App::new(headers, rows, displayed_columns.left, CLASSIC_VIEWSTYLE).run(&mut terminal);
+        let theme = theme_by_name("dracula").unwrap();
+        let result = App::new(headers, rows, displayed_columns.left, theme).run(&mut terminal);
         ratatui::restore();
         return Ok(result?);
     }
