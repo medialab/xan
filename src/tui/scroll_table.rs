@@ -1,5 +1,5 @@
 use crate::cmd::view::DisplayedColumn;
-use crate::tui::{ViewStyle, BasicTableStyle, ScrollTableStyle};
+use crate::tui::{BasicTableStyle, ScrollTableStyle};
 
 use simd_csv::StringRecord;
 use ratatui::{
@@ -10,13 +10,12 @@ use ratatui::{
 };
 use tui_scrollview::{ScrollView, ScrollViewState, ScrollbarVisibility};
 
-
 #[derive(Debug)]
 pub struct ScrollTable {
     headers: StringRecord,
     rows: Vec<StringRecord>,
     cols: Vec<DisplayedColumn>,
-    pub cum_sum: Vec<usize>,
+    cum_sum: Vec<usize>, // beginning of each scrollable column
     table_state: TableState,
     scroll_state: ScrollViewState,
     body_size: Size,
@@ -27,84 +26,62 @@ pub struct ScrollTable {
 
 impl ScrollTable {
     pub fn new(headers: StringRecord, rows: Vec<StringRecord>, cols: Vec<DisplayedColumn>, style: &'static ScrollTableStyle) -> Self {
-        let mut sum = 0_usize;
-        let cum_sum = cols.iter()
-            .map(|col| {
-                let tmp = sum;
-                sum += col.allowed_width() + style.col_spacing;
-                tmp
-            })
-            .collect();
-
-        let body_size= Size::new(
-            cols.iter().map(|col| col.allowed_width() as u16).sum::<u16>() + (style.col_spacing * (cols.len() - 1)) as u16,
-            rows.len() as u16
-        );
-
-        Self {headers, rows, cols, cum_sum,
+        let body_size = Size::new(0, rows.len() as u16);
+        let mut table = Self {
+            headers, rows, cols,
+            cum_sum: Vec::new(),
             table_state: TableState::new().with_selected_column(0).with_selected(0),
             scroll_state: ScrollViewState::new(),
-            body_size, viewport: Size::new(0,0),
-            style, frozen: None}
-    }
-
-    fn cum_sum_until(&self, i: usize) -> usize {
-        let mut sum = 0_usize;
-        for &col in self.scrollable_columns().iter() {
-            if col > i { break }
-            sum += self.cols[col].allowed_width() + self.style.col_spacing;
+            body_size,
+            viewport: Size::new(0, 0),
+            style,
+            frozen: None,
         };
-        sum
+        table.update_cum_sum();
+        table.update_body_width();
+        table
     }
 
-    fn vect_cum_sum_until(&self, i: usize) -> Vec<usize> {
-        let mut sum = 0_usize;
-        let mut cum_sum = Vec::new();
-        for &col in self.scrollable_columns().iter() {
-            cum_sum.push(sum);
-            if col > i { break }
-            sum += self.cols[col].allowed_width() + self.style.col_spacing;
-        };
-        cum_sum
-    }
-
-    pub fn scrollable_columns(&self) -> Vec<usize> {
-        (0..self.n_cols()).filter(|&i| Some(i) != self.frozen).collect()
-    }
-
-    pub fn update_body_width(&self) -> u16 {
-        self.scrollable_columns().iter().map(|&index| self.cols[index].allowed_width() as u16).sum::<u16>()
-        + (self.style.col_spacing * (self.cols.len() - 1)) as u16
+    pub fn update_body_width(&mut self) -> u16 {
+        let n = self.n_cols();
+        let widths: usize = (0..n).map(|s| self.scroll_width(s)).sum();
+        let total = widths + self.style.col_spacing * n.saturating_sub(1);
+        self.body_size.width = total.min(u16::MAX as usize) as u16;
+        self.body_size.width
     }
 
     pub fn update_cum_sum(&mut self) {
         let mut sum = 0_usize;
-        self.cum_sum = self.scrollable_columns().iter()
-            .map(|col| {
-                let tmp = sum;
-                sum += self.cols[*col].allowed_width() + self.style.col_spacing;
-                tmp
+        self.cum_sum = (0..self.n_cols())
+            .map(|s| {
+                let start = sum;
+                sum += self.scroll_width(s) + self.style.col_spacing;
+                start
             })
             .collect();
+    }
+
+    pub fn scrollable_columns(&self) -> Vec<usize> {
+        (0..self.cols.len()).filter(|&i| Some(i) != self.frozen).collect()
     }
 
     pub fn frozen(&self) -> Option<usize> {
         self.frozen
     }
 
-    pub fn set_frozen(&mut self, frozen: usize) {
-        self.frozen = Some(frozen);
-    }
-
     pub fn frozen_name(&self) -> String {
-        if let Some(frozen) = self.frozen {
-            self.header(frozen)
-        } else { None }
-        .unwrap_or("-").to_string()
+        self.frozen
+            .and_then(|f| self.header(f))
+            .unwrap_or("-")
+            .to_string()
     }
 
     pub fn n_cols(&self) -> usize {
-        self.cols.len() - self.frozen.is_some() as usize
+        self.cols.len().saturating_sub(self.frozen.is_some() as usize)
+    }
+
+    pub fn n_cols_original(&self) -> usize {
+        self.cols.len()
     }
 
     pub fn n_rows(&self) -> usize {
@@ -129,63 +106,51 @@ impl ScrollTable {
 
     fn set_viewport(&mut self, area: Rect) {
         self.viewport.width = area.width.saturating_sub(1);
-        self.viewport.height = area.width.saturating_sub(1);
+        self.viewport.height = area.height.saturating_sub(1);
     }
 
     // ---------------------------------------------------------------------------------
 
-    fn resolve_col(&self, col_idx: usize) -> usize {
-        let gap = match self.frozen {
-            Some(frozen) =>  {if col_idx >= frozen { 1 } else { 0 }},
-            None => 0,
-        };
-        col_idx + gap
+    fn resolve_col(&self, s: usize) -> usize {
+        match self.frozen {
+            Some(f) if s >= f => s + 1,
+            _ => s,
+        }
     }
 
-    pub fn selected_col(&self) -> usize {
-        let selected = self.table_state.selected_column().unwrap();
-        self.resolve_col(selected)
+    fn scroll_width(&self, s: usize) -> usize {
+        self.cols[self.resolve_col(s)].allowed_width()
     }
 
-    fn select_col(&mut self, i: usize) {
-        let gap = match self.frozen {
-            Some(frozen) =>  {
-                let selected = self.table_state.selected_column().unwrap();
-                if selected >= frozen { 1 } else { 0 }
-            },
-            None => 0,
-        };
-        self.table_state.select_column(Some(i + gap));
+    fn col_start(&self, s: usize) -> usize {
+        self.cum_sum[s]
     }
 
-
-    // ---------------------------------------------------------------------------------
+    fn col_end(&self, s: usize) -> usize {
+        self.cum_sum[s] + self.scroll_width(s)
+    }
 
     pub fn col_step(&self, col: usize) -> usize {
-        let col_idx = self.resolve_col(col);
-        if let Some(selected_col) = self.cols.get(col_idx) {
-            selected_col.allowed_width() + self.style.col_spacing
+        if col < self.n_cols() {
+            self.scroll_width(col) + self.style.col_spacing
         } else { 0 }
     }
 
-    pub fn col_widths(&self) -> impl Iterator <Item=u16> {
+    fn frozen_step(&self) -> usize {
+        self.frozen
+            .map_or(0, |f| self.cols[f].allowed_width() + self.style.col_spacing)
+    }
+
+    pub fn col_widths(&self) -> impl Iterator<Item = u16> + '_ {
         self.cols.iter().map(|col| col.allowed_width() as u16)
     }
 
     pub fn width_until(&self, col: usize) -> usize {
-        self.cum_sum[col]
-    }
-
-    fn next_to_left_col_idx(&self, off_x: u16) -> usize {
-        self.cum_sum.partition_point(|&x| x as u16 <= off_x)
+        self.cum_sum.get(col).or(self.cum_sum.last()).copied().unwrap_or(0)
     }
 
     fn next_row_idx(&self, off_y: u16) -> usize {
         off_y as usize
-    }
-
-    fn last_col_view(&self, off_x: u16) -> usize {
-        self.cum_sum.partition_point(|&s| s as u16 <= off_x+self.viewport.width) - 1
     }
 
     fn n_rows_view(&self) -> u16 {
@@ -206,85 +171,127 @@ impl ScrollTable {
         self.scroll_state.set_offset(off);
     }
 
-    pub fn set_offset_on_col(&mut self, col_idx: usize) {
+    fn offset_x(&self) -> usize {
+        self.scroll_state.offset().x as usize
+    }
+
+    fn max_offset_x(&self) -> usize {
+        (self.body_size.width as usize).saturating_sub(self.viewport.width as usize)
+    }
+
+    fn set_offset_x(&mut self, x: usize) {
         let mut off = self.scroll_state.offset();
-        off.x = self.width_until(col_idx) as u16;
+        off.x = x.min(self.max_offset_x()) as u16;
         self.scroll_state.set_offset(off);
+    }
+
+    pub fn set_offset_on_col(&mut self, col_idx: usize) {
+        let x = self.width_until(col_idx);
+        self.set_offset_x(x);
+    }
+
+    // ---------------------------------------------------------------------------------
+
+    fn selected_scroll_col(&self) -> usize {
+        self.table_state.selected_column().unwrap_or(0)
+    }
+
+    pub fn selected_col(&self) -> usize {
+        self.resolve_col(self.selected_scroll_col())
+    }
+
+    fn select_col(&mut self, s: usize) {
+        let last = self.n_cols().saturating_sub(1);
+        self.table_state.select_column(Some(s.min(last)));
+    }
+
+    // ---------------------------------------------------------------------------------
+
+    fn first_visible_col(&self, off: usize) -> usize {
+        self.cum_sum
+            .partition_point(|&x| x < off)
+            .min(self.n_cols().saturating_sub(1))
+    }
+
+    fn last_visible_col(&self, off: usize) -> usize {
+        let first = self.first_visible_col(off);
+        let right = off + self.viewport.width as usize;
+        (first..self.n_cols())
+            .rev()
+            .find(|&s| self.col_end(s) <= right)
+            .unwrap_or(first)
+    }
+
+    fn ensure_col_visible(&mut self, s: usize) {
+        if s >= self.n_cols() { return; }
+        let off = self.offset_x();
+        let view_w = self.viewport.width as usize;
+        let start = self.col_start(s);
+        let end = self.col_end(s);
+
+        if start < off {
+            self.set_offset_x(start);
+        } else if end > off + view_w {
+            let k = self.cum_sum[..=s]
+                .partition_point(|&x| x + view_w < end)
+                .min(s);
+            self.set_offset_x(self.cum_sum[k]);
+        }
+    }
+
+    fn ensure_selected_visible(&mut self) {
+        let s = self.selected_scroll_col();
+        self.ensure_col_visible(s);
+    }
+
+    fn clamp_selection_to_view(&mut self) {
+        if self.n_cols() == 0 { return; }
+        let off = self.offset_x();
+        let first = self.first_visible_col(off);
+        let last = self.last_visible_col(off).max(first);
+        let s = self.selected_scroll_col().clamp(first, last);
+        self.select_col(s);
     }
 
     // ---------------------------------------------------------------------------------
 
     pub fn scroll_col_right(&mut self) {
-        let mut off = self.scroll_state.offset();
-        let next_to_left_col_idx = self.next_to_left_col_idx(off.x);
+        let off = self.offset_x();
+        let next = self.cum_sum.partition_point(|&x| x <= off);
+        if next >= self.n_cols() { return; }
 
-        let target_x = if let Some(&next_col) = self.cum_sum.get(next_to_left_col_idx) {
-            next_col
-        } else { self.width_until(self.n_cols() - 1) };
-
-        off.x = target_x as u16;
-        self.scroll_state.set_offset(off);
-        let selected = self.selected_col();
-        if selected < next_to_left_col_idx {
-            self.select_col(selected+1);
-        }
-    }
-
-    pub fn scroll_col_right_for_max_step_from(&mut self, col_idx: usize) {
-        let mut off = self.scroll_state.offset();
-        let col_step = self.col_step(col_idx);
-        let mut i = self.next_to_left_col_idx(off.x) - 1;
-        let mut target_x = off.x as usize + self.col_step(i);
-        while target_x < col_step {
-            i += 1;
-            target_x += self.col_step(i);
-        }
-
-        off.x = target_x as u16;
-        self.scroll_state.set_offset(off);
-    }
-
-    pub fn select_next_col(&mut self) {
-        let selected_col = self.selected_col();
-
-        let off_x = self.scroll_state.offset().x;
-        let last_col_idx = self.last_col_view(off_x);
-        if last_col_idx <= selected_col {
-            self.scroll_col_right_for_max_step_from(last_col_idx);
-        }
-
-        self.select_col(selected_col.saturating_add(1).min(last_col_idx));
+        self.set_offset_x(self.cum_sum[next]);
+        if self.offset_x() == off { return; }
+        self.clamp_selection_to_view();
     }
 
     pub fn scroll_col_left(&mut self) {
-        let mut off = self.scroll_state.offset();
-        let next_to_left_col_idx = self.next_to_left_col_idx(off.x);
+        let off = self.offset_x();
+        let prev = self.cum_sum.partition_point(|&x| x < off);
+        let target = if prev == 0 { 0 } else { self.cum_sum[prev - 1] };
 
-        let current_start = self.cum_sum[next_to_left_col_idx - 1] as u16 ;
-        let target_x: u16 =
-            if off.x > current_start { current_start }
-            else if next_to_left_col_idx > 2 { self.cum_sum[next_to_left_col_idx - 2] as u16 }
-            else { 0 };
+        self.set_offset_x(target);
+        if self.offset_x() == off { return; }
+        self.clamp_selection_to_view();
+    }
 
-        off.x = target_x;
-        self.scroll_state.set_offset(off);
-        let selected_col = (self.selected_col()).min(self.last_col_view(off.x));
-        self.select_col(selected_col);
+    pub fn select_next_col(&mut self) {
+        let next = self.selected_scroll_col() + 1;
+        if next < self.n_cols() {
+            self.select_col(next);
+            self.ensure_col_visible(next);
+        }
     }
 
     pub fn select_previous_col(&mut self) {
-        let mut off = self.scroll_state.offset();
-        let selected_col = self.selected_col();
-
-        let next_to_left_col_idx = self.next_to_left_col_idx(off.x);
-        if next_to_left_col_idx > selected_col {
-            off.x = self.width_until(next_to_left_col_idx.saturating_sub(2)) as u16 ;
-            self.scroll_state.set_offset(off);
+        let selected = self.selected_scroll_col();
+        if selected > 0 {
+            self.select_col(selected - 1);
+            self.ensure_col_visible(selected - 1);
+        }
     }
 
-        let selected_col = selected_col.max(next_to_left_col_idx - 1);
-        self.select_col(selected_col.saturating_sub(1));
-    }
+    // ---------------------------------------------------------------------------------
 
     pub fn select_previous_row(&mut self) {
         // safe: usize cannot be negative
@@ -319,47 +326,44 @@ impl ScrollTable {
 
     // ---------------------------------------------------------------------------------
 
-    fn headers_from_parts<'a>(&'a self,
-        style: &Style,
-        scrollable_cols: &[usize],
-    ) -> Table<'a> {
-        let head = row_of(&self.headers, scrollable_cols);
-        Table::new(
-            [head],
-            scrollable_cols.iter().map(|&index| self.cols[index].allowed_width() as u16)
-        )
-        .style(*style)
-    }
-
-    // ---------------------------------------------------------------------------------
-
     pub fn toggle_freeze(&mut self) {
-        if self.n_cols() < 2 {
+        if self.cols.len() < 2 {
             return;
         }
-        if let Some(frozen_col) = self.frozen.take() {
-            self.select_col(frozen_col);
-            self.set_offset_on_col(frozen_col);
-        } else {
-            let mut off = self.offset();
-
-            self.frozen = self.table_state
-                .selected_column()
-                .and_then(|selected_col| {
-                    off.x = self.width_until(selected_col) as u16;
-                    self.set_offset(off);
-                    self.select_col((selected_col).min(self.n_cols() - 2));
-                    Some(selected_col)
-                });
+        match self.frozen {
+            Some(frozen_col) => self.apply_frozen(None, frozen_col),
+            None => {
+                let selected = self.selected_col();
+                self.apply_frozen(Some(selected), selected);
+            }
         }
+    }
 
-        self.update_body_width();
+    pub fn set_frozen(&mut self, frozen: usize) {
+        if self.cols.len() < 2 || frozen >= self.cols.len() {
+            return;
+        }
+        let focus = self.selected_col();
+        self.apply_frozen(Some(frozen), focus);
+    }
+
+    fn apply_frozen(&mut self, new_frozen: Option<usize>, focus: usize) {
+        self.frozen = new_frozen;
         self.update_cum_sum();
+        self.update_body_width();
+
+        let selected = match new_frozen {
+            Some(f) if focus > f => focus - 1,
+            _ => focus,
+        };
+        self.select_col(selected);
+        let s = self.selected_scroll_col();
+        self.set_offset_on_col(s);
     }
 
     fn get_frozen_space(&self) -> u16 {
-        if let Some(frozen_col) = self.frozen {
-            self.col_step(frozen_col).saturating_add(1) as u16
+        if self.frozen.is_some() {
+            (self.frozen_step() + 1).min(u16::MAX as usize) as u16 // +1 : bord droit du séparateur
         } else { 0 }
     }
 }
@@ -387,7 +391,22 @@ fn table_from_parts<'a>(
     .row_highlight_style(style.body_row_highlight)
 }
 
-pub fn draw<'a>(frame: &mut Frame, table: &mut ScrollTable, area: Rect) {
+fn headers_from_parts<'a>(
+    table: &'a ScrollTable,
+    style: &Style,
+    scrollable_cols: &[usize],
+) -> Table<'a> {
+    let head = row_of(&table.headers, scrollable_cols);
+    Table::new(
+        [head],
+        scrollable_cols
+            .iter()
+            .map(|&index| table.cols[index].allowed_width() as u16),
+    )
+    .style(*style)
+}
+
+pub fn draw(frame: &mut Frame, table: &mut ScrollTable, area: Rect) {
     let scrollable_cols = table.scrollable_columns();
     let left_w = table.get_frozen_space();
     let [left, right] =
@@ -396,6 +415,9 @@ pub fn draw<'a>(frame: &mut Frame, table: &mut ScrollTable, area: Rect) {
     // scrollable table:
     let [header_area, body_area] =
         Layout::vertical([Constraint::Length(1), Constraint::Min(0)]).areas(right);
+
+    table.set_viewport(body_area);
+    table.ensure_selected_visible();
 
     let mut body = ScrollView::new(table.body_size)
         .scrollbars_visibility(ScrollbarVisibility::Always);
@@ -413,7 +435,7 @@ pub fn draw<'a>(frame: &mut Frame, table: &mut ScrollTable, area: Rect) {
     let mut header = ScrollView::new(Size::new(table.body_size.width, 1))
         .scrollbars_visibility(ScrollbarVisibility::Never);
 
-    let header_table = table.headers_from_parts( &table.style.table.header, &scrollable_cols)
+    let header_table = headers_from_parts(table, &table.style.table.header, &scrollable_cols)
                                     .column_spacing(table.style.col_spacing as u16);
     header.render_widget(header_table, header.area());
 
@@ -424,8 +446,6 @@ pub fn draw<'a>(frame: &mut Frame, table: &mut ScrollTable, area: Rect) {
     if let Some(frozen_col) = table.frozen() {
         draw_frozen(frame, frozen_col, table, left);
     }
-
-    table.set_viewport(body_area);
 }
 
 pub fn draw_frozen(frame: &mut Frame, frozen: usize, table: &ScrollTable, area: Rect) {
@@ -435,14 +455,16 @@ pub fn draw_frozen(frame: &mut Frame, frozen: usize, table: &ScrollTable, area: 
 
     let [corner, left_column_area] =
         Layout::vertical([Constraint::Length(1), Constraint::Min(0)]).areas(left_inner);
-    frame.render_widget(table.headers_from_parts(&table.style.frozen.header, &[frozen]), corner);
+    frame.render_widget(headers_from_parts(table, &table.style.frozen.header, &[frozen]), corner);
 
     let left_column_area = Rect { height: left_column_area.height.saturating_sub(1), ..left_column_area }; // -1 : scrollbar
-    let mut left_column = ScrollView::new(Size::new(table.col_step(frozen) as u16, table.n_rows() as u16))
+    let mut left_column = ScrollView::new(Size::new(table.frozen_step() as u16, table.n_rows() as u16))
         .scrollbars_visibility(ScrollbarVisibility::Never);
     let frozen_table = table_from_parts(&table.rows, &table.cols, &table.style.frozen, &[frozen]);
 
-    left_column.render_widget(frozen_table, left_column.area());
+    let mut frozen_row_state = TableState::new().with_selected(table.table_state.selected());
+    left_column.render_stateful_widget(frozen_table, left_column.area(), &mut frozen_row_state);
+
     let off_y = table.offset().y; // after ScrollView's clamp
     let mut left_column_state = ScrollViewState::with_offset(Position::new(0, off_y));
     frame.render_stateful_widget(left_column, left_column_area, &mut left_column_state);

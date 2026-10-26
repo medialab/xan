@@ -38,7 +38,6 @@ impl App {
             ("Lignes", "".to_string()),
             ("Colonnes", "".to_string()),
             ("Largeur colonne", "".to_string()),
-            ("Colonne figée", "".to_string()),
         ];
         Self { scroll_table, show_info: false, quit: false, infos}
     }
@@ -53,14 +52,13 @@ impl App {
     }
 
 
-    fn footer(&self, frozen_name: &str) -> Text<'static> {
-
+    fn footer(&self) -> Text<'static> {
         Text::raw(format!(
             " {} lines | {} columns | Home/End : top/end | Arrows : scroll | q : quit | Frozen : {}",
             self.scroll_table.n_rows(), self.scroll_table.n_cols(), self.scroll_table.frozen_name()))
     }
 
-    fn update_infos(&mut self, infos: [String; 4]) {
+    fn update_infos(&mut self, infos: [String; 3]) {
         for ((_, info), new_info) in self.infos.iter_mut().take(4).zip(infos) {
             *info = new_info;
         }
@@ -114,14 +112,6 @@ impl App {
             KeyCode::Char('f') => self.scroll_table.toggle_freeze(),
             KeyCode::Char('i') => self.show_info = !self.show_info,
 
-            KeyCode::Char('l') => {
-                let selected = self.scroll_table.selected_col();
-                self.log("Cum", list_to_string(self.scroll_table.cum_sum.iter()));
-                self.log("Selected col", selected.to_string());
-                self.log("Selected col", self.scroll_table.col_step(selected).to_string());
-                self.log("Nombre col", self.scroll_table.n_cols().to_string());
-
-            },
             _ => {}
         }
     }
@@ -137,9 +127,7 @@ impl App {
 
         scroll_table::draw(frame, &mut self.scroll_table, inner);
 
-        let frozen_name = &self.scroll_table.frozen_name() ;
-
-        frame.render_widget(Paragraph::new(self.footer(frozen_name)), footer);
+        frame.render_widget(Paragraph::new(self.footer()), footer);
 
         let view = ViewInfo {
             canvas: self.scroll_table.body_size(),
@@ -148,11 +136,10 @@ impl App {
         };
 
         if self.show_info {
-            let infos: [String; 4] = [
+            let infos: [String; 3] = [
                 self.scroll_table.n_rows().to_string(),
                 self.scroll_table.n_cols().to_string(),
                 list_to_string(self.scroll_table.col_widths()),
-                frozen_name.to_string(),
             ];
             self.update_infos(infos);
 
