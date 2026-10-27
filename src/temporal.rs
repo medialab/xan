@@ -280,19 +280,38 @@ impl AnyTemporal {
     pub fn relative_total(&self, other: &Self, unit: Unit) -> Result<f64, Error> {
         match (self, other) {
             (AnyTemporal::Zoned(a), AnyTemporal::Zoned(b)) => {
-                let total = b.since(a)?.total((unit, a))?;
+                let span = b.since(a)?;
+
+                // NOTE: jiff panics when totaling a zero span relative to a date
+                if span.is_zero() {
+                    return Ok(0.0);
+                }
+
+                let total = span.total((unit, a))?;
 
                 Ok(total)
             }
 
             (AnyTemporal::DateTime(a), AnyTemporal::DateTime(b)) => {
-                let total = b.since(*a)?.total((unit, a.date()))?;
+                let span = b.since(*a)?;
+
+                if span.is_zero() {
+                    return Ok(0.0);
+                }
+
+                let total = span.total((unit, a.date()))?;
 
                 Ok(total)
             }
 
             (AnyTemporal::Date(a), AnyTemporal::Date(b)) => {
-                let total = b.since(*a)?.total((unit, *a))?;
+                let span = b.since(*a)?;
+
+                if span.is_zero() {
+                    return Ok(0.0);
+                }
+
+                let total = span.total((unit, *a))?;
 
                 Ok(total)
             }
