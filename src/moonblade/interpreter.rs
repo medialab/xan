@@ -1598,6 +1598,29 @@ mod tests {
     }
 
     #[test]
+    fn test_fractional_days() {
+        assert_eq!(
+            eval_code("fractional_days('2023-10-09', '2023-10-11')"),
+            Ok(DynamicValue::from(2.0))
+        );
+
+        assert_eq!(
+            eval_code("fractional_days('2023-10-09T00:00:00', '2023-10-09T12:00:00')"),
+            Ok(DynamicValue::from(0.5))
+        );
+
+        // Identical points in time used to panic inside jiff
+        for code in [
+            "fractional_days('2023-10-09', '2023-10-09')",
+            "fractional_days('2023-10-09T10:00:00', '2023-10-09T10:00:00')",
+            "fractional_days('2023-10-09T10:00:00Z'.datetime(), '2023-10-09T10:00:00Z'.datetime())",
+            "fractional_days('10:00:00', '10:00:00')",
+        ] {
+            assert_eq!(eval_code(code), Ok(DynamicValue::from(0.0)), "{code}");
+        }
+    }
+
+    #[test]
     fn test_date() {
         let date: Date = "1999-01-31".parse().unwrap();
 
