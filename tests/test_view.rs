@@ -126,3 +126,19 @@ fn view_ignore_env() {
         wrk.assert_success(&mut cmd);
     }
 }
+
+#[test]
+fn view_plain() {
+    let wrk = Workdir::new("view_plain");
+    create_data(&wrk);
+
+    let mut cmd = wrk.command("view");
+    cmd.arg("data.csv")
+        .args(["--theme", "plain", "--color", "never"])
+        .env_remove("XAN_VIEW_ARGS");
+
+    // NOTE: not using wrk.stdout because it trims surrounding newlines
+    let output = wrk.output(&mut cmd);
+    let got = String::from_utf8(output.stdout).unwrap();
+    assert_eq!(got, "name   score\njohn       1\nmary       2\n");
+}

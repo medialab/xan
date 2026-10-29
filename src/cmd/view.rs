@@ -66,6 +66,7 @@ struct ViewTheme {
     hr_under_headers: bool,
     external_borders: bool,
     striped: bool,
+    plain: bool,
 }
 
 impl Default for ViewTheme {
@@ -77,6 +78,7 @@ impl Default for ViewTheme {
             hr_under_headers: true,
             external_borders: true,
             striped: false,
+            plain: false,
         }
     }
 }
@@ -104,6 +106,17 @@ impl ViewTheme {
         }
     }
 
+    fn plain() -> Self {
+        Self {
+            index_column_header: " ",
+            box_chars: INVISIBLE_BOX_CHARS,
+            hr_under_headers: false,
+            external_borders: false,
+            plain: true,
+            ..Self::default()
+        }
+    }
+
     fn rounded() -> Self {
         Self {
             box_chars: ROUNDED_BOX_CHARS,
@@ -127,6 +140,7 @@ impl ViewTheme {
             hr_under_headers: false,
             external_borders: false,
             striped: true,
+            plain: false,
         }
     }
 
@@ -195,6 +209,7 @@ impl FromStr for ViewTheme {
             "table" => Self::default(),
             "borderless" => Self::borderless(),
             "compact" => Self::compact(),
+            "plain" => Self::plain(),
             "rounded" => Self::rounded(),
             "slim" => Self::slim(),
             "striped" => Self::striped(),
@@ -243,7 +258,7 @@ view options:
     -s, --select <arg>          Select the columns to visualize. See 'xan select -h'
                                 for the full syntax.
     -t, --theme <name>          Theme for the table display, one of: \"table\", \"borderless\",
-                                \"compact\", \"rounded\", \"slim\" or \"striped\".
+                                \"compact\", \"plain\", \"rounded\", \"slim\" or \"striped\".
                                 [default: table]
     --name <name>               Name for the viewed table. Will default to the path of the file
                                 if any or \"<stdin>\" when viewing standard input.
@@ -337,6 +352,19 @@ struct Args {
 
 impl Args {
     fn resolve(&mut self) {
+        if self.flag_theme.eq_ignore_ascii_case("plain") {
+            self.flag_hide_index = true;
+            self.flag_hide_info = true;
+
+            if self.flag_color.is_auto() {
+                self.flag_color = ColorMode::Never;
+            }
+
+            if self.flag_repeat_headers.is_auto() {
+                self.flag_repeat_headers = ComplexToggle::Never;
+            }
+        }
+
         if self.flag_all {
             self.flag_limit = Some(0);
         }
@@ -779,6 +807,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let write_horizontal_ruler =
         |out: &mut Box<dyn Write>, pos: HRPosition| -> Result<(), io::Error> {
+            if theme.plain {
+                return Ok(());
+            }
+
             let mut s = String::new();
 
             if theme.external_borders {
@@ -935,7 +967,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Ok(())
     };
 
-    writeln!(&mut output)?;
+    if !theme.plain {
+        writeln!(&mut output)?;
+    }
     write_info(&mut output)?;
 
     // NOTE: we stop if there is nothing to show
@@ -1037,10 +1071,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             write_headers(&mut output, false)?;
         }
         write_info(&mut output)?;
-        writeln!(&mut output)?;
+        if !theme.plain {
+            writeln!(&mut output)?;
+        }
     } else {
         write_horizontal_ruler(&mut output, HRPosition::Top)?;
-        writeln!(&mut output)?;
+        if !theme.plain {
+            writeln!(&mut output)?;
+        }
     }
 
     if args.flag_tee {
