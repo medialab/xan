@@ -41,7 +41,7 @@ view options:
     -s, --select <arg>          Select the columns to visualize. See 'xan select -h'
                                 for the full syntax.
     -t, --theme <name>          Theme for the table display, one of: "table", "borderless",
-                                "compact", "rounded", "slim" or "striped".
+                                "compact", "plain", "rounded", "slim" or "striped".
                                 [default: table]
     --name <name>               Name for the viewed table. Will default to the path of the file
                                 if any or "<stdin>" when viewing standard input.
