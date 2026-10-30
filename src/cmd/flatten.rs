@@ -2,7 +2,7 @@ use std::io::{self, Write};
 use std::num::NonZeroUsize;
 
 use colored::Colorize;
-use regex::{Captures, RegexBuilder};
+use regex::{escape, Captures, RegexBuilder};
 use simd_csv::{ByteRecord, StringRecord};
 use unicode_width::UnicodeWidthStr;
 
@@ -192,7 +192,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .transpose()?;
 
     let pattern = if args.flag_highlight {
-        let tag = args.flag_highlight_tag.unwrap_or("em".to_string());
+        let tag = escape(&args.flag_highlight_tag.unwrap_or("em".to_string()));
         Some(format!(r"<{tag}>(?<content>.+?)</{tag}>"))
     } else { args.flag_highlight_regex };
 
