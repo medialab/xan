@@ -2,7 +2,7 @@ use std::io::{self, Write};
 use std::num::NonZeroUsize;
 
 use colored::Colorize;
-use regex::{Captures, RegexBuilder};
+use regex::{escape, Captures, RegexBuilder};
 use simd_csv::{ByteRecord, StringRecord};
 use unicode_width::UnicodeWidthStr;
 
@@ -28,42 +28,48 @@ Usage:
     xan f [options] [<input>]
 
 flatten options:
-    -s, --select <arg>     Select the columns to visualize. See 'xan select -h'
-                           for the full syntax.
-    -l, --limit <n>        Maximum number of rows to read. Defaults to read the whole
-                           file.
-    -c, --condense         Don't wrap cell values on new lines but truncate them
-                           with ellipsis instead.
-    -w, --wrap             Wrap cell values all while minding the header's indent.
-    -F, --flatter          Even flatter representation alternating column name and content
-                           on different lines in the output. Useful to display cells containing
-                           large chunks of text.
-    -W, --row-sep <sep>    Separate rows in the output with the given string, instead of
-                           displaying a header with row index. If an empty string is
-                           given, e.g. --row-separator '', will not separate rows at all.
-    --csv                  Write the result as a CSV file with the row,field,value columns
-                           instead. Can be seen as unpivoting the whole file.
-    --cols <num>           Width of the graph in terminal columns, i.e. characters.
-                           Defaults to using all your terminal's width or 80 if
-                           terminal's size cannot be found (i.e. when piping to file).
-                           Can also be given as a ratio or percentage of the terminal's width
-                           e.g. \"45%\" or \"0.5\".
-    -R, --rainbow          Alternating colors for cells, rather than color by value type.
-    --color <when>         When to color the output using ANSI escape codes.
-                           Use `auto` for automatic detection, `never` to
-                           disable colors completely and `always` to force
-                           colors, even when the output could not handle them.
-                           [default: auto]
-    -S, --split <cols>     Split columns containing multiple values separated by --sep
-                           to be displayed as a list.
-    --sep <sep>            Delimiter separating multiple values in cells split
-                           by -S/--split. [default: |]
-    -H, --highlight <pat>  Highlight in red parts of text cells matching given regex
-                           pattern. Will not work with -R/--rainbow.
-    -i, --ignore-case      If given, pattern given to -H/--highlight will be case-insensitive.
-    -N, --non-empty        For each row, only show non-empty values. This can be useful
-                           when the data is sparse.
-    --hide-headers         Don't print header names before cell values.
+    -s, --select <arg>           Select the columns to visualize. See 'xan select -h'
+                                 for the full syntax.
+    -l, --limit <n>              Maximum number of rows to read. Defaults to read the whole
+                                 file.
+    -c, --condense               Don't wrap cell values on new lines but truncate them
+                                 with ellipsis instead.
+    -w, --wrap                   Wrap cell values all while minding the header's indent.
+    -F, --flatter                Even flatter representation alternating column name and content
+                                 on different lines in the output. Useful to display cells containing
+                                 large chunks of text.
+    -W, --row-sep <sep>          Separate rows in the output with the given string, instead of
+                                 displaying a header with row index. If an empty string is
+                                 given, e.g. --row-separator '', will not separate rows at all.
+    --csv                        Write the result as a CSV file with the row,field,value columns
+                                 instead. Can be seen as unpivoting the whole file.
+    --cols <num>                 Width of the graph in terminal columns, i.e. characters.
+                                 Defaults to using all your terminal's width or 80 if
+                                 terminal's size cannot be found (i.e. when piping to file).
+                                 Can also be given as a ratio or percentage of the terminal's width
+                                 e.g. \"45%\" or \"0.5\".
+    -R, --rainbow                Alternating colors for cells, rather than color by value type.
+    --color <when>               When to color the output using ANSI escape codes.
+                                 Use `auto` for automatic detection, `never` to
+                                 disable colors completely and `always` to force
+                                 colors, even when the output could not handle them.
+                                 [default: auto]
+    -S, --split <cols>           Split columns containing multiple values separated by --sep
+                                 to be displayed as a list.
+    --sep <sep>                  Delimiter separating multiple values in cells split
+                                 by -S/--split. [default: |]
+    -r, --highlight-regex <pat>  Highlight in red parts of text cells matching given regex
+                                 pattern. Note that highlighting only works within cells.
+                                 Will not work with -R/--rainbow.
+    -H, --highlight              Highlight text that is wrapped xml tags (like this <em>text</em>).
+                                 See --highlight-tag to custom xml tag value. Note that highlighting
+                                 only works within cells. Will not work with -R/--rainbow.
+    --highlight-tag <value>      Change the xml tag value used for -H/--highlight. Ignored if -H not given.
+                                 [default: em]
+    -i, --ignore-case            If given, pattern given to -r/--highlight-regex will be case-insensitive.
+    -N, --non-empty              For each row, only show non-empty values. This can be useful
+                                 when the data is sparse.
+    --hide-headers               Don't print header names before cell values.
 
 Common options:
     -h, --help             Display this message
@@ -91,7 +97,9 @@ struct Args {
     flag_color: ColorMode,
     flag_split: Option<SelectedColumns>,
     flag_sep: String,
-    flag_highlight: Option<String>,
+    flag_highlight_regex: Option<String>,
+    flag_highlight: bool,
+    flag_highlight_tag: Option<String>,
     flag_ignore_case: bool,
     flag_no_headers: bool,
     flag_non_empty: bool,
@@ -104,7 +112,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = utils::get_args(USAGE, argv)?;
     args.flag_color.apply();
 
-    if args.flag_rainbow && args.flag_highlight.is_some() {
+    if args.flag_highlight && args.flag_highlight_regex.is_some() {
+        Err("-r/--highlight-regex does not work with -H/--highlight!")?;
+    }
+
+    if args.flag_rainbow && args.flag_highlight_regex.is_some() {
+        Err("-R/--rainbow does not work with -r/--highlight-regex!")?;
+    }
+
+    if args.flag_rainbow && args.flag_highlight {
         Err("-R/--rainbow does not work with -H/--highlight!")?;
     }
 
@@ -175,14 +191,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         })
         .transpose()?;
 
-    let highlight_pattern = args
-        .flag_highlight
-        .as_ref()
-        .map(|pattern| {
-            RegexBuilder::new(pattern)
+    let pattern = if args.flag_highlight {
+        let tag = escape(&args.flag_highlight_tag.unwrap_or("em".to_string()));
+        Some(format!(r"<{tag}>(?<content>.+?)</{tag}>"))
+    } else { args.flag_highlight_regex };
+
+    let highlight_pattern = pattern
+        .as_ref() // unsure if necessary
+        .map(|pat|
+            RegexBuilder::new(pat)
                 .case_insensitive(args.flag_ignore_case)
-                .build()
-        })
+                .build())
         .transpose()?;
 
     let cols = utils::acquire_term_cols_ratio(&args.flag_cols)?;
@@ -245,14 +264,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut cell = match (cell_colorizer.highlightable_color(), &highlight_pattern) {
             (Some(fg), Some(pattern)) => pattern
                 .replace_all(&cell, |caps: &Captures| {
+                    let content = if args.flag_highlight { &caps["content"] }
+                                        else { &caps[0] };
                     let mut r = String::from("\x1b[0;1;31m");
-                    r.push_str(&caps[0]);
+                    r.push_str(content);
                     r.push_str("\x1b[0;");
                     r.push_str(&fg);
                     r.push('m');
                     r
                 })
                 .into_owned(),
+            // should xml tag be removed if highlightable_color() is None ?
             _ => cell,
         };
 
