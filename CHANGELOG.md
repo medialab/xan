@@ -37,6 +37,7 @@
 * Fixing `xan view` panicking when the terminal reports a size of 0x0 or when `--cols` is very small.
 * Fixing `xan cat rows -I/--intersection`.
 * Fixing `xan hist -m sum` with nonlinear scales.
+* Fixing temporal functions when working on zero spans.
 
 *Performance*
 
