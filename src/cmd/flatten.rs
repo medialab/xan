@@ -59,12 +59,11 @@ flatten options:
     --sep <sep>                  Delimiter separating multiple values in cells split
                                  by -S/--split. [default: |]
     -r, --highlight-regex <pat>  Highlight in red parts of text cells matching given regex
-                                 pattern. Note that highlighting only works within cells.
-                                 Will not work with -R/--rainbow.
+                                 pattern. Will not work with -R/--rainbow.
     -H, --highlight              Highlight text that is wrapped xml tags (like this <em>text</em>).
-                                 See --highlight-tag to custom xml tag value. Note that highlighting
-                                 only works within cells. Will not work with -R/--rainbow.
-    --highlight-tag <value>      Change the xml tag value used for -H/--highlight. Ignored if -H not given.
+                                 See --highlight-tag to customize xml tag name.
+                                 Will not work with -R/--rainbow.
+    --highlight-tag <name>       Change the xml tag name used for -H/--highlight. Ignored if -H not given.
                                  [default: em]
     -i, --ignore-case            If given, pattern given to -r/--highlight-regex will be case-insensitive.
     -N, --non-empty              For each row, only show non-empty values. This can be useful
@@ -99,7 +98,7 @@ struct Args {
     flag_sep: String,
     flag_highlight_regex: Option<String>,
     flag_highlight: bool,
-    flag_highlight_tag: Option<String>,
+    flag_highlight_tag: String,
     flag_ignore_case: bool,
     flag_no_headers: bool,
     flag_non_empty: bool,
@@ -109,8 +108,12 @@ struct Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = utils::get_args(USAGE, argv)?;
+    let mut args: Args = utils::get_args(USAGE, argv)?;
     args.flag_color.apply();
+
+    if args.flag_highlight {
+        args.flag_ignore_case = true;
+    }
 
     if args.flag_highlight && args.flag_highlight_regex.is_some() {
         Err("-r/--highlight-regex does not work with -H/--highlight!")?;
@@ -192,12 +195,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .transpose()?;
 
     let pattern = if args.flag_highlight {
-        let tag = escape(&args.flag_highlight_tag.unwrap_or("em".to_string()));
+        let tag = escape(&args.flag_highlight_tag);
         Some(format!(r"<{tag}>(?<content>.+?)</{tag}>"))
     } else { args.flag_highlight_regex };
 
     let highlight_pattern = pattern
-        .as_ref() // unsure if necessary
+        .as_ref()
         .map(|pat|
             RegexBuilder::new(pat)
                 .case_insensitive(args.flag_ignore_case)
@@ -264,8 +267,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut cell = match (cell_colorizer.highlightable_color(), &highlight_pattern) {
             (Some(fg), Some(pattern)) => pattern
                 .replace_all(&cell, |caps: &Captures| {
-                    let content = if args.flag_highlight { &caps["content"] }
-                                        else { &caps[0] };
+                    let content = if args.flag_highlight { &caps[1] } else { &caps[0] };
                     let mut r = String::from("\x1b[0;1;31m");
                     r.push_str(content);
                     r.push_str("\x1b[0;");
@@ -274,7 +276,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     r
                 })
                 .into_owned(),
-            // should xml tag be removed if highlightable_color() is None ?
             _ => cell,
         };
 
