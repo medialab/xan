@@ -17,8 +17,8 @@ Usage:
 behead options:
     -A, --append  Only drop headers if output already exists and
                   is not empty. Requires -o/--output to be set.
-    --raw         Drop the header and flush the rest of the file to output as-is
-                  without standardizing CSV format in order to go faster.
+    --raw         Drop the header and flush the rest of the file to the output
+                  as-is without standardizing CSV format in order to go faster.
                   This is activated by default if input is already standard
                   CSV (commas, double quotes).
 

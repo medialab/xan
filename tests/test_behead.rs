@@ -32,16 +32,17 @@ fn behead_tsv() {
 }
 
 #[test]
-fn behead_raw() {
-    let wrk = Workdir::new("behead_raw");
-    wrk.create(
-        "data.csv",
+fn behead_tsv_raw() {
+    let wrk = Workdir::new("behead_tsv_raw");
+    wrk.create_with_delimiter(
+        b'\t',
+        "data.tsv",
         vec![svec!["letter", "number"], svec!["a", "1"], svec!["b", "2"]],
     );
     let mut cmd = wrk.command("behead");
-    cmd.arg("data.csv").arg("--raw");
+    cmd.arg("data.tsv").arg("--raw");
 
-    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let got: Vec<Vec<String>> = wrk.read_stdout_with_delimiter(b'\t', &mut cmd);
     let expected = vec![svec!["a", "1"], svec!["b", "2"]];
     assert_eq!(got, expected);
 }

@@ -3,6 +3,7 @@ use std::io;
 use lazy_static::lazy_static;
 use regex::Regex;
 use regex::bytes::Regex as BytesRegex;
+use simd_csv::ByteRecord;
 use unidecode::unidecode;
 
 use crate::CliResult;
@@ -29,10 +30,6 @@ Rename columns of a CSV file. Can also be used to add headers to a headless
 CSV file. The new names must be passed in CSV format to the column as argument,
 which can be useful if the desired column names contains actual commas and/or double
 quotes.
-
-Note that to be as performant as possible, this command does not try
-to be clever and only parses the first CSV row to drop it. The rest of
-the file will be flushed to the output as-is without any kind of normalization.
 
 Renaming all columns:
 
@@ -80,6 +77,10 @@ rename options:
     -R, --replace          Replace matches of a pattern by given replacement in
                            column names.
     -f, --force            Ignore unknown columns to be renamed.
+    --raw                  Rename the header and flush the rest of the file to the output
+                           as-is without standardizing CSV format in order to go faster.
+                           This is activated by default if input is already standard
+                           CSV (commas, double quotes).
 
 Common options:
     -h, --help             Display this message
@@ -91,7 +92,7 @@ Common options:
                            Must be a single character.
 ";
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 struct Args {
     arg_input: Option<String>,
     arg_columns: Option<String>,
@@ -106,20 +107,29 @@ struct Args {
     flag_slugify: bool,
     flag_replace: bool,
     flag_force: bool,
+    flag_raw: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = utils::get_args(USAGE, argv)?;
+    let mut args: Args = utils::get_args(USAGE, argv)?;
 
     let mut rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
     let wconfig = Config::new(&args.flag_output);
 
+    if rconfig.is_standard_csv() {
+        args.flag_raw = true;
+    }
+
     let mut peeker = rconfig.simd_peeker()?;
     let mut wtr_builder = wconfig.simd_csv_writer_builder();
-    wtr_builder.crlf_newlines(peeker.has_crlf_newlines()?);
-    wtr_builder.delimiter(rconfig.delimiter);
+
+    if args.flag_raw {
+        wtr_builder.crlf_newlines(peeker.has_crlf_newlines()?);
+        wtr_builder.delimiter(rconfig.delimiter);
+    }
+
     let mut wtr = wtr_builder.from_writer(wconfig.io_writer()?);
 
     if args.flag_no_headers {
@@ -272,12 +282,25 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     wtr.write_byte_record(&renamed_headers)?;
 
-    io::copy(
-        &mut peeker.into_reader(),
-        &mut wtr.into_inner().map_err(|err| err.into_error())?,
-    )?;
+    if args.flag_raw {
+        io::copy(
+            &mut peeker.into_reader(),
+            &mut wtr.into_inner().map_err(|err| err.into_error())?,
+        )?;
 
-    Ok(())
+        Ok(())
+    } else {
+        let mut rdr = rconfig
+            .no_headers(true)
+            .simd_csv_reader_from_reader(peeker.into_reader());
+        let mut record = ByteRecord::new();
+
+        while rdr.read_byte_record(&mut record)? {
+            wtr.write_byte_record(&record)?;
+        }
+
+        Ok(wtr.flush()?)
+    }
 }
 
 #[cfg(test)]
