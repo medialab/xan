@@ -96,3 +96,28 @@ fn enumerate_byte_offset() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn enumerate_byte_offset_accumulate() {
+    let wrk = Workdir::new("enumerate_byte_offset_accumulate");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["a"],
+            svec!["1452"],
+            svec!["23497694986"],
+            svec!["34087056085685"],
+        ],
+    );
+    let mut cmd = wrk.command("enum");
+    cmd.arg("data.csv").arg("-A");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["byte_offset", "a"],
+        svec!["14", "1452"],
+        svec!["22", "23497694986"],
+        svec!["37", "34087056085685"],
+    ];
+    assert_eq!(got, expected);
+}
