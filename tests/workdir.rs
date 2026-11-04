@@ -76,10 +76,15 @@ impl Workdir {
             .unwrap()
     }
 
-    pub fn read_stdout<T: Csv>(&self, cmd: &mut process::Command) -> T {
+    pub fn read_stdout_with_delimiter<T: Csv>(
+        &self,
+        delimiter: u8,
+        cmd: &mut process::Command,
+    ) -> T {
         let stdout: String = self.stdout(cmd);
         let mut rdr = csv::ReaderBuilder::new()
             .has_headers(false)
+            .delimiter(delimiter)
             .from_reader(io::Cursor::new(stdout));
 
         let records: Vec<Vec<String>> = rdr
@@ -90,6 +95,10 @@ impl Workdir {
             .map(|r| r.iter().map(|f| f.to_string()).collect())
             .collect();
         Csv::from_vecs(records)
+    }
+
+    pub fn read_stdout<T: Csv>(&self, cmd: &mut process::Command) -> T {
+        self.read_stdout_with_delimiter(b',', cmd)
     }
 
     pub fn command(&self, sub_command: &str) -> process::Command {

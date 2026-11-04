@@ -14,6 +14,40 @@ fn rename() {
 }
 
 #[test]
+fn rename_tsv() {
+    let wrk = Workdir::new("rename_tsv");
+    wrk.create_with_delimiter(
+        b'\t',
+        "data.tsv",
+        vec![svec!["name", "age"], svec!["John", "24"]],
+    );
+
+    let mut cmd = wrk.command("rename");
+    cmd.arg("NAME,AGE").arg("data.tsv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["NAME", "AGE"], svec!["John", "24"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn rename_tsv_raw() {
+    let wrk = Workdir::new("rename_tsv_raw");
+    wrk.create_with_delimiter(
+        b'\t',
+        "data.tsv",
+        vec![svec!["name", "age"], svec!["John", "24"]],
+    );
+
+    let mut cmd = wrk.command("rename");
+    cmd.arg("NAME,AGE").arg("data.tsv").arg("--raw");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout_with_delimiter(b'\t', &mut cmd);
+    let expected = vec![svec!["NAME", "AGE"], svec!["John", "24"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn rename_alignment_error() {
     let wrk = Workdir::new("rename_alignment_error");
     wrk.create("data.csv", vec![svec!["name", "age"], svec!["John", "24"]]);
