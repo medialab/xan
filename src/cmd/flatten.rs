@@ -2,7 +2,7 @@ use std::io::{self, Write};
 use std::num::NonZeroUsize;
 
 use colored::Colorize;
-use regex::{escape, Captures, RegexBuilder};
+use regex::{Captures, RegexBuilder, escape};
 use simd_csv::{ByteRecord, StringRecord};
 use unicode_width::UnicodeWidthStr;
 
@@ -58,10 +58,10 @@ flatten options:
                                  to be displayed as a list.
     --sep <sep>                  Delimiter separating multiple values in cells split
                                  by -S/--split. [default: |]
-    -r, --highlight-regex <pat>  Highlight in red parts of text cells matching given regex
-                                 pattern. Will not work with -R/--rainbow.
-    -H, --highlight              Highlight text that is wrapped xml tags (like this <em>text</em>).
-                                 See --highlight-tag to customize xml tag name.
+    -r, --highlight-regex <pat>  Highlight parts of cells matching given regex pattern.
+                                 Will not work with -R/--rainbow.
+    -H, --highlight              Highlight text wrapped in some xml tag (`<em>`, by default).
+                                 See --highlight-tag to customize highlighted xml tag name.
                                  Will not work with -R/--rainbow.
     --highlight-tag <name>       Change the xml tag name used for -H/--highlight. Ignored if -H not given.
                                  [default: em]
@@ -196,15 +196,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let pattern = if args.flag_highlight {
         let tag = escape(&args.flag_highlight_tag);
-        Some(format!(r"<{tag}>(?<content>.+?)</{tag}>"))
-    } else { args.flag_highlight_regex };
+        Some(format!(r"<{tag}>(.+?)</{tag}>"))
+    } else {
+        args.flag_highlight_regex
+    };
 
     let highlight_pattern = pattern
         .as_ref()
-        .map(|pat|
+        .map(|pat| {
             RegexBuilder::new(pat)
                 .case_insensitive(args.flag_ignore_case)
-                .build())
+                .build()
+        })
         .transpose()?;
 
     let cols = utils::acquire_term_cols_ratio(&args.flag_cols)?;
@@ -267,7 +270,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut cell = match (cell_colorizer.highlightable_color(), &highlight_pattern) {
             (Some(fg), Some(pattern)) => pattern
                 .replace_all(&cell, |caps: &Captures| {
-                    let content = if args.flag_highlight { &caps[1] } else { &caps[0] };
+                    let content = if args.flag_highlight {
+                        &caps[1]
+                    } else {
+                        &caps[0]
+                    };
                     let mut r = String::from("\x1b[0;1;31m");
                     r.push_str(content);
                     r.push_str("\x1b[0;");

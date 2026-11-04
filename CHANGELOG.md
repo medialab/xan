@@ -10,6 +10,7 @@
 * Renaming `xan flatten --row-separator` as `--row-sep` for harmonization purposes and add the `-W` short flag.
 * Dropping `-H` short flag of `xan view --hide-headers` to harmonize with `xan flatten`.
 * `xan behead`, `xan enum` & `xan rename` go back to standardizing their CSV output by default. Use the `--raw` flag to get the fast, non-standardizing alternative.
+* `xan flatten -H/--highlight` is now boolean and will perform tag highlighting. To get the old behavior, use the `-r/--highlight-regex` instead.
 
 *Features*
 
@@ -25,7 +26,7 @@
 * Adding an optional default value to the `try` moonblade function.
 * Adding `xan select -M/--add-missing`.
 * Adding `xan view --no-pager, --ignore-env, -k/--thousands-sep`.
-* Adding `xan flatten --hide-headers`.
+* Adding `xan flatten --hide-headers, -r/--highlight-regex, --highlight-tag`.
 * The `fmt` function now accepts a list as substitutions, is more robust to errors and is able to accept more than 8 arguments.
 
 *Fixes*
