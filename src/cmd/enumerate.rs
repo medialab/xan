@@ -75,7 +75,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if !conf.no_headers {
         let column_name = args.flag_column_name.unwrap_or(
-            (if args.flag_byte_offset {
+            (if args.flag_byte_offset || args.flag_accumulate {
                 "byte_offset"
             } else {
                 "index"
