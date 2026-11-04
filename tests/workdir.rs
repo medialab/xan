@@ -53,15 +53,20 @@ impl Workdir {
         self
     }
 
-    pub fn create<T: Csv>(&self, name: &str, rows: T) {
+    pub fn create_with_delimiter<T: Csv>(&self, delimiter: u8, name: &str, rows: T) {
         let mut wtr = csv::WriterBuilder::new()
             .flexible(self.flexible)
+            .delimiter(delimiter)
             .from_path(self.path(name))
             .unwrap();
         for row in rows.to_vecs().into_iter() {
             wtr.write_record(row).unwrap();
         }
         wtr.flush().unwrap();
+    }
+
+    pub fn create<T: Csv>(&self, name: &str, rows: T) {
+        self.create_with_delimiter(b',', name, rows);
     }
 
     pub fn write(&self, name: &str, contents: &str) {
