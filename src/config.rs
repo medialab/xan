@@ -303,6 +303,10 @@ impl Config {
         self.compression = Some(compression);
     }
 
+    pub fn is_standard_csv(&self) -> bool {
+        self.delimiter == b',' && self.quote == b'"'
+    }
+
     // pub fn is_compressed(&self) -> bool {
     //     self.compression.is_some()
     // }
