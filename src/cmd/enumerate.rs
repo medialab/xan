@@ -1,8 +1,58 @@
-use std::io::{self, Write};
+use std::fmt::Display;
+use std::io::{self, BufWriter, Write};
+
+use itoa::Buffer;
+use simd_csv::ByteRecord;
 
 use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::utils;
+
+struct TrackingBufWriter<W: Write> {
+    written: u64,
+    inner: BufWriter<W>,
+}
+
+impl<W: Write> TrackingBufWriter<W> {
+    fn new(inner: BufWriter<W>) -> Self {
+        Self { written: 0, inner }
+    }
+
+    #[inline]
+    fn prepend(&mut self, value: &[u8], delimiter: u8, record: &[u8]) -> io::Result<()> {
+        self.write_all(value)?;
+        self.write_all(&[delimiter])?;
+        self.write_all(record)?;
+        self.write_all(b"\n")
+    }
+
+    #[inline]
+    fn prepend_int<V: Display>(
+        &mut self,
+        value: V,
+        delimiter: u8,
+        record: &[u8],
+    ) -> io::Result<()> {
+        write!(self, "{value}")?;
+        self.write_all(&[delimiter])?;
+        self.write_all(record)?;
+        self.write_all(b"\n")
+    }
+}
+
+impl<W: Write> Write for TrackingBufWriter<W> {
+    #[inline(always)]
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let written = self.inner.write(buf)?;
+        self.written += written as u64;
+        Ok(written)
+    }
+
+    #[inline(always)]
+    fn flush(&mut self) -> io::Result<()> {
+        self.inner.flush()
+    }
+}
 
 static USAGE: &str = "
 Enumerate a CSV file by preprending an index column to each row.
@@ -25,6 +75,10 @@ enum options:
     -A, --accumulate         Similar to -B/--byte-offset but will accumulate the
                              written offset size in bytes to create an autodescriptive
                              file that can be seen as a means of indexing the file.
+    --raw                    Whether to optimize the process by relying on a faster parser,
+                             at the expense of output CSV standardization.
+                             This behavior is implicitly on when using -B/--byte-offset
+                             or -A/--accumulate.
 
 Common options:
     -h, --help             Display this message
@@ -45,62 +99,90 @@ struct Args {
     flag_column_name: Option<String>,
     flag_byte_offset: bool,
     flag_accumulate: bool,
+    flag_raw: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = utils::get_args(USAGE, argv)?;
+    let mut args: Args = utils::get_args(USAGE, argv)?;
 
     if args.flag_accumulate && args.flag_byte_offset {
         Err("-B/--byte-offset is not compatible with -A/--accumulate!")?;
     }
 
+    let column_name = match &args.flag_column_name {
+        Some(name) => name,
+        None => {
+            if args.flag_byte_offset || args.flag_accumulate {
+                "byte_offset"
+            } else {
+                "index"
+            }
+        }
+    };
+
     let conf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
 
+    if conf.is_standard_csv() || args.flag_accumulate || args.flag_byte_offset {
+        args.flag_raw = true;
+    }
+
+    let wconf = Config::new(&args.flag_output);
+
     let delimiter = conf.delimiter;
 
-    let mut splitter = conf.simd_splitter()?;
-    let mut wtr = Config::new(&args.flag_output).buf_io_writer()?;
-    let mut written: u64 = 0;
+    if args.flag_raw {
+        let mut splitter = conf.simd_splitter()?;
+        let mut wtr = TrackingBufWriter::new(wconf.buf_io_writer()?);
 
-    let mut write = |value: &[u8], record: &[u8]| -> io::Result<u64> {
-        wtr.write_all(value)?;
-        wtr.write_all(&[delimiter])?;
-        wtr.write_all(record)?;
-        wtr.write_all(b"\n")?;
-
-        Ok((value.len() + 1 + record.len() + 1) as u64)
-    };
-
-    if !conf.no_headers {
-        let column_name = args.flag_column_name.unwrap_or(
-            (if args.flag_byte_offset {
-                "byte_offset"
-            } else {
-                "index"
-            })
-            .to_string(),
-        );
-
-        written += write(column_name.as_bytes(), splitter.byte_headers()?)?;
-    }
-
-    let mut counter = args.flag_start;
-    let mut pos: u64 = splitter.position();
-
-    while let Some(record) = splitter.split_record()? {
-        if args.flag_byte_offset {
-            written += write(pos.to_string().as_bytes(), record)?;
-        } else if args.flag_accumulate {
-            written += write(written.to_string().as_bytes(), record)?;
-        } else {
-            written += write(counter.to_string().as_bytes(), record)?;
+        if !conf.no_headers {
+            wtr.prepend(column_name.as_bytes(), delimiter, splitter.byte_headers()?)?;
         }
 
-        pos = splitter.position();
-        counter += 1;
-    }
+        let mut counter = args.flag_start;
+        let mut pos: u64 = splitter.position();
 
-    Ok(wtr.flush()?)
+        while let Some(record) = splitter.split_record()? {
+            if args.flag_byte_offset {
+                wtr.prepend_int(pos, delimiter, record)?;
+            } else if args.flag_accumulate {
+                wtr.prepend_int(wtr.written, delimiter, record)?;
+            } else {
+                wtr.prepend_int(counter, delimiter, record)?;
+            }
+
+            pos = splitter.position();
+            counter += 1;
+        }
+
+        Ok(wtr.flush()?)
+    } else {
+        let mut reader = conf.simd_reader()?;
+        let mut wtr = wconf.simd_writer()?;
+        let mut buf = Buffer::new();
+
+        if !conf.no_headers {
+            wtr.write_record(
+                [column_name.as_bytes()]
+                    .into_iter()
+                    .chain(reader.byte_headers()?.iter()),
+            )?;
+        }
+
+        let mut counter = args.flag_start;
+        let mut record = ByteRecord::new();
+
+        while reader.read_byte_record(&mut record)? {
+            wtr.write_record(
+                [buf.format(counter).as_bytes()]
+                    .into_iter()
+                    .chain(record.iter()),
+            )?;
+
+            counter += 1;
+        }
+
+        Ok(wtr.flush()?)
+    }
 }

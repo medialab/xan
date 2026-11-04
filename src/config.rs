@@ -16,6 +16,8 @@ use crate::read;
 use crate::select::{SelectedColumns, Selection};
 use crate::{CliError, CliResult};
 
+pub const DEFAULT_BUFWRITER_CAPACITY: usize = 32 * (1 << 10);
+
 #[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(try_from = "String")]
 pub struct Delimiter(pub u8);
@@ -301,6 +303,10 @@ impl Config {
 
     pub fn set_compression(&mut self, compression: Compression) {
         self.compression = Some(compression);
+    }
+
+    pub fn is_standard_csv(&self) -> bool {
+        self.delimiter == b',' && self.quote == b'"'
     }
 
     // pub fn is_compressed(&self) -> bool {
@@ -851,7 +857,10 @@ impl Config {
     }
 
     pub fn buf_io_writer(&self) -> io::Result<BufWriter<Box<dyn io::Write + Send + 'static>>> {
-        Ok(BufWriter::with_capacity(32 * (1 << 10), self.io_writer()?))
+        Ok(BufWriter::with_capacity(
+            DEFAULT_BUFWRITER_CAPACITY,
+            self.io_writer()?,
+        ))
     }
 
     pub fn buf_io_writer_with_options(
@@ -859,7 +868,7 @@ impl Config {
         options: &fs::OpenOptions,
     ) -> io::Result<BufWriter<Box<dyn io::Write + Send + 'static>>> {
         Ok(BufWriter::with_capacity(
-            32 * (1 << 10),
+            DEFAULT_BUFWRITER_CAPACITY,
             self.io_writer_with_options(options)?,
         ))
     }
@@ -873,12 +882,12 @@ impl Config {
             .quote_style(self.quote_style)
             .double_quote(self.double_quote)
             .escape(self.escape.unwrap_or(b'\\'))
-            .buffer_capacity(32 * (1 << 10))
+            .buffer_capacity(DEFAULT_BUFWRITER_CAPACITY)
             .from_writer(wtr)
     }
 
     pub fn simd_csv_writer_builder(&self) -> simd_csv::WriterBuilder {
-        let mut builder = simd_csv::WriterBuilder::with_capacity(32 * (1 << 10));
+        let mut builder = simd_csv::WriterBuilder::with_capacity(DEFAULT_BUFWRITER_CAPACITY);
 
         builder.delimiter(self.delimiter).quote(self.quote);
 

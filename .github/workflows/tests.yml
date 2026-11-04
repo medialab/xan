@@ -7,7 +7,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
           - os: windows-latest
           - os: macos-latest
           - os: ubuntu-24.04-arm

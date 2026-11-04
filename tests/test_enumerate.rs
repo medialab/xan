@@ -21,6 +21,48 @@ fn enumerate() {
 }
 
 #[test]
+fn enumerate_tsv() {
+    let wrk = Workdir::new("enumerate_tsv");
+    wrk.create_with_delimiter(
+        b'\t',
+        "data.tsv",
+        vec![svec!["a"], svec!["1",], svec!["2"], svec!["3"]],
+    );
+    let mut cmd = wrk.command("enum");
+    cmd.arg("data.tsv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["index", "a"],
+        svec!["0", "1"],
+        svec!["1", "2"],
+        svec!["2", "3"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn enumerate_tsv_raw() {
+    let wrk = Workdir::new("enumerate_tsv_raw");
+    wrk.create_with_delimiter(
+        b'\t',
+        "data.tsv",
+        vec![svec!["a"], svec!["1",], svec!["2"], svec!["3"]],
+    );
+    let mut cmd = wrk.command("enum");
+    cmd.arg("data.tsv").arg("--raw");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout_with_delimiter(b'\t', &mut cmd);
+    let expected = vec![
+        svec!["index", "a"],
+        svec!["0", "1"],
+        svec!["1", "2"],
+        svec!["2", "3"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn enumerate_no_headers() {
     let wrk = Workdir::new("enumerate_no_headers");
     wrk.create("data.csv", vec![svec!["1"], svec!["2"], svec!["3"]]);
@@ -93,6 +135,31 @@ fn enumerate_byte_offset() {
         svec!["2", "1452"],
         svec!["7", "23497694986"],
         svec!["19", "34087056085685"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn enumerate_byte_offset_accumulate() {
+    let wrk = Workdir::new("enumerate_byte_offset_accumulate");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["a"],
+            svec!["1452"],
+            svec!["23497694986"],
+            svec!["34087056085685"],
+        ],
+    );
+    let mut cmd = wrk.command("enum");
+    cmd.arg("data.csv").arg("-A");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["byte_offset", "a"],
+        svec!["14", "1452"],
+        svec!["22", "23497694986"],
+        svec!["37", "34087056085685"],
     ];
     assert_eq!(got, expected);
 }

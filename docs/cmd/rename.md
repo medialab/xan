@@ -7,10 +7,6 @@ CSV file. The new names must be passed in CSV format to the column as argument,
 which can be useful if the desired column names contains actual commas and/or double
 quotes.
 
-Note that to be as performant as possible, this command does not try
-to be clever and only parses the first CSV row to drop it. The rest of
-the file will be flushed to the output as-is without any kind of normalization.
-
 Renaming all columns:
 
     $ xan rename NAME,SURNAME,AGE file.csv
@@ -57,6 +53,10 @@ rename options:
     -R, --replace          Replace matches of a pattern by given replacement in
                            column names.
     -f, --force            Ignore unknown columns to be renamed.
+    --raw                  Rename the header and flush the rest of the file to the output
+                           as-is without standardizing CSV format in order to go faster.
+                           This is activated by default if input is already standard
+                           CSV (commas, double quotes).
 
 Common options:
     -h, --help             Display this message

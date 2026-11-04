@@ -579,8 +579,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .map(utils::sanitize_text_for_single_line_printing)
         .collect();
 
-    let mut all_records_buffered = false;
-
     let mut number_formatter = (args.flag_significance.is_some()
         || args.flag_thousands_sep.is_some())
     .then(|| Formatter::new().scales(Scales::none()));
@@ -604,6 +602,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         number_formatter = Some(formatter);
     }
 
+    let mut all_records_buffered = false;
+
     let records: Vec<(StringRecord, Vec<DataType>)> = {
         let limit = args.flag_limit.unwrap();
         let mut record = StringRecord::new();
@@ -621,34 +621,42 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
 
             for cell in sel.select(&record) {
-                let mut cell = utils::sanitize_text_for_single_line_printing(cell);
-
-                if let Some(sanitizer) = &emoji_sanitizer_opt {
-                    cell = sanitizer.sanitize(&cell);
-                }
-
                 if cell.is_empty() {
-                    cell = "<empty>".to_string();
+                    processed_record.push_field("<empty>");
+                    data_types.push(DataType::Nullish);
+
+                    continue;
                 }
 
-                let data_type = utils::infer_data_type(&cell);
+                let data_type = utils::infer_data_type(cell);
+                data_types.push(data_type);
 
                 match data_type {
                     DataType::Float(f) => {
                         if let Some(fmt) = number_formatter.as_mut() {
-                            cell = utils::format_number_with_formatter(fmt, f).to_string();
+                            processed_record
+                                .push_field(utils::format_number_with_formatter(fmt, f));
+                        } else {
+                            processed_record.push_field(cell);
                         }
                     }
                     DataType::Integer(i) => {
                         if let Some(k) = args.flag_thousands_sep {
-                            cell = utils::format_int(i, k.as_byte() as char)
+                            processed_record.push_field(&utils::format_int(i, k.as_byte() as char));
+                        } else {
+                            processed_record.push_field(cell);
                         }
                     }
-                    _ => (),
-                };
+                    _ => {
+                        let mut cell = utils::sanitize_text_for_single_line_printing(cell);
 
-                processed_record.push_field(&cell);
-                data_types.push(data_type);
+                        if let Some(sanitizer) = &emoji_sanitizer_opt {
+                            cell = sanitizer.sanitize(&cell);
+                        }
+
+                        processed_record.push_field(&cell);
+                    }
+                };
             }
 
             records.push((processed_record, data_types));
