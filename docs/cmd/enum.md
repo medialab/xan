@@ -22,6 +22,10 @@ enum options:
     -A, --accumulate         Similar to -B/--byte-offset but will accumulate the
                              written offset size in bytes to create an autodescriptive
                              file that can be seen as a means of indexing the file.
+    --raw                    Whether to optimize the process by relying on a faster parser,
+                             at the expense of output CSV standardization.
+                             This behavior is implicitly on when using -B/--byte-offset
+                             or -A/--accumulate.
 
 Common options:
     -h, --help             Display this message

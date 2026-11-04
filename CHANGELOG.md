@@ -9,7 +9,7 @@
 * `xan from -f (json|ndjson) --model` is now also used to rename the projected columns.
 * Renaming `xan flatten --row-separator` as `--row-sep` for harmonization purposes and add the `-W` short flag.
 * Dropping `-H` short flag of `xan view --hide-headers` to harmonize with `xan flatten`.
-* `xan behead` & `xan rename` go back to standardizing their CSV output. Use the `--raw` flag to get the fast, non-standardizing alternative.
+* `xan behead`, `xan enum` & `xan rename` go back to standardizing their CSV output by default. Use the `--raw` flag to get the fast, non-standardizing alternative.
 
 *Features*
 
