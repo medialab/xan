@@ -129,6 +129,7 @@ https://github.com/medialab/xan/tree/master/docs/scrapers
 - **id** -> `string?`: Extract the id attribute of selected element, if any.
 - **attr**(*name*) -> `string?`: Extract desired attribute of selected element, if it exists.
 - **attrs** -> `map`: Extract a map of selected element's attributes.
+- **data**(*name*) -> `string?`: Extract desired attribute of selected element, with automatic "data-" prefixed name, if it exists.
 - **classes** -> `list`: Extract a list of selected element's classes.
 - **text** -> `string`: Extract a readable version of selected element's text, all while attempting to respect inline vs. block display.
 - **raw_text** -> `string`: Extract selected element's text, without any reformatting except from trimming.

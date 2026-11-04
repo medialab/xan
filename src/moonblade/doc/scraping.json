@@ -72,6 +72,12 @@
       "help": "Extract a map of selected element's attributes."
     },
     {
+      "name": "data",
+      "arguments": ["name"],
+      "returns": "string?",
+      "help": "Extract desired attribute of selected element, with automatic \"data-\" prefixed name, if it exists."
+    },
+    {
       "name": "classes",
       "returns": "list",
       "help": "Extract a list of selected element's classes."
