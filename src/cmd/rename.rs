@@ -1,4 +1,4 @@
-use std::io;
+use std::io::{self, BufWriter, Write};
 
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -7,7 +7,7 @@ use simd_csv::ByteRecord;
 use unidecode::unidecode;
 
 use crate::CliResult;
-use crate::config::{Config, Delimiter};
+use crate::config::{Config, DEFAULT_BUFWRITER_CAPACITY, Delimiter};
 use crate::select::{SelectedColumns, Selection};
 use crate::utils;
 
@@ -283,12 +283,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     wtr.write_byte_record(&renamed_headers)?;
 
     if args.flag_raw {
-        io::copy(
-            &mut peeker.into_reader(),
-            &mut wtr.into_inner().map_err(|err| err.into_error())?,
-        )?;
+        let mut raw_writer = BufWriter::with_capacity(
+            DEFAULT_BUFWRITER_CAPACITY,
+            wtr.into_inner().map_err(|err| err.into_error())?,
+        );
 
-        Ok(())
+        io::copy(&mut peeker.into_reader(), &mut raw_writer)?;
+
+        Ok(raw_writer.flush()?)
     } else {
         let mut rdr = rconfig
             .no_headers(true)
