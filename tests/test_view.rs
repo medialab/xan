@@ -12,6 +12,20 @@ fn create_data(wrk: &Workdir) {
 }
 
 #[test]
+fn view_plain() {
+    let wrk = Workdir::new("view_plain");
+    create_data(&wrk);
+
+    let mut cmd = wrk.command("view");
+    cmd.arg("data.csv")
+        .args(["--plain", "--cols", "80"])
+        .env_remove("XAN_VIEW_ARGS");
+    let got = wrk.output(&mut cmd);
+
+    assert_eq!(got.stdout, b"name   score\njohn       1\nmary       2\n");
+}
+
+#[test]
 fn view_tiny_cols() {
     let wrk = Workdir::new("view_tiny_cols");
     create_data(&wrk);

@@ -222,7 +222,7 @@ the -e/--expand and --color=always flags before piping like so:
 Finally, it is possible to customize the default behavior of this command through
 the \"XAN_VIEW_ARGS\" environment variable. This variable takes a series of
 supported flags: -t/--theme, -p/--pager, -l/--limit, -R/--rainbow, -E/--sanitize-emojis,
-and -S/--significance, -I/--hide-index, --color, --repeat-headers, --reveal-whitespace
+and -S/--significance, -I/--hide-index, --plain, --color, --repeat-headers, --reveal-whitespace
 & -M/--hide-info. Other flags are ignored.
 
 To use the `borderless` theme, hide the index column and restrict the number of
@@ -240,6 +240,10 @@ Usage:
     xan view --help
 
 view options:
+    --plain                    Print a plain aligned preview without index, information,
+                                colors, rulers or surrounding blank lines. Overrides theme,
+                                color and header repetition, including XAN_VIEW_ARGS defaults.
+                                Header visibility and preview limits still apply.
     -s, --select <arg>          Select the columns to visualize. See 'xan select -h'
                                 for the full syntax.
     -t, --theme <name>          Theme for the table display, one of: \"table\", \"borderless\",
@@ -312,6 +316,7 @@ struct Args {
     flag_pager: bool,
     flag_no_pager: bool,
     flag_theme: String,
+    flag_plain: bool,
     flag_cols: Option<String>,
     flag_delimiter: Option<Delimiter>,
     flag_no_headers: bool,
@@ -337,6 +342,14 @@ struct Args {
 
 impl Args {
     fn resolve(&mut self) {
+        if self.flag_plain {
+            self.flag_theme = "borderless".to_string();
+            self.flag_hide_index = true;
+            self.flag_hide_info = true;
+            self.flag_color = ColorMode::Never;
+            self.flag_repeat_headers = ComplexToggle::Never;
+        }
+
         if self.flag_all {
             self.flag_limit = Some(0);
         }
@@ -365,6 +378,8 @@ impl Args {
     }
 
     fn merge(from_env: Self, mut from_argv: Self) -> Self {
+        from_argv.flag_plain |= from_env.flag_plain;
+
         if from_argv.flag_theme == "table" && from_env.flag_theme != "table" {
             from_argv.flag_theme = from_env.flag_theme;
         }
@@ -779,6 +794,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let write_horizontal_ruler =
         |out: &mut Box<dyn Write>, pos: HRPosition| -> Result<(), io::Error> {
+            if args.flag_plain {
+                return Ok(());
+            }
+
             let mut s = String::new();
 
             if theme.external_borders {
@@ -935,7 +954,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Ok(())
     };
 
-    writeln!(&mut output)?;
+    if !args.flag_plain {
+        writeln!(&mut output)?;
+    }
     write_info(&mut output)?;
 
     // NOTE: we stop if there is nothing to show
@@ -1040,7 +1061,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         writeln!(&mut output)?;
     } else {
         write_horizontal_ruler(&mut output, HRPosition::Top)?;
-        writeln!(&mut output)?;
+        if !args.flag_plain {
+            writeln!(&mut output)?;
+        }
     }
 
     if args.flag_tee {

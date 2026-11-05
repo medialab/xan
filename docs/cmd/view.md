@@ -20,7 +20,7 @@ the -e/--expand and --color=always flags before piping like so:
 Finally, it is possible to customize the default behavior of this command through
 the "XAN_VIEW_ARGS" environment variable. This variable takes a series of
 supported flags: -t/--theme, -p/--pager, -l/--limit, -R/--rainbow, -E/--sanitize-emojis,
-and -S/--significance, -I/--hide-index, --color, --repeat-headers, --reveal-whitespace
+and -S/--significance, -I/--hide-index, --plain, --color, --repeat-headers, --reveal-whitespace
 & -M/--hide-info. Other flags are ignored.
 
 To use the `borderless` theme, hide the index column and restrict the number of
@@ -38,6 +38,10 @@ Usage:
     xan view --help
 
 view options:
+    --plain                    Print a plain aligned preview without index, information,
+                                colors, rulers or surrounding blank lines. Overrides theme,
+                                color and header repetition, including XAN_VIEW_ARGS defaults.
+                                Header visibility and preview limits still apply.
     -s, --select <arg>          Select the columns to visualize. See 'xan select -h'
                                 for the full syntax.
     -t, --theme <name>          Theme for the table display, one of: "table", "borderless",
