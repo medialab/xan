@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::fs;
+use std::iter::once;
 use std::num::{NonZeroU8, NonZeroUsize};
 use std::str::{Utf8Error, from_utf8};
 use std::sync::Arc;
@@ -61,6 +62,42 @@ where
     }
 
     Ok(total)
+}
+
+trait AhoCorasickExt {
+    fn replace_all_bytes_cow<'h, B: AsRef<[u8]>>(
+        &self,
+        haystack: &'h [u8],
+        replace_with: &[B],
+    ) -> Cow<'h, [u8]>;
+}
+
+impl AhoCorasickExt for AhoCorasick {
+    fn replace_all_bytes_cow<'h, B: AsRef<[u8]>>(
+        &self,
+        haystack: &'h [u8],
+        replace_with: &[B],
+    ) -> Cow<'h, [u8]> {
+        let mut matches = self.find_iter(haystack);
+
+        let Some(first) = matches.next() else {
+            return Cow::Borrowed(haystack);
+        };
+
+        let mut result = Vec::with_capacity(haystack.len());
+
+        let mut last_end = 0;
+
+        for mat in once(first).chain(matches) {
+            result.extend_from_slice(&haystack[last_end..mat.start()]);
+            result.extend_from_slice(replace_with[mat.pattern().as_usize()].as_ref());
+            last_end = mat.end();
+        }
+
+        result.extend_from_slice(&haystack[last_end..]);
+
+        Cow::Owned(result)
+    }
 }
 
 trait LevenshteinDistanceExt {
@@ -466,7 +503,7 @@ impl Matcher {
                 if *case_insensitive {
                     unreachable!()
                 } else {
-                    Cow::Owned(pattern.replace_all_bytes(cell, replacements))
+                    pattern.replace_all_bytes_cow(cell, replacements)
                 }
             }
             Self::Regex(pattern) => pattern.replace_all(cell, &replacements[0]),
