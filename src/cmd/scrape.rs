@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::fs::{self, File};
-use std::io::{self, Cursor, Read};
+use std::io::{self, BufRead, BufReader, Read};
+use std::iter::once;
 use std::path::PathBuf;
 use std::str::from_utf8;
 
@@ -13,7 +14,7 @@ use pariter::IteratorExt;
 use regex::bytes::Regex;
 use scraper::{Html, Selector};
 use serde_json::{Map, Value};
-use simd_csv::{ByteRecord, Reader, ReaderBuilder, WriterBuilder};
+use simd_csv::ByteRecord;
 use url::Url;
 
 use crate::config::{Config, Delimiter};
@@ -22,31 +23,6 @@ use crate::select::{SelectedColumns, Selection};
 use crate::urls::should_follow_href;
 use crate::utils;
 use crate::{CliError, CliResult};
-
-fn create_dummy_csv_reader(
-    item_name: &str,
-    items: &[impl AsRef<[u8]>],
-) -> Reader<Box<dyn Read + Send + 'static>> {
-    let mut buffer = Vec::<u8>::new();
-
-    {
-        let mut writer = WriterBuilder::new()
-            .delimiter(b'\t')
-            .quote(b'\x00')
-            .from_writer(&mut buffer);
-
-        writer.write_record([item_name]).unwrap();
-
-        for item in items {
-            writer.write_record([item.as_ref()]).unwrap();
-        }
-    }
-
-    ReaderBuilder::new()
-        .delimiter(b'\t')
-        .quote(b'\x00')
-        .from_reader(Box::new(Cursor::new(buffer)))
-}
 
 // IO helpers
 fn open(input_dir: &str, filename: &str) -> io::Result<Box<dyn Read>> {
@@ -219,6 +195,71 @@ impl ScraperTarget<'_> {
     }
 }
 
+enum InputPayload {
+    Path(String, ByteRecord),
+    Document(usize, ByteRecord),
+    SingleDocument(Vec<u8>),
+}
+
+#[derive(Default)]
+struct ScraperContext {
+    url: Option<Url>,
+}
+
+impl ScraperContext {
+    fn new(url: Option<&str>) -> Result<Self, url::ParseError> {
+        Ok(Self {
+            url: url.map(Url::parse).transpose()?,
+        })
+    }
+}
+
+struct Input {
+    payload: InputPayload,
+    encoding: Option<EncodingRef>,
+    context: ScraperContext,
+}
+
+impl Input {
+    fn is_empty(&self) -> bool {
+        match &self.payload {
+            InputPayload::Path(path, _) => path.trim().is_empty(),
+            InputPayload::Document(i, record) => record[*i].trim().is_empty(),
+            InputPayload::SingleDocument(doc) => doc.trim().is_empty(),
+        }
+    }
+
+    fn as_target<'a>(&'a self, input_dir: &'a str) -> ScraperTarget<'a> {
+        match &self.payload {
+            InputPayload::Path(path, _) => ScraperTarget::HtmlFile {
+                input_dir,
+                filename: path,
+                encoding: self.encoding,
+            },
+            InputPayload::Document(i, record) => ScraperTarget::HtmlCell(&record[*i]),
+            InputPayload::SingleDocument(doc) => ScraperTarget::HtmlCell(doc),
+        }
+    }
+
+    fn as_record(&self) -> Option<&ByteRecord> {
+        match &self.payload {
+            InputPayload::Path(_, record) | InputPayload::Document(_, record) => Some(record),
+            _ => None,
+        }
+    }
+}
+
+impl From<InputPayload> for Input {
+    #[inline]
+    fn from(payload: InputPayload) -> Self {
+        Self {
+            payload,
+            encoding: None,
+            context: Default::default(),
+        }
+    }
+}
+
 // Scraper abstractions
 lazy_static! {
     // Regexes
@@ -280,11 +321,12 @@ impl CustomScraper {
     }
 }
 
+// TODO: Urls & Images could take a future base url if required
 #[derive(Clone, Debug)]
 enum Scraper {
     Head,
-    Urls(Option<usize>),
-    Images(Option<usize>),
+    Urls,
+    Images,
     Article(Option<CustomScraper>),
     Custom(CustomScraper),
 }
@@ -293,7 +335,7 @@ impl Scraper {
     fn is_plural(&self) -> bool {
         match self {
             Self::Head | Self::Article(_) => false,
-            Self::Urls(_) | Self::Images(_) => true,
+            Self::Urls | Self::Images => true,
             Self::Custom(inner) => inner.is_plural(),
         }
     }
@@ -301,8 +343,8 @@ impl Scraper {
     fn names(&self) -> Vec<String> {
         match self {
             Self::Head => vec!["title".to_string(), "canonical_url".to_string()],
-            Self::Urls(_) => vec!["url".to_string()],
-            Self::Images(_) => vec!["src".to_string()],
+            Self::Urls => vec!["url".to_string()],
+            Self::Images => vec!["src".to_string()],
             Self::Article(scraper_opt) => {
                 let mut names = vec![
                     "canonical_url".to_string(),
@@ -362,17 +404,13 @@ impl Scraper {
 
     fn scrape_urls(
         &self,
-        record: &ByteRecord,
         target: &ScraperTarget,
-        url_column_index: Option<usize>,
+        context: &ScraperContext,
     ) -> CliResult<Vec<DynamicValue>> {
         let bytes = target.read_bytes()?;
         let bytes = SCRIPT_REGEX.replace_all(&bytes, b"");
 
         let mut urls = Vec::new();
-
-        let base_url_opt =
-            url_column_index.and_then(|i| Url::parse(from_utf8(&record[i]).unwrap()).ok());
 
         for caps in URLS_IN_HTML_REGEX.captures_iter(&bytes) {
             let url = if let Some(m) = caps.get(1) {
@@ -383,7 +421,7 @@ impl Scraper {
                 &caps[3]
             };
 
-            if let Some(base_url) = &base_url_opt {
+            if let Some(base_url) = &context.url {
                 if let Ok(joined_url) = base_url.join(&target.decode(&bytes)) {
                     // TODO: canonicalize
                     urls.push(DynamicValue::from(joined_url.to_string()));
@@ -398,21 +436,17 @@ impl Scraper {
 
     fn scrape_images(
         &self,
-        record: &ByteRecord,
         target: &ScraperTarget,
-        url_column_index: Option<usize>,
+        context: &ScraperContext,
     ) -> CliResult<Vec<String>> {
         let html = target.read_html()?;
         let mut images = Vec::new();
-
-        let base_url_opt =
-            url_column_index.and_then(|i| Url::parse(from_utf8(&record[i]).unwrap()).ok());
 
         for img_element in html.select(&IMG_SELECTOR) {
             let src = img_element.attr("src").unwrap(); // Safe to unwrap because of selector guard
 
             if should_follow_href(src) {
-                match &base_url_opt {
+                match &context.url {
                     Some(base_url) => {
                         if let Ok(joined_src) = base_url.join(src) {
                             // TODO: canonicalize
@@ -586,21 +620,23 @@ impl Scraper {
         Ok(output)
     }
 
+    // TODO: could be lazy iterators sometimes
     fn scrape(
         &self,
         index: usize,
         record: &ByteRecord,
         target: &ScraperTarget,
+        context: &ScraperContext,
     ) -> CliResult<Vec<Vec<DynamicValue>>> {
         match self {
             Self::Head => Ok(vec![self.scrape_head(target)?]),
-            Self::Urls(url_column_index) => {
-                let urls = self.scrape_urls(record, target, *url_column_index)?;
+            Self::Urls => {
+                let urls = self.scrape_urls(target, context)?;
 
                 Ok(urls.into_iter().map(|url| vec![url]).collect())
             }
-            Self::Images(url_column_index) => {
-                let images = self.scrape_images(record, target, *url_column_index)?;
+            Self::Images => {
+                let images = self.scrape_images(target, context)?;
 
                 Ok(images
                     .into_iter()
@@ -629,8 +665,9 @@ impl Scraper {
         index: usize,
         record: &ByteRecord,
         target: &ScraperTarget,
+        context: &ScraperContext,
     ) -> CliResult<Vec<Vec<DynamicValue>>> {
-        self.scrape(index, record, target).map_err(|err| {
+        self.scrape(index, record, target, context).map_err(|err| {
             CliError::Other(format!(
                 "Row index {}{}\n{}",
                 index,
@@ -779,6 +816,7 @@ scrape options:
                                 the output. Default is to keep all columns from input.
     -I, --input-dir <path>      When set, processed paths will be read relative to the
                                 given base <path>.
+                                [default: .]
     -p, --parallel              Whether to use parallelization to speed up computations.
                                 Will automatically select a suitable number of threads to use
                                 based on your number of cores. Use -t, --threads if you want to
@@ -824,11 +862,17 @@ struct Args {
     flag_foreach: Option<String>,
     flag_encoding: Option<String>,
     flag_url_column: Option<SelectedColumns>,
-    flag_input_dir: Option<String>,
+    flag_input_dir: String,
     flag_keep: Option<SelectedColumns>,
     flag_parallel: bool,
     flag_threads: Option<usize>,
 }
+
+type InputsData<'a> = (
+    bool,
+    ByteRecord,
+    Box<dyn Iterator<Item = CliResult<Input>> + 'a>,
+);
 
 impl Args {
     fn resolve(&mut self) -> CliResult<()> {
@@ -843,20 +887,92 @@ impl Args {
         Ok(())
     }
 
-    fn reader(&self) -> CliResult<(usize, Reader<Box<dyn Read + Send + 'static>>)> {
+    fn encoding(&self) -> CliResult<Option<EncodingRef>> {
+        Ok(self
+            .flag_encoding
+            .as_ref()
+            .map(|name| {
+                encoding_from_whatwg_label(name).ok_or_else(|| format!("unknown {name} encoding!"))
+            })
+            .transpose()?)
+    }
+
+    fn inputs(&self) -> CliResult<InputsData<'_>> {
         if !self.arg_inputs.is_empty() {
-            Ok((0, create_dummy_csv_reader("path", &self.arg_inputs)))
+            // Positionals
+            Ok((
+                true,
+                ByteRecord::from(["path"]),
+                Box::new(self.arg_inputs.iter().map(|path| {
+                    Ok(InputPayload::Path(path.to_string(), ByteRecord::from([path])).into())
+                })),
+            ))
         } else if let Some(paths_path) = &self.flag_paths {
             let conf = Config::new(&Some(paths_path.to_string()))
                 .delimiter(self.flag_delimiter)
                 .no_headers(self.flag_no_headers);
 
-            let paths = conf
-                .lines(&self.flag_path_column)?
-                .collect::<Result<Vec<_>, _>>()?;
+            // CSV with path column
+            if let Some(sel) = &self.flag_path_column {
+                let mut reader = conf.simd_reader()?;
+                let headers = reader.byte_headers()?;
+                let i = sel.single_selection(headers, !conf.no_headers)?;
+                let encoding = self.encoding()?;
 
-            Ok((0, create_dummy_csv_reader("path", &paths)))
+                let url_column_index_opt = self
+                    .flag_url_column
+                    .as_ref()
+                    .map(|url_sel| url_sel.single_selection(headers, !conf.no_headers))
+                    .transpose()?;
+
+                Ok((
+                    !conf.no_headers,
+                    headers.clone(),
+                    Box::new(
+                        reader
+                            .into_byte_records()
+                            .map(move |result| -> CliResult<Input> {
+                                let record = result?;
+
+                                let url = if let Some(j) = url_column_index_opt {
+                                    Some(from_utf8(&record[j])?)
+                                } else {
+                                    None
+                                };
+
+                                let context = ScraperContext::new(url)?;
+
+                                let payload = InputPayload::Path(
+                                    String::from_utf8(record[i].to_vec())?,
+                                    record,
+                                );
+
+                                Ok(Input {
+                                    payload,
+                                    encoding,
+                                    context,
+                                })
+                            }),
+                    ),
+                ))
+            }
+            // Lines
+            else {
+                let reader = conf.io_reader()?;
+                let line_reader = BufReader::new(reader);
+
+                Ok((
+                    true,
+                    ByteRecord::from(["path"]),
+                    Box::new(line_reader.lines().map(|path| -> CliResult<Input> {
+                        let path = path?;
+                        let dummy_record = ByteRecord::from([&path]);
+                        Ok(InputPayload::Path(path, dummy_record).into())
+                    })),
+                ))
+            }
         } else if let Some(docs_path) = &self.flag_docs {
+            // Inline docs from CSV input
             let Some(doc_column_selector) = self.flag_doc_column.as_ref() else {
                 Err("--docs requires --doc-column!")?
             };
@@ -866,25 +982,67 @@ impl Args {
                 .no_headers(self.flag_no_headers);
 
             let mut reader = conf.simd_reader()?;
+            let headers = reader.byte_headers()?;
 
             let doc_column_index =
-                doc_column_selector.single_selection(reader.byte_headers()?, !conf.no_headers)?;
+                doc_column_selector.single_selection(headers, !conf.no_headers)?;
 
-            Ok((doc_column_index, reader))
+            let url_column_index_opt = self
+                .flag_url_column
+                .as_ref()
+                .map(|url_sel| url_sel.single_selection(headers, !conf.no_headers))
+                .transpose()?;
+
+            Ok((
+                !conf.no_headers,
+                headers.clone(),
+                Box::new(
+                    reader
+                        .into_byte_records()
+                        .map(move |result| -> CliResult<Input> {
+                            let record = result?;
+
+                            let url = if let Some(j) = url_column_index_opt {
+                                Some(from_utf8(&record[j])?)
+                            } else {
+                                None
+                            };
+
+                            let context = ScraperContext::new(url)?;
+
+                            let payload = InputPayload::Document(doc_column_index, record);
+
+                            Ok(Input {
+                                payload,
+                                encoding: None,
+                                context,
+                            })
+                        }),
+                ),
+            ))
         } else if let Some(pattern) = &self.flag_glob {
-            let paths = glob::glob(pattern)?
-                .map(|result| match result {
-                    Ok(p) => Ok(p.to_string_lossy().into_owned()),
+            // Glob pattern
+            Ok((
+                true,
+                ByteRecord::from(["path"]),
+                Box::new(glob::glob(pattern)?.map(|result| match result {
+                    Ok(p) => {
+                        let p = p.to_string_lossy().into_owned();
+                        let dummy_record = ByteRecord::from([&p]);
+                        Ok(InputPayload::Path(p, dummy_record).into())
+                    }
                     Err(e) => Err(CliError::from(e)),
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-
-            Ok((0, create_dummy_csv_reader("path", &paths)))
+                })),
+            ))
         } else if self.flag_stdin_doc {
-            let mut doc = String::new();
-            io::stdin().read_to_string(&mut doc)?;
+            let mut doc = Vec::new();
+            io::stdin().read_to_end(&mut doc)?;
 
-            Ok((0, create_dummy_csv_reader("doc", &[doc])))
+            Ok((
+                true,
+                ByteRecord::new(),
+                Box::new(once(Ok(InputPayload::SingleDocument(doc).into()))),
+            ))
         } else {
             unreachable!()
         }
@@ -909,32 +1067,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         )?;
     }
 
-    let (column_index, mut reader) = args.reader()?;
-    let no_headers = !reader.has_headers();
-
-    let has_inline_docs = args.flag_docs.is_some() || args.flag_stdin_doc;
-
-    let encoding = args
-        .flag_encoding
-        .as_ref()
-        .map(|name| {
-            encoding_from_whatwg_label(name).ok_or_else(|| format!("unknown {name} encoding!"))
-        })
-        .transpose()?;
-
-    let headers = reader.byte_headers()?.clone();
-
     let threads = utils::parallelization(args.flag_parallel, args.flag_threads);
 
     if args.flag_evaluate.is_none() && args.flag_foreach.is_some() {
         Err("--foreach only works with -e/--evaluate!")?;
     }
 
-    let url_column_index = args
-        .flag_url_column
-        .as_ref()
-        .map(|s| s.single_selection(&headers, !no_headers))
-        .transpose()?;
+    let (has_headers, headers, inputs) = args.inputs()?;
 
     let scraper = if args.cmd_head {
         Scraper::Head
@@ -948,22 +1087,22 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 .as_ref()
                 .map(|code| -> CliResult<CustomScraper> {
                     Ok(CustomScraper {
-                        program: ScrapingProgram::parse(code, &headers, no_headers)?,
+                        program: ScrapingProgram::parse(code, &headers, !has_headers)?,
                         foreach: None,
                     })
                 })
                 .transpose()?,
         )
     } else if args.cmd_urls {
-        Scraper::Urls(url_column_index)
+        Scraper::Urls
     } else if args.cmd_images {
-        Scraper::Images(url_column_index)
+        Scraper::Images
     } else {
         Scraper::Custom(CustomScraper {
             program: ScrapingProgram::parse(
                 args.flag_evaluate.as_ref().unwrap(),
                 &headers,
-                no_headers,
+                !has_headers,
             )?,
             foreach: args
                 .flag_foreach
@@ -975,11 +1114,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let keep = args
         .flag_keep
+        .as_ref()
         .map(|s| {
             if s.is_empty() {
                 Ok(Selection::empty())
             } else {
-                s.selection(&headers, !no_headers)
+                s.selection(&headers, has_headers)
             }
         })
         .transpose()?;
@@ -989,7 +1129,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let scraper_field_names = scraper.names();
     let padding = scraper_field_names.len();
 
-    if !no_headers {
+    if has_headers {
         let mut output_headers = headers.clone();
 
         if let Some(keep_sel) = &keep {
@@ -1003,14 +1143,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         writer.write_byte_record(&output_headers)?;
     }
 
-    // TODO: amortize allocations
-    let scrape = move |row_index: usize,
-                       column_index: usize,
-                       record: &ByteRecord|
-          -> CliResult<Vec<Vec<DynamicValue>>> {
-        let cell = &record[column_index];
+    let scrape_dummy_record = ByteRecord::new();
+    let input_dir = args.flag_input_dir.clone();
 
-        if cell.trim().is_empty() {
+    // TODO: amortize allocations
+    let scrape = move |row_index: usize, input: &Input| -> CliResult<Vec<Vec<DynamicValue>>> {
+        if input.is_empty() {
             return Ok(if scraper.is_plural() {
                 vec![]
             } else {
@@ -1018,17 +1156,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             });
         }
 
-        let target = if !has_inline_docs {
-            ScraperTarget::HtmlFile {
-                input_dir: args.flag_input_dir.as_deref().unwrap_or("."),
-                filename: from_utf8(cell).expect("invalid utf-8"),
-                encoding,
-            }
-        } else {
-            ScraperTarget::HtmlCell(cell)
-        };
+        let target = input.as_target(&input_dir);
+        let record = input.as_record().unwrap_or(&scrape_dummy_record);
 
-        scraper.scrape_or_report(row_index, record, &target)
+        scraper.scrape_or_report(row_index, record, &target, &input.context)
     };
 
     // TODO: amortize allocations
@@ -1051,36 +1182,34 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Ok(())
         };
 
+    let dummy_record = ByteRecord::new();
+
     if let Some(t) = threads {
-        reader
-            .into_byte_records()
+        inputs
             .enumerate()
             .parallel_map_custom(
                 |o| o.threads(t),
-                move |(index, result)| -> CliResult<(ByteRecord, Vec<Vec<DynamicValue>>)> {
-                    let record = result?;
-                    let output_rows = scrape(index, column_index, &record)?;
+                move |(index, result)| -> CliResult<(Input, Vec<Vec<DynamicValue>>)> {
+                    let input = result?;
+                    let output_rows = scrape(index, &input)?;
 
-                    Ok((record, output_rows))
+                    Ok((input, output_rows))
                 },
             )
             .try_for_each(|result| -> CliResult<()> {
-                let (record, output_rows) = result?;
+                let (input, output_rows) = result?;
 
-                write_output(&output_rows, &record)?;
+                write_output(&output_rows, input.as_record().unwrap_or(&dummy_record))?;
 
                 Ok(())
             })?;
     } else {
-        let mut record = ByteRecord::new();
-        let mut index: usize = 0;
+        for (i, result) in inputs.enumerate() {
+            let input = result?;
 
-        while reader.read_byte_record(&mut record)? {
-            let output_rows = scrape(index, column_index, &record)?;
+            let output_rows = scrape(i, &input)?;
 
-            write_output(&output_rows, &record)?;
-
-            index += 1;
+            write_output(&output_rows, input.as_record().unwrap_or(&dummy_record))?;
         }
     }
 

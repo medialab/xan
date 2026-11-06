@@ -134,6 +134,7 @@ scrape options:
                                 the output. Default is to keep all columns from input.
     -I, --input-dir <path>      When set, processed paths will be read relative to the
                                 given base <path>.
+                                [default: .]
     -p, --parallel              Whether to use parallelization to speed up computations.
                                 Will automatically select a suitable number of threads to use
                                 based on your number of cores. Use -t, --threads if you want to

@@ -7,7 +7,6 @@ use std::env;
 use std::fmt;
 use std::io::{self, Write};
 use std::process;
-use std::str::Utf8Error;
 
 use colored::Colorize;
 use docopt::Docopt;
@@ -579,7 +578,8 @@ impl_from_error!(simd_json::Error);
 impl_from_error!(url::ParseError);
 impl_from_error!(bgzip::BGZFError);
 impl_from_error!(jiff::Error);
-impl_from_error!(Utf8Error);
+impl_from_error!(std::str::Utf8Error);
+impl_from_error!(std::string::FromUtf8Error);
 impl_from_error!(btoi::ParseIntegerError);
 impl_from_error!(fast_float::Error);
 impl_from_error!(std::num::ParseIntError);
