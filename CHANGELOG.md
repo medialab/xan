@@ -9,9 +9,10 @@
 * `xan from -f (json|ndjson) --model` is now also used to rename the projected columns.
 * Renaming `xan flatten --row-separator` as `--row-sep` for harmonization purposes and add the `-W` short flag.
 * Dropping `-H` short flag of `xan view --hide-headers` to harmonize with `xan flatten`.
-* `xan behead`, `xan enum` & `xan rename` go back to standardizing their CSV output by default. Use the `--raw` flag to get the fast, non-standardizing alternative.
+* `xan behead`, `xan enum` & `xan rename` go back to standardizing their CSV output by default. Use the `--raw` flag to force the fast, non-standardizing alternative.
 * `xan flatten -H/--highlight` is now boolean and will perform tag highlighting. To get the old behavior, use the `-r/--highlight-regex` instead.
 * Renaming the obscure `xan search --left` flag to `-k/--keep-unmatched`.
+* `xan search -R/--replace & --replacement-column` now only emit rows with matches unless `-k/--keep-unmatched` is given.
 
 *Features*
 

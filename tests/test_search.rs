@@ -749,7 +749,10 @@ fn search_replace() {
     );
 
     let mut cmd = wrk.command("search");
-    cmd.arg(",").args(["--replace", "."]).arg("data1.csv");
+    cmd.arg(",")
+        .arg("-k")
+        .args(["--replace", "."])
+        .arg("data1.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["number"], svec!["3.4"], svec!["2"], svec!["10.7"]];
@@ -762,12 +765,7 @@ fn search_replace() {
         .arg("data2.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![
-        svec!["id", "number"],
-        svec!["1", "3.4"],
-        svec!["2", "2"],
-        svec!["3", "10.7"],
-    ];
+    let expected = vec![svec!["id", "number"], svec!["1", "3.4"], svec!["3", "10.7"]];
     assert_eq!(got, expected);
 }
 
@@ -783,6 +781,7 @@ fn search_replace_case_insensitive() {
     let mut cmd = wrk.command("search");
     cmd.arg("o")
         .arg("-i")
+        .arg("-k")
         .args(["--replace", "b"])
         .arg("data.csv");
 
@@ -812,6 +811,7 @@ fn search_replace_patterns_case_insensitive() {
     let mut cmd = wrk.command("search");
     cmd.arg("o")
         .arg("-i")
+        .arg("-k")
         .args(["--patterns", "patterns.csv"])
         .args(["--pattern-column", "0"])
         .args(["--replacement-column", "1"])
@@ -833,6 +833,7 @@ fn search_replace_regex() {
 
     let mut cmd = wrk.command("search");
     cmd.arg("\\w+ (\\w+)")
+        .arg("-k")
         .arg("--regex")
         .args(["--replace", "name: $1"])
         .arg("data.csv");
@@ -870,6 +871,7 @@ fn search_patterns_replace() {
     cmd.args(["--replace", "."])
         .args(["--patterns", "patterns.csv"])
         .args(["--pattern-column", "color"])
+        .arg("-k")
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -886,6 +888,7 @@ fn search_patterns_replace() {
     cmd.args(["--patterns", "patterns.csv"])
         .args(["--pattern-column", "color"])
         .args(["--replacement-column", "replacement"])
+        .arg("-k")
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -928,6 +931,7 @@ fn search_patterns_exact_replace() {
         .arg("-e")
         .args(["--patterns", "patterns.csv"])
         .args(["--pattern-column", "color"])
+        .arg("-k")
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -945,6 +949,7 @@ fn search_patterns_exact_replace() {
         .arg("-e")
         .args(["--pattern-column", "color"])
         .args(["--replacement-column", "replacement"])
+        .arg("-k")
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -986,6 +991,7 @@ fn search_patterns_regex_replace() {
     cmd.args(["--replace", "."])
         .args(["--patterns", "patterns.csv"])
         .args(["--pattern-column", "color"])
+        .arg("-k")
         .arg("-r")
         .arg("data.csv");
 
@@ -1003,6 +1009,7 @@ fn search_patterns_regex_replace() {
     cmd.args(["--patterns", "patterns.csv"])
         .args(["--pattern-column", "color"])
         .args(["--replacement-column", "replacement"])
+        .arg("-k")
         .arg("-r")
         .arg("data.csv");
 
@@ -1045,6 +1052,7 @@ fn search_patterns_url_replace() {
         .arg("-u")
         .args(["--patterns", "urls.csv"])
         .args(["--pattern-column", "url"])
+        .arg("-k")
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -1061,6 +1069,7 @@ fn search_patterns_url_replace() {
         .arg("-u")
         .args(["--pattern-column", "url"])
         .args(["--replacement-column", "color"])
+        .arg("-k")
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);

@@ -105,6 +105,7 @@ trait LevenshteinDistanceExt {
 }
 
 impl LevenshteinDistanceExt for LevenshteinDistance {
+    #[inline(always)]
     fn is_match(&self) -> bool {
         matches!(self, LevenshteinDistance::Exact(_))
     }
@@ -656,9 +657,10 @@ Reporting number of matches:
 
     $ xan search -s headline -i france -c france_count file.csv
 
-Cleaning thousands separators (usually commas \",\" in English) from numerical columns:
+Cleaning thousands separators (usually commas \",\" in English) from numerical columns
+(Mind the -k/--keep-unmatched to avoid filtering rows that would not need replacement):
 
-    $ xan search , --replace . -s 'count_*' file.csv
+    $ xan search , -k --replace . -s 'count_*' file.csv
 
 Replacing color names to their French counterpart:
 
@@ -694,8 +696,9 @@ the CSV stream.
 Ultimately your mileage may vary, so bench away and see what is faster for your
 actual use-case.
 
-Also, this might seem counterintuitive but if your CSV data is never quoted and
-your rows are small enough a dedicated tool like `ripgrep` should be even faster:
+Also, this might seem counterintuitive but, if your CSV data is never quoted and
+your rows are small enough, using a dedicated line-based tool like `ripgrep` would
+be even faster:
 
 https://github.com/burntsushi/ripgrep
 
@@ -1490,7 +1493,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             let replaced_cell = matcher.replace(cell, replacements)?;
                             replaced_record.push_field(&replaced_cell);
 
-                            if args.flag_limit.is_some() && cell != replaced_cell.as_ref() {
+                            if matches!(replaced_cell, Cow::Owned(_)) {
                                 is_match = true;
                             }
                         } else {
@@ -1498,7 +1501,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         }
                     }
 
-                    record_to_write_opt.replace(record);
+                    if is_match || args.flag_keep_unmatched {
+                        record_to_write_opt.replace(record);
+                    }
                 }
                 // Count
                 else if args.flag_count.is_some() {
@@ -1641,7 +1646,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     let replaced_cell = matcher.replace(cell, replacements)?;
                     replaced_record.push_field(&replaced_cell);
 
-                    if args.flag_limit.is_some() && cell != replaced_cell.as_ref() {
+                    if matches!(replaced_cell, Cow::Owned(_)) {
                         is_match = true;
                     }
                 } else {
@@ -1649,7 +1654,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
             }
 
-            wtr.write_byte_record(&replaced_record)?;
+            if is_match || args.flag_keep_unmatched {
+                wtr.write_byte_record(&replaced_record)?;
+            }
         }
         // Count
         else if args.flag_count.is_some() {
