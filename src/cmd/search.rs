@@ -745,14 +745,14 @@ search options:
     -f, --flag <column>        Instead of filtering rows, add a new column indicating if any match
                                was found.
     -c, --count <column>       Report the number of non-overlapping pattern matches in a new column with
-                               given name. Will still filter out rows with 0 matches, unless --left
+                               given name. Will still filter out rows with 0 matches, unless -k/--keep-unmatched
                                is used. Does not work with -v/--invert-match.
     --overlapping              When used with -c/--count or -b/--breakdown, return the count of
                                overlapping matches. Note that this can sometimes be one order of
                                magnitude slower that counting non-overlapping matches.
-    -R, --replace <with>       If given, the command will not filter rows but will instead
-                               replace matches with the given replacement.
-                               Does not work with --replacement-column.
+    -R, --replace <with>       If given, the command will replace matches with given replacement and
+                               still filter out rows without any matches. You can still use -k/--keep-unmatched
+                               to keep all rows in the output, even those where no replacement happened.
                                Regex replacement string syntax can be found here:
                                https://docs.rs/regex/latest/regex/struct.Regex.html#replacement-string-syntax
     -l, --limit <n>            Maximum of number rows to return. Useful to avoid downstream
@@ -760,8 +760,9 @@ search options:
                                rows in a big file before piping to `view` or `flatten`).
     -B, --before-context <n>   Number of rows to keep before a matching one.
     -A, --after-context <n>    Number of rows to keep after a matching one.
-    --left                     Rows without any matches will be kept in the output when
-                               using -U/--unique-matches, or -b/--breakdown, or -c/--count.
+    -k, --keep-unmatched       Rows without any matches will be kept in the output when
+                               using -R/--replace, --replacement-column, -U/--unique-matches, -b/--breakdown,
+                               or -c/--count.
     -x, --pattern-file <path>  Read pattern from given file <path> and trims it or toggle verbose mode `(?x)`
                                when using -r/--regex (this means the regex can use whitespace and comments).
                                This can be useful your pattern is complex and unwieldy. Must not be confused
@@ -789,13 +790,13 @@ multiple patterns options:
                                  one additional column per pattern. Added column will be given
                                  the pattern as name, unless you provide the --name-column flag.
                                  Will not include rows that have no matches in the output, unless
-                                 the --left flag is used. You might want to use it with --overlapping
+                                 the -k/--keep-unmatched flag is used. You might want to use it with --overlapping
                                  sometimes when your patterns are themselves overlapping or you might
                                  be surprised by the tallies.
     -U, --unique-matches <name>  When used with --patterns, will add a column containing a list of
                                  unique matched patterns for each row, separated by the --sep character.
                                  Will not include rows that have no matches in the output unless
-                                 the --left flag is used. Patterns can also be given a name through
+                                 the -k/--keep-unmatched flag is used. Patterns can also be given a name through
                                  the --name-column flag.
     --sep <char>                 Character to use to join pattern matches when using -U/--unique-matches.
                                  [default: |]
@@ -848,7 +849,7 @@ struct Args {
     flag_breakdown: bool,
     flag_unique_matches: Option<String>,
     flag_sep: String,
-    flag_left: bool,
+    flag_keep_unmatched: bool,
     flag_patterns: Option<String>,
     flag_pattern_column: Option<SelectedColumns>,
     flag_replacement_column: Option<SelectedColumns>,
@@ -1165,6 +1166,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         )?;
     }
 
+    if actions_count == 0 && args.flag_keep_unmatched {
+        Err(
+            "-k/--keep-unmatched does not make sense without an action like -R/--replace, -b/--breakdown etc.!",
+        )?;
+    }
+
     let threads = utils::parallelization(args.flag_parallel, args.flag_threads);
 
     if threads.is_some() {
@@ -1384,7 +1391,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         is_match |= matcher.breakdown(cell, args.flag_overlapping, &mut counts)?;
                     }
 
-                    if is_match || args.flag_left {
+                    if is_match || args.flag_keep_unmatched {
                         if let Some(consolidated) = consolidated_patterns.as_ref() {
                             for group in consolidated.iter() {
                                 let consolidated_count: usize =
@@ -1411,7 +1418,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     is_match = !matches.is_empty();
 
                     if !is_match {
-                        if args.flag_left {
+                        if args.flag_keep_unmatched {
                             record.push_field(b"");
                             record_to_write_opt.replace(record);
                         }
@@ -1464,7 +1471,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                     if count > 0 {
                         is_match = true;
-                    } else if !args.flag_left {
+                    } else if !args.flag_keep_unmatched {
                         return Ok((false, record_to_write_opt));
                     }
 
@@ -1528,7 +1535,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 is_match |= matcher.breakdown(cell, args.flag_overlapping, &mut counts)?;
             }
 
-            if is_match || args.flag_left {
+            if is_match || args.flag_keep_unmatched {
                 if let Some(consolidated) = consolidated_patterns.as_ref() {
                     for group in consolidated.iter() {
                         let consolidated_count: usize = group
@@ -1563,7 +1570,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             is_match = !matches.is_empty();
 
             if !is_match {
-                if args.flag_left {
+                if args.flag_keep_unmatched {
                     record.push_field(b"");
                     wtr.write_byte_record(&record)?;
                 }
@@ -1615,7 +1622,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             if count > 0 {
                 is_match = true;
-            } else if !args.flag_left {
+            } else if !args.flag_keep_unmatched {
                 continue;
             }
 

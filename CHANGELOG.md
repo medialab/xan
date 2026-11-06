@@ -11,6 +11,7 @@
 * Dropping `-H` short flag of `xan view --hide-headers` to harmonize with `xan flatten`.
 * `xan behead`, `xan enum` & `xan rename` go back to standardizing their CSV output by default. Use the `--raw` flag to get the fast, non-standardizing alternative.
 * `xan flatten -H/--highlight` is now boolean and will perform tag highlighting. To get the old behavior, use the `-r/--highlight-regex` instead.
+* Renaming the obscure `xan search --left` flag to `-k/--keep-unmatched`.
 
 *Features*
 

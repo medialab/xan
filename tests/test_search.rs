@@ -158,7 +158,7 @@ fn search_count() {
     let mut cmd = wrk.command("search");
     cmd.arg("-r")
         .arg("foo")
-        .arg("--left")
+        .arg("-k")
         .arg("data.csv")
         .args(["--count", "matches"]);
 
@@ -583,7 +583,7 @@ fn search_count_patterns_regex() {
     let mut cmd = wrk.command("search");
     cmd.arg("-r")
         .arg("-i")
-        .arg("--left")
+        .arg("-k")
         .args(["--patterns", "patterns.csv"])
         .args(["--pattern-column", "pattern"])
         .args(["--count", "matches"])
@@ -1129,7 +1129,7 @@ fn search_patterns_breakdown() {
     cmd.args(["--patterns", "patterns.csv"])
         .args(["--pattern-column", "article"])
         .arg("-b")
-        .arg("--left")
+        .arg("-k")
         .args(["--name-column", "name"])
         .arg("data.csv");
 
@@ -1269,7 +1269,7 @@ fn search_patterns_unique_matches() {
     cmd.args(["--patterns", "patterns.csv"])
         .args(["--pattern-column", "article"])
         .args(["-U", "matches"])
-        .arg("--left")
+        .arg("-k")
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
