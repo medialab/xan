@@ -116,6 +116,19 @@ impl Args {
 
         Ok(())
     }
+
+    #[inline]
+    fn max_len<T>(&self, splits: &[Vec<T>]) -> CliResult<usize> {
+        if self.flag_pad {
+            Ok(splits.iter().map(Vec::len).max().unwrap())
+        } else {
+            if splits.iter().skip(1).any(|s| s.len() != splits[0].len()) {
+                Err("inconsistent exploded length across columns.")?;
+            }
+
+            Ok(splits[0].len())
+        }
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -129,7 +142,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers)
-        .select(args.arg_columns);
+        .select(args.arg_columns.clone());
 
     let mut rdr = rconfig.simd_reader()?;
     let mut wtr = Config::new(&args.flag_output).simd_writer()?;
@@ -284,17 +297,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 continue;
             }
 
-            let max_len = if args.flag_pad {
-                splits.iter().map(|s| s.len()).max().unwrap()
-            } else {
-                if splits.iter().skip(1).any(|s| s.len() != splits[0].len()) {
-                    return Err(CliError::Other(
-                        "inconsistent exploded length across columns.".to_string(),
-                    ));
-                }
-
-                splits[0].len()
-            };
+            let max_len = args.max_len(&splits)?;
 
             for i in 0..max_len {
                 // Mulitple expr, with or without keep
@@ -350,17 +353,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             continue;
         }
 
-        let max_len = if args.flag_pad {
-            splits.iter().map(|s| s.len()).max().unwrap()
-        } else {
-            if splits.iter().skip(1).any(|s| s.len() != splits[0].len()) {
-                return Err(CliError::Other(
-                    "inconsistent exploded length across columns.".to_string(),
-                ));
-            }
-
-            splits[0].len()
-        };
+        let max_len = args.max_len(&splits)?;
 
         for i in 0..max_len {
             // Multiple keep
