@@ -45,6 +45,7 @@
 * Fixing temporal functions when working on zero spans.
 * Fixing case-sensitive `xan search -R/--replace & --replacement-column` with multiple patterns.
 * Fixing parallel `xan search -R/--replace & --replacement-column`.
+* Fixing `xan scrape` not streaming input when using `--paths` & `--docs`.
 
 *Performance*
 
