@@ -10,7 +10,7 @@ use aho_corasick::AhoCorasick;
 use bstr::{ByteSlice, ByteVec};
 use levenshtein_automata::{Distance as LevenshteinDistance, LevenshteinAutomatonBuilder};
 use pariter::IteratorExt;
-use regex::bytes::{Regex, RegexBuilder};
+use regex::bytes::{Captures, Regex, RegexBuilder};
 use regex_automata::{meta::Regex as RegexSet, util::syntax};
 use simd_csv::ByteRecord;
 
@@ -64,7 +64,36 @@ where
     Ok(total)
 }
 
+fn wrap_into(tag_name: &str, cell: &[u8], bytes: &mut Vec<u8>) {
+    bytes.push(b'<');
+    bytes.extend_from_slice(tag_name.as_bytes());
+    bytes.push(b'>');
+    bytes.extend_from_slice(cell);
+    bytes.extend_from_slice(b"</");
+    bytes.extend_from_slice(tag_name.as_bytes());
+    bytes.push(b'>');
+}
+
+fn wrap<'c>(yes: bool, tag_name: &str, cell: &'c [u8]) -> Cow<'c, [u8]> {
+    if yes {
+        let mut bytes = Vec::with_capacity(cell.len() + tag_name.len() * 2 + 5);
+        wrap_into(tag_name, cell, &mut bytes);
+
+        Cow::Owned(bytes)
+    } else {
+        Cow::Borrowed(cell)
+    }
+}
+
 trait AhoCorasickExt {
+    fn replace_all_with_bytes_cow<'h, F>(
+        &self,
+        haystack: &'h [u8],
+        replace_with: F,
+    ) -> Cow<'h, [u8]>
+    where
+        F: FnMut(&aho_corasick::Match, &mut Vec<u8>);
+
     fn replace_all_bytes_cow<'h, B: AsRef<[u8]>>(
         &self,
         haystack: &'h [u8],
@@ -73,11 +102,14 @@ trait AhoCorasickExt {
 }
 
 impl AhoCorasickExt for AhoCorasick {
-    fn replace_all_bytes_cow<'h, B: AsRef<[u8]>>(
+    fn replace_all_with_bytes_cow<'h, F>(
         &self,
         haystack: &'h [u8],
-        replace_with: &[B],
-    ) -> Cow<'h, [u8]> {
+        mut replace_with: F,
+    ) -> Cow<'h, [u8]>
+    where
+        F: FnMut(&aho_corasick::Match, &mut Vec<u8>),
+    {
         let mut matches = self.find_iter(haystack);
 
         let Some(first) = matches.next() else {
@@ -88,15 +120,106 @@ impl AhoCorasickExt for AhoCorasick {
 
         let mut last_end = 0;
 
-        for mat in once(first).chain(matches) {
-            result.extend_from_slice(&haystack[last_end..mat.start()]);
-            result.extend_from_slice(replace_with[mat.pattern().as_usize()].as_ref());
-            last_end = mat.end();
+        for m in once(first).chain(matches) {
+            result.extend_from_slice(&haystack[last_end..m.start()]);
+            replace_with(&m, &mut result);
+            last_end = m.end();
         }
 
         result.extend_from_slice(&haystack[last_end..]);
 
         Cow::Owned(result)
+    }
+
+    #[inline]
+    fn replace_all_bytes_cow<'h, B: AsRef<[u8]>>(
+        &self,
+        haystack: &'h [u8],
+        replace_with: &[B],
+    ) -> Cow<'h, [u8]> {
+        self.replace_all_with_bytes_cow(haystack, |m, v| {
+            v.extend_from_slice(replace_with[m.pattern().as_usize()].as_ref());
+        })
+    }
+}
+
+trait RegexSetExt {
+    fn replace_all_with<'a, F>(&self, cell: &'a [u8], replace_with: F) -> Cow<'a, [u8]>
+    where
+        F: FnMut(&regex_automata::Match, &mut Vec<u8>);
+    fn replace_all<'a>(&self, cell: &'a [u8], replacements: &'a [Vec<u8>]) -> Cow<'a, [u8]>;
+}
+
+impl RegexSetExt for RegexSet {
+    fn replace_all_with<'a, F>(&self, cell: &'a [u8], mut replace_with: F) -> Cow<'a, [u8]>
+    where
+        F: FnMut(&regex_automata::Match, &mut Vec<u8>),
+    {
+        let mut bytes = Vec::new();
+
+        let mut last_match: Option<usize> = None;
+
+        for captures in self.captures_iter(cell) {
+            if bytes.capacity() == 0 {
+                bytes.reserve(cell.len());
+            }
+
+            let m = captures.get_match().unwrap();
+
+            if let Some(end) = last_match {
+                bytes.extend(&cell[end..m.start()]);
+            } else {
+                bytes.extend(&cell[..m.start()]);
+            }
+
+            replace_with(&m, &mut bytes);
+
+            last_match.replace(m.end());
+        }
+
+        if let Some(end) = last_match {
+            bytes.extend(&cell[end..]);
+        } else {
+            return Cow::Borrowed(cell);
+        }
+
+        Cow::Owned(bytes)
+    }
+
+    fn replace_all<'a>(&self, cell: &'a [u8], replacements: &'a [Vec<u8>]) -> Cow<'a, [u8]> {
+        let mut bytes = Vec::new();
+
+        let mut last_match: Option<usize> = None;
+
+        for captures in self.captures_iter(cell) {
+            if bytes.capacity() == 0 {
+                bytes.reserve(cell.len());
+            }
+
+            let m = captures.get_match().unwrap();
+
+            if let Some(end) = last_match {
+                bytes.extend(&cell[end..m.start()]);
+            } else {
+                bytes.extend(&cell[..m.start()]);
+            }
+
+            captures.interpolate_bytes_into(
+                cell,
+                &replacements[m.pattern().as_usize()],
+                &mut bytes,
+            );
+
+            last_match.replace(m.end());
+        }
+
+        if let Some(end) = last_match {
+            bytes.extend(&cell[end..]);
+        } else {
+            return Cow::Borrowed(cell);
+        }
+
+        Cow::Owned(bytes)
     }
 }
 
@@ -126,42 +249,6 @@ fn count_overlapping_matches(regex: &Regex, haystack: &[u8]) -> usize {
     }
 
     count
-}
-
-fn regex_set_replace_all<'a>(
-    regex: &RegexSet,
-    cell: &'a [u8],
-    replacements: &'a [Vec<u8>],
-) -> Cow<'a, [u8]> {
-    let mut bytes = Vec::new();
-
-    let mut last_match: Option<usize> = None;
-
-    for captures in regex.captures_iter(cell) {
-        if bytes.capacity() == 0 {
-            bytes.reserve(cell.len());
-        }
-
-        let m = captures.get_match().unwrap();
-
-        if let Some(end) = last_match {
-            bytes.extend(&cell[end..m.start()]);
-        } else {
-            bytes.extend(&cell[..m.start()]);
-        }
-
-        captures.interpolate_bytes_into(cell, &replacements[m.pattern().as_usize()], &mut bytes);
-
-        last_match.replace(m.end());
-    }
-
-    if let Some(end) = last_match {
-        bytes.extend(&cell[end..]);
-    } else {
-        return Cow::Borrowed(cell);
-    }
-
-    Cow::Owned(bytes)
 }
 
 pub struct LevenshteinSet {
@@ -521,7 +608,7 @@ impl Matcher {
                     Cow::Borrowed(cell)
                 }
             }
-            Self::RegexSet(set) => regex_set_replace_all(set, cell, replacements),
+            Self::RegexSet(set) => set.replace_all(cell, replacements),
             Self::Regexes(_) => unreachable!(),
             Self::HashMap(patterns, case_insensitive) => {
                 if *case_insensitive {
@@ -530,7 +617,7 @@ impl Matcher {
                     } else {
                         Cow::Borrowed(cell)
                     }
-                } else if let Some(i) = patterns.get(&cell.to_lowercase()) {
+                } else if let Some(i) = patterns.get(cell) {
                     Cow::Borrowed(&replacements[*i])
                 } else {
                     Cow::Borrowed(cell)
@@ -560,6 +647,52 @@ impl Matcher {
                     Cow::Borrowed(cell)
                 }
             }
+        })
+    }
+
+    fn highlight<'a>(&self, tag_name: &'a str, cell: &'a [u8]) -> Result<Cow<'a, [u8]>, Utf8Error> {
+        Ok(match self {
+            Self::Empty => wrap(cell.is_empty(), tag_name, cell),
+            Self::NonEmpty => wrap(!cell.is_empty(), tag_name, cell),
+            Self::Substring(pattern, case_insensitive) => {
+                if *case_insensitive {
+                    unreachable!()
+                } else {
+                    pattern.replace_all_with_bytes_cow(cell, |m, v| {
+                        wrap_into(tag_name, &cell[m.start()..m.end()], v);
+                    })
+                }
+            }
+            Self::Regex(pattern) => pattern.replace_all(cell, |caps: &Captures| {
+                wrap(true, tag_name, &caps[0]).into_owned()
+            }),
+            Self::Exact(pattern, case_insensitive) => {
+                if *case_insensitive {
+                    wrap(&cell.to_lowercase() == pattern, tag_name, cell)
+                } else {
+                    wrap(cell == pattern, tag_name, cell)
+                }
+            }
+            Self::RegexSet(set) => set.replace_all_with(cell, |m, v| {
+                wrap_into(tag_name, &cell[m.start()..m.end()], v);
+            }),
+            Self::Regexes(_) => unreachable!(),
+            Self::HashMap(patterns, case_insensitive) => {
+                if *case_insensitive {
+                    wrap(patterns.contains_key(&cell.to_lowercase()), tag_name, cell)
+                } else {
+                    wrap(patterns.contains_key(cell), tag_name, cell)
+                }
+            }
+            Self::UrlPrefix(stems) => {
+                wrap(stems.is_simplified_match(from_utf8(cell)?), tag_name, cell)
+            }
+            Self::UrlTrie(trie) => wrap(
+                trie.is_match(from_utf8(cell)?).unwrap_or(false),
+                tag_name,
+                cell,
+            ),
+            Self::Levenshtein(set) => wrap(set.is_match(cell)?, tag_name, cell),
         })
     }
 }
@@ -640,6 +773,7 @@ Feeding CSV column as patterns through stdin (using \"-\"):
 Now this command is also able to perform search-adjacent operations:
 
     - Replacing matches with -R/--replace or --replacement-column
+    - Highlighting matches with -H/--highlight
     - Reporting in a new column whether a match was found with -f/--flag
     - Reporting the total number of matches in a new column with -c/--count
     - Reporting a breakdown of number of matches per query given through --patterns
@@ -678,6 +812,10 @@ Reporting unique matches per query in a new column:
 
     $ xan search -U matches -s headline,text --patterns queries.csv \\
     $   --pattern-column query --name-column name file.csv > matches.csv
+
+Highlighting matches:
+
+    $ xan search -iHs text recession file.csv | xan flatten -H
 
 # Regarding performance
 
@@ -795,6 +933,12 @@ search options:
                                to keep all rows in the output, even those where no replacement happened.
                                Regex replacement string syntax can be found here:
                                https://docs.rs/regex/latest/regex/struct.Regex.html#replacement-string-syntax
+    -H, --highlight            If given, the command will highlight matches by wrapping them in <em></em> tags and
+                               will still filter out rows without any matches. You can still use -k/--keep-unmatched
+                               to keep all rows in the output, even those that have no highlighting at all.
+                               Hihghlighting tag can be customized using --highlight-tag.
+    --highlight-tag <name>     Tag name to use to wrap highlights when using -H/--highlight.
+                               [default: em]
     -l, --limit <n>            Maximum of number rows to return. Useful to avoid downstream
                                buffering some times (e.g. when searching for very few
                                rows in a big file before piping to `view` or `flatten`).
@@ -885,6 +1029,8 @@ struct Args {
     flag_flag: Option<String>,
     flag_count: Option<String>,
     flag_replace: Option<String>,
+    flag_highlight: bool,
+    flag_highlight_tag: String,
     flag_limit: Option<NonZeroUsize>,
     flag_breakdown: bool,
     flag_unique_matches: Option<String>,
@@ -928,7 +1074,7 @@ impl Args {
     }
 
     fn is_replacing(&self) -> bool {
-        self.flag_replace.is_some() || self.flag_replacement_column.is_some()
+        self.flag_replace.is_some() || self.flag_replacement_column.is_some() || self.flag_highlight
     }
 
     fn build_matcher(&self, patterns: &Option<Vec<String>>) -> Result<Matcher, CliError> {
@@ -1178,17 +1324,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         + args.flag_breakdown as u8
         + args.flag_replacement_column.is_some() as u8
         + args.flag_unique_matches.is_some() as u8
-        + args.flag_flag.is_some() as u8;
+        + args.flag_flag.is_some() as u8
+        + args.flag_highlight as u8;
 
     if actions_count > 1 {
         Err(
-            "must use only one of -R/--replace, --replacement-column, -b/--breakdown, -c/--count, -f/--flag or -U/--unique-matches!",
+            "must use only one of -R/--replace, -H/--highlight, --replacement-column, -b/--breakdown, -c/--count, -f/--flag or -U/--unique-matches!",
         )?;
     }
 
     if actions_count > 0 && args.flag_fast_parser {
         Err(
-            "-Z/--fast-parser only work with the command default mode.\nNo -R/--replace, --replacement-column, -b/--breakdown, -c/--count, -f/--flag nor -U/--unique-matches!",
+            "-Z/--fast-parser only work with the command default mode.\nNo -R/--replace, -H/--highlight, --replacement-column, -b/--breakdown, -c/--count, -f/--flag nor -U/--unique-matches!",
         )?;
     }
 
@@ -1196,13 +1343,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if actions_count > 0 && tracking_context {
         Err(
-            "-B/--before-context & -A/--after-context only work with the command default mode.\nNo -R/--replace, --replacement-column, -b/--breakdown, -c/--count, -f/--flag nor -U/--unique-matches!",
+            "-B/--before-context & -A/--after-context only work with the command default mode.\nNo -R/--replace, -H/--highlight, --replacement-column, -b/--breakdown, -c/--count, -f/--flag nor -U/--unique-matches!",
         )?;
     }
 
     if args.flag_every_column && actions_count > 0 {
         Err(
-            "--every-column does not work with -R/--replace, --replacement-column, -b/--breakdown, -c/--count nor -U/--unique-matches!",
+            "--every-column does not work with -R/--replace, -H/--highlight, --replacement-column, -b/--breakdown, -c/--count nor -U/--unique-matches!",
         )?;
     }
 
@@ -1486,7 +1633,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 // Replace
                 else if let Some(replacements) = &associated {
                     let mut replaced_record =
-                        csv::ByteRecord::with_capacity(record.as_slice().len(), record.len());
+                        ByteRecord::with_capacity(record.as_slice().len(), record.len());
 
                     for (cell, should_replace) in record.iter().zip(sel_mask.iter().copied()) {
                         if should_replace {
@@ -1502,7 +1649,30 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     }
 
                     if is_match || args.flag_keep_unmatched {
-                        record_to_write_opt.replace(record);
+                        record_to_write_opt.replace(replaced_record);
+                    }
+                }
+                // Highlight
+                else if args.flag_highlight {
+                    let mut replaced_record =
+                        ByteRecord::with_capacity(record.as_slice().len(), record.len());
+
+                    for (cell, should_replace) in record.iter().zip(sel_mask.iter().copied()) {
+                        if should_replace {
+                            let replaced_cell =
+                                matcher.highlight(&args.flag_highlight_tag, cell)?;
+                            replaced_record.push_field(&replaced_cell);
+
+                            if matches!(replaced_cell, Cow::Owned(_)) {
+                                is_match = true;
+                            }
+                        } else {
+                            replaced_record.push_field(cell);
+                        }
+                    }
+
+                    if is_match || args.flag_keep_unmatched {
+                        record_to_write_opt.replace(replaced_record);
                     }
                 }
                 // Count
@@ -1644,6 +1814,27 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             for (cell, should_replace) in record.iter().zip(sel_mask.iter().copied()) {
                 if should_replace {
                     let replaced_cell = matcher.replace(cell, replacements)?;
+                    replaced_record.push_field(&replaced_cell);
+
+                    if matches!(replaced_cell, Cow::Owned(_)) {
+                        is_match = true;
+                    }
+                } else {
+                    replaced_record.push_field(cell);
+                }
+            }
+
+            if is_match || args.flag_keep_unmatched {
+                wtr.write_byte_record(&replaced_record)?;
+            }
+        }
+        // Highlight
+        else if args.flag_highlight {
+            replaced_record.clear();
+
+            for (cell, should_replace) in record.iter().zip(sel_mask.iter().copied()) {
+                if should_replace {
+                    let replaced_cell = matcher.highlight(&args.flag_highlight_tag, cell)?;
                     replaced_record.push_field(&replaced_cell);
 
                     if matches!(replaced_cell, Cow::Owned(_)) {

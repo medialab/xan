@@ -10,7 +10,7 @@
 * Renaming `xan flatten --row-separator` as `--row-sep` for harmonization purposes and add the `-W` short flag.
 * Dropping `-H` short flag of `xan view --hide-headers` to harmonize with `xan flatten`.
 * `xan behead`, `xan enum` & `xan rename` go back to standardizing their CSV output by default. Use the `--raw` flag to force the fast, non-standardizing alternative.
-* `xan flatten -H/--highlight` is now boolean and will perform tag highlighting. To get the old behavior, use the `-r/--highlight-regex` instead.
+* `xan flatten -H/--highlight` is now boolean and will perform tag highlighting. To get the old behavior, use the `-r/--highlight-regex` instead so it can easily be used with the newest `xan search -H/--highlight` action.
 * Renaming the obscure `xan search --left` flag to `-k/--keep-unmatched`.
 * `xan search -R/--replace & --replacement-column` now only emit rows with matches unless `-k/--keep-unmatched` is given.
 
@@ -30,6 +30,7 @@
 * Adding `xan view --no-pager, --ignore-env, -k/--thousands-sep`.
 * Adding `xan flatten --hide-headers, -r/--highlight-regex, --highlight-tag`.
 * The `fmt` function now accepts a list as substitutions, is more robust to errors and is able to accept more than 8 arguments.
+* Adding `xan search -H/--highlight & --highlight-tag`.
 
 *Fixes*
 
@@ -42,6 +43,8 @@
 * Fixing `xan cat rows -I/--intersection`.
 * Fixing `xan hist -m sum` with nonlinear scales.
 * Fixing temporal functions when working on zero spans.
+* Fixing case-sensitive `xan search -R/--replace & --replacement-column` with multiple patterns.
+* Fixing parallel `xan search -R/--replace & --replacement-column`.
 
 *Performance*
 

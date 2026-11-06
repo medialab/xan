@@ -74,6 +74,7 @@ Feeding CSV column as patterns through stdin (using "-"):
 Now this command is also able to perform search-adjacent operations:
 
     - Replacing matches with -R/--replace or --replacement-column
+    - Highlighting matches with -H/--highlight
     - Reporting in a new column whether a match was found with -f/--flag
     - Reporting the total number of matches in a new column with -c/--count
     - Reporting a breakdown of number of matches per query given through --patterns
@@ -91,9 +92,10 @@ Reporting number of matches:
 
     $ xan search -s headline -i france -c france_count file.csv
 
-Cleaning thousands separators (usually commas "," in English) from numerical columns:
+Cleaning thousands separators (usually commas "," in English) from numerical columns
+(Mind the -k/--keep-unmatched to avoid filtering rows that would not need replacement):
 
-    $ xan search , --replace . -s 'count_*' file.csv
+    $ xan search , -k --replace . -s 'count_*' file.csv
 
 Replacing color names to their French counterpart:
 
@@ -112,6 +114,10 @@ Reporting unique matches per query in a new column:
     $ xan search -U matches -s headline,text --patterns queries.csv \
     $   --pattern-column query --name-column name file.csv > matches.csv
 
+Highlighting matches:
+
+    $ xan search -iHs text recession file.csv | xan flatten -H
+
 # Regarding performance
 
 *Parsing*
@@ -129,8 +135,9 @@ the CSV stream.
 Ultimately your mileage may vary, so bench away and see what is faster for your
 actual use-case.
 
-Also, this might seem counterintuitive but if your CSV data is never quoted and
-your rows are small enough a dedicated tool like `ripgrep` should be even faster:
+Also, this might seem counterintuitive but, if your CSV data is never quoted and
+your rows are small enough, using a dedicated line-based tool like `ripgrep` would
+be even faster:
 
 https://github.com/burntsushi/ripgrep
 
@@ -227,6 +234,12 @@ search options:
                                to keep all rows in the output, even those where no replacement happened.
                                Regex replacement string syntax can be found here:
                                https://docs.rs/regex/latest/regex/struct.Regex.html#replacement-string-syntax
+    -H, --highlight            If given, the command will highlight matches by wrapping them in <em></em> tags and
+                               will still filter out rows without any matches. You can still use -k/--keep-unmatched
+                               to keep all rows in the output, even those that have no highlighting at all.
+                               Hihghlighting tag can be customized using --highlight-tag.
+    --highlight-tag <name>     Tag name to use to wrap highlights when using -H/--highlight.
+                               [default: em]
     -l, --limit <n>            Maximum of number rows to return. Useful to avoid downstream
                                buffering some times (e.g. when searching for very few
                                rows in a big file before piping to `view` or `flatten`).
