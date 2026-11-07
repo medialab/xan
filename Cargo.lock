@@ -652,18 +652,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
 
 [[package]]
-name = "docopt"
-version = "1.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f3f119846c823f9eafcf953a8f6ffb6ed69bf6240883261a7f13b634579a51f"
-dependencies = [
- "lazy_static",
- "regex",
- "serde",
- "strsim 0.10.0",
-]
-
-[[package]]
 name = "dtoa"
 version = "1.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3325,7 +3313,6 @@ dependencies = [
  "console",
  "csv",
  "dlv-list",
- "docopt",
  "ego-tree",
  "emojis",
  "encoding",
@@ -3391,8 +3378,21 @@ dependencies = [
  "unidecode",
  "url",
  "uuid",
+ "xan_docopt",
  "zmij",
  "zstd",
+]
+
+[[package]]
+name = "xan_docopt"
+version = "1.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0ef9713550d4b26a0d3effcd73e7e13c19b36ea9ca23647bde7611ee20875955"
+dependencies = [
+ "lazy_static",
+ "regex",
+ "serde",
+ "strsim 0.10.0",
 ]
 
 [[package]]
