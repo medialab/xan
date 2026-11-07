@@ -20,4 +20,4 @@ pub use self::interpreter::{GlobalVariables, Program};
 pub use self::parser::{ParseError, Path, Step};
 pub use self::scrape::ScrapingProgram;
 pub use self::select::SelectionProgram;
-pub use self::types::{DynamicNumber, DynamicValue};
+pub use self::types::{AmortizedSerializer, DynamicNumber, DynamicValue};

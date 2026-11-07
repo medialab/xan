@@ -10,7 +10,7 @@ pub use bound_arguments::{
     LambdaArguments,
 };
 pub use dynamic_number::DynamicNumber;
-pub use dynamic_value::DynamicValue;
+pub use dynamic_value::{AmortizedSerializer, DynamicValue};
 pub use headers::{ColumIndexationBy, HeadersIndex};
 
 use super::error::SpecifiedEvaluationError;
