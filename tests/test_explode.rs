@@ -307,7 +307,7 @@ fn explode_evaluate() {
     // drop empty
     let mut cmd = wrk.command("explode");
     cmd.arg("colors")
-        .args(["-e", "_.split('|')"])
+        .args(["-e", "_ && _.split('|')"])
         .arg("-D")
         .arg("data.csv");
 
@@ -323,7 +323,7 @@ fn explode_evaluate() {
     // keep
     let mut cmd = wrk.command("explode");
     cmd.arg("colors")
-        .args(["-e", "_.split('|')"])
+        .args(["-e", "_ && _.split('|')"])
         .arg("-D")
         .arg("--keep")
         .arg("-S")

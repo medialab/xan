@@ -600,6 +600,16 @@ impl DynamicValue {
         )
     }
 
+    pub fn try_unwrap_as_vec(self) -> Result<Vec<DynamicValue>, DynamicValue> {
+        match self {
+            DynamicValue::List(arc) => match Arc::try_unwrap(arc) {
+                Ok(list) => Ok(list),
+                Err(value) => Err(DynamicValue::List(value)),
+            },
+            _ => Err(self),
+        }
+    }
+
     pub fn flat_iter(&self) -> DynamicValueFlatIter<'_> {
         DynamicValueFlatIter::new(self)
     }

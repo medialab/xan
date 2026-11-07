@@ -10,7 +10,7 @@ use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
 use crate::utils;
 
-use crate::moonblade::{DynamicValue, Program};
+use crate::moonblade::{AmortizedSerializer, DynamicValue, Program};
 
 fn singularize(name: &[u8]) -> Vec<u8> {
     let mut vec = name.to_vec();
@@ -25,6 +25,72 @@ fn singularize(name: &[u8]) -> Vec<u8> {
     }
 
     vec
+}
+
+enum Exploder {
+    Substring(String),
+    Program {
+        program: Program,
+        serializer: AmortizedSerializer,
+    },
+}
+
+impl Exploder {
+    fn explode<F>(
+        &mut self,
+        drop_empty: bool,
+        row_index: usize,
+        column_index: usize,
+        record: &ByteRecord,
+        cell: &[u8],
+        mut callback: F,
+    ) -> CliResult<bool>
+    where
+        F: FnMut(&[u8]) -> CliResult<()>,
+    {
+        match self {
+            Self::Substring(sep) => {
+                if drop_empty && cell.is_empty() {
+                    return Ok(true);
+                }
+
+                // TODO: optimized routine for single char, and reuse Finder
+                for sub in cell.split_str(sep) {
+                    callback(sub)?;
+                }
+            }
+            Self::Program {
+                program,
+                serializer,
+            } => {
+                let value =
+                    program.run_with_record_and_col_index(row_index, column_index, &record)?;
+
+                if drop_empty && value.is_nullish() {
+                    return Ok(true);
+                }
+
+                // TODO: flatmap mode
+                match value.try_unwrap_as_vec() {
+                    Err(value) => Err(format!(
+                        "when using -e/--evaluate, produced value should be a list but got {}!",
+                        value.type_of()
+                    ))?,
+                    Ok(list) => {
+                        if list.is_empty() {
+                            callback(cell)?;
+                        } else {
+                            for item in list {
+                                callback(serializer.serialize(&item))?;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(false)
+    }
 }
 
 static USAGE: &str = "
@@ -78,7 +144,8 @@ explode options:
                            See 'xan rename' help for more details.
                            Does not work with -S, --singular.
     -k, --keep             Keep the exploded columns alongside each split.
-    -D, --drop-empty       Drop rows when selected cells are empty.
+    -D, --drop-empty       Drop rows when selected cells are empty, or when the evaluated
+                           expression yields a nullish value.
     --pad                  When exploding multiple columns at once, pad shorter splits
                            to align them with the longest one instead of erroring.
 
@@ -156,6 +223,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         ));
     }
 
+    let mut exploder = if let Some(expr) = &args.flag_evaluate {
+        Exploder::Program {
+            program: Program::parse(expr, &headers, rconfig.no_headers)?,
+            serializer: AmortizedSerializer::new(),
+        }
+    } else {
+        Exploder::Substring(args.flag_sep.clone())
+    };
+
     let program_opt = args
         .flag_evaluate
         .as_ref()
@@ -206,59 +282,32 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let cell = &record[column_index];
             row_index += 1;
 
-            if args.flag_drop_empty && cell.is_empty() {
-                continue;
-            }
+            exploder.explode(
+                args.flag_drop_empty,
+                row_index - 1,
+                column_index,
+                &record,
+                cell,
+                |sub_cell| {
+                    wtr.write_fields(|w| {
+                        for (i, cell) in record.iter().enumerate() {
+                            if i == column_index {
+                                if args.flag_keep {
+                                    w.write_field(cell)?;
+                                }
 
-            // Single expr, with or without keep
-            if let Some(program) = &program_opt {
-                let value =
-                    program.run_with_record_and_col_index(row_index - 1, column_index, &record)?;
-
-                for sub_value in value.flat_iter() {
-                    output_record.clear();
-
-                    for (i, cell) in record.iter().enumerate() {
-                        if i == column_index {
-                            if args.flag_keep {
-                                output_record.push_field(cell);
+                                w.write_field(sub_cell)?;
+                            } else {
+                                w.write_field(cell)?;
                             }
-                            sub_value.push_field_to_record(&mut output_record);
-                        } else {
-                            output_record.push_field(cell);
                         }
-                    }
 
-                    wtr.write_byte_record(&output_record)?;
-                }
-            } else if args.flag_keep {
-                // Single, keep
-                for sub_cell in cell.split_str(&args.flag_sep) {
-                    output_record.clear();
+                        Ok(())
+                    })?;
 
-                    for (i, cell) in record.iter().enumerate() {
-                        if i == column_index {
-                            output_record.push_field(cell);
-                            output_record.push_field(sub_cell);
-                        } else {
-                            output_record.push_field(cell);
-                        }
-                    }
-
-                    wtr.write_byte_record(&output_record)?;
-                }
-            } else {
-                // Single
-                for sub_cell in cell.split_str(&args.flag_sep) {
-                    wtr.write_record(record.iter().enumerate().map(|(i, input_cell)| {
-                        if i == column_index {
-                            sub_cell
-                        } else {
-                            input_cell
-                        }
-                    }))?;
-                }
-            }
+                    Ok(())
+                },
+            )?;
         }
 
         return Ok(wtr.flush()?);

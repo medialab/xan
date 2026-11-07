@@ -47,6 +47,7 @@
 * Fixing parallel `xan search -R/--replace & --replacement-column`.
 * Fixing `xan scrape` not streaming input when using `--paths` & `--docs`.
 * Fixing performance issues when calling a command with a lot of positional arguments (e.g. 10k paths to `xan scrape`).
+* Fixing `xan explode --evaluate --drop-empty` semantics.
 
 *Performance*
 

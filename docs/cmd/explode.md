@@ -52,7 +52,8 @@ explode options:
                            See 'xan rename' help for more details.
                            Does not work with -S, --singular.
     -k, --keep             Keep the exploded columns alongside each split.
-    -D, --drop-empty       Drop rows when selected cells are empty.
+    -D, --drop-empty       Drop rows when selected cells are empty, or when the evaluated
+                           expression yields a nullish value.
     --pad                  When exploding multiple columns at once, pad shorter splits
                            to align them with the longest one instead of erroring.
 
