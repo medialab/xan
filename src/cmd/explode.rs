@@ -1,5 +1,4 @@
 use std::fs;
-use std::slice;
 
 use bstr::ByteSlice;
 use simd_csv::ByteRecord;
@@ -10,7 +9,7 @@ use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
 use crate::utils;
 
-use crate::moonblade::{AmortizedSerializer, DynamicValue, Program};
+use crate::moonblade::{AmortizedSerializer, Program};
 
 fn singularize(name: &[u8]) -> Vec<u8> {
     let mut vec = name.to_vec();
@@ -185,9 +184,9 @@ impl Args {
     }
 
     #[inline]
-    fn max_len<T>(&self, splits: &[Vec<T>]) -> CliResult<usize> {
+    fn max_len(&self, splits: &[ByteRecord]) -> CliResult<usize> {
         if self.flag_pad {
-            Ok(splits.iter().map(Vec::len).max().unwrap())
+            Ok(splits.iter().map(ByteRecord::len).max().unwrap())
         } else {
             if splits.iter().skip(1).any(|s| s.len() != splits[0].len()) {
                 Err("inconsistent exploded length across columns.")?;
@@ -232,12 +231,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Exploder::Substring(args.flag_sep.clone())
     };
 
-    let program_opt = args
-        .flag_evaluate
-        .as_ref()
-        .map(|expr| Program::parse(expr, &headers, rconfig.no_headers))
-        .transpose()?;
-
     // NOTE: the mask deduplicates
     let sel_mask = sel.indexed_mask(headers.len());
 
@@ -271,7 +264,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     let mut record = ByteRecord::new();
-    let mut output_record = ByteRecord::new();
     let mut row_index: usize = 0;
 
     // Fast path with single column explosion, which is the most common
@@ -313,89 +305,33 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         return Ok(wtr.flush()?);
     }
 
-    // Multiple selection path when evaluating an expression
-    if let Some(program) = program_opt {
-        let mut splits: Vec<Vec<DynamicValue>> = Vec::with_capacity(sel.len());
-
-        for _ in 0..sel.len() {
-            splits.push(Vec::new());
-        }
-
-        while rdr.read_byte_record(&mut record)? {
-            let mut all_empty = true;
-            row_index += 1;
-
-            for (i, column_index) in sel.iter().copied().enumerate() {
-                let col_splits = &mut splits[i];
-                let cell = &record[column_index];
-                col_splits.clear();
-
-                if !cell.is_empty() {
-                    all_empty = false;
-                }
-
-                let value =
-                    program.run_with_record_and_col_index(row_index - 1, column_index, &record)?;
-
-                for sub_value in value.into_flat_iter() {
-                    col_splits.push(sub_value);
-                }
-            }
-
-            if args.flag_drop_empty && all_empty {
-                continue;
-            }
-
-            let max_len = args.max_len(&splits)?;
-
-            for i in 0..max_len {
-                // Mulitple expr, with or without keep
-                output_record.clear();
-
-                for (cell, mask) in record.iter().zip(sel_mask.iter()) {
-                    if args.flag_keep {
-                        output_record.push_field(cell);
-                    }
-
-                    if let Some(j) = mask {
-                        if let Some(sub_value) = splits[*j].get(i) {
-                            sub_value.push_field_to_record(&mut output_record);
-                        } else {
-                            output_record.push_field(b"");
-                        }
-                    } else {
-                        output_record.push_field(cell);
-                    }
-                }
-
-                wtr.write_byte_record(&output_record)?;
-            }
-        }
-
-        return Ok(wtr.flush()?);
-    }
-
-    // Normal multiple path
-    let mut splits: Vec<Vec<(*const u8, usize)>> = Vec::with_capacity(sel.len());
+    // Slow path with multiple exploded columns
+    let mut splits: Vec<ByteRecord> = Vec::with_capacity(sel.len());
 
     for _ in 0..sel.len() {
-        splits.push(Vec::new());
+        splits.push(ByteRecord::new());
     }
 
     while rdr.read_byte_record(&mut record)? {
         let mut all_empty = true;
+        row_index += 1;
 
-        for (i, cell) in sel.select(&record).enumerate() {
+        for (i, column_index) in sel.iter().copied().enumerate() {
             let col_splits = &mut splits[i];
+            let cell = &record[column_index];
             col_splits.clear();
 
-            if !cell.is_empty() {
-                all_empty = false;
-            }
-
-            for slice in cell.split_str(&args.flag_sep) {
-                col_splits.push((slice.as_ptr(), slice.len()));
-            }
+            all_empty &= exploder.explode(
+                args.flag_drop_empty,
+                row_index,
+                column_index,
+                &record,
+                cell,
+                |sub_cell| {
+                    col_splits.push_field(sub_cell);
+                    Ok(())
+                },
+            )?;
         }
 
         if args.flag_drop_empty && all_empty {
@@ -405,40 +341,25 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let max_len = args.max_len(&splits)?;
 
         for i in 0..max_len {
-            // Multiple keep
-            if args.flag_keep {
-                output_record.clear();
-
+            wtr.write_fields(|w| {
                 for (cell, mask) in record.iter().zip(sel_mask.iter()) {
-                    output_record.push_field(cell);
+                    if let Some(j) = mask {
+                        if args.flag_keep {
+                            w.write_field(cell)?;
+                        }
 
-                    output_record.push_field(if let Some(j) = mask {
                         if let Some(sub_cell) = splits[*j].get(i) {
-                            unsafe { slice::from_raw_parts(sub_cell.0, sub_cell.1) }
+                            w.write_field(sub_cell)?;
                         } else {
-                            b"".as_slice()
+                            w.write_field(b"")?;
                         }
                     } else {
-                        cell
-                    });
+                        w.write_field(cell)?;
+                    }
                 }
 
-                wtr.write_byte_record(&output_record)?;
-            }
-            // Multiple
-            else {
-                wtr.write_record(record.iter().zip(sel_mask.iter()).map(|(cell, mask)| {
-                    if let Some(j) = mask {
-                        if let Some(sub_cell) = splits[*j].get(i) {
-                            unsafe { slice::from_raw_parts(sub_cell.0, sub_cell.1) }
-                        } else {
-                            b"".as_slice()
-                        }
-                    } else {
-                        cell
-                    }
-                }))?;
-            }
+                Ok(())
+            })?;
         }
     }
 
