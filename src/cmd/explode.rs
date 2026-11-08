@@ -26,6 +26,11 @@ fn singularize(name: &[u8]) -> Vec<u8> {
     vec
 }
 
+// NOTE: bstr::ByteSlice::split_str uses a memmem::Finder that uses two different
+// strategies for splitting with single byte or substring. No need to overengineer
+// anything beyond this.
+// NOTE: managing our own bstr::Finder does not seem to improve performance neither
+// and suggests its creation is not expensive at all.
 enum Exploder {
     Substring(String),
     Program {
@@ -53,7 +58,6 @@ impl Exploder {
                     return Ok(true);
                 }
 
-                // TODO: optimized routine for single char, and reuse Finder
                 for sub in cell.split_str(sep) {
                     callback(sub)?;
                 }
@@ -266,7 +270,35 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut record = ByteRecord::new();
     let mut row_index: usize = 0;
 
-    // Fast path with single column explosion, which is the most common
+    // Fast path for single column substring explosion, without --keep
+    if sel.len() == 1
+        && !args.flag_keep
+        && let Exploder::Substring(sep) = &exploder
+    {
+        let column_index = sel[0];
+
+        while rdr.read_byte_record(&mut record)? {
+            let cell = &record[column_index];
+
+            if args.flag_drop_empty && cell.is_empty() {
+                continue;
+            }
+
+            for sub_cell in cell.split_str(sep) {
+                wtr.write_record(
+                    record.iter().enumerate().map(
+                        |(i, cell)| {
+                            if i == column_index { sub_cell } else { cell }
+                        },
+                    ),
+                )?;
+            }
+        }
+
+        return Ok(wtr.flush()?);
+    }
+
+    // Fast path for single column explosion
     if sel.len() == 1 {
         let column_index = sel[0];
 
@@ -305,7 +337,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         return Ok(wtr.flush()?);
     }
 
-    // Slow path with multiple exploded columns
+    // Slow path for multiple columns explosion
     let mut splits: Vec<ByteRecord> = Vec::with_capacity(sel.len());
 
     for _ in 0..sel.len() {
