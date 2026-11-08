@@ -1,3 +1,5 @@
+use std::ops::{Index, IndexMut};
+
 use simd_csv::ByteRecord;
 
 use crate::CliResult;
@@ -6,6 +8,66 @@ use crate::config::{Config, Delimiter};
 use crate::moonblade::agg::CovarianceWelford;
 use crate::select::SelectedColumns;
 use crate::utils;
+
+struct Matrix<T> {
+    columns: usize,
+    rows: usize,
+    data: Vec<T>,
+}
+
+impl<T: Default> Matrix<T> {
+    fn new(columns: usize, rows: usize) -> Self {
+        let mut data = Vec::with_capacity(columns * rows);
+
+        for _ in 0..columns * rows {
+            data.push(Default::default());
+        }
+
+        Self {
+            columns,
+            rows,
+            data,
+        }
+    }
+}
+
+impl<T> Matrix<T> {
+    #[inline(always)]
+    fn flat_index(&self, x: usize, y: usize) -> usize {
+        debug_assert!(x < self.columns);
+        debug_assert!(y < self.rows);
+
+        y * self.columns + x
+    }
+
+    fn rows(&self) -> impl Iterator<Item = &[T]> {
+        self.data.chunks_exact(self.columns)
+    }
+}
+
+impl<T> Matrix<Option<T>> {
+    fn set(&mut self, x: usize, y: usize, v: T) {
+        let i = self.flat_index(x, y);
+        self.data[i] = Some(v);
+    }
+}
+
+impl<T> Index<(usize, usize)> for Matrix<T> {
+    type Output = T;
+
+    #[inline(always)]
+    fn index(&self, (x, y): (usize, usize)) -> &Self::Output {
+        &self.data[self.flat_index(x, y)]
+    }
+}
+
+impl<T> IndexMut<(usize, usize)> for Matrix<T> {
+    #[inline(always)]
+    fn index_mut(&mut self, (x, y): (usize, usize)) -> &mut Self::Output {
+        let i = self.flat_index(x, y);
+        &mut self.data[i]
+    }
+}
 
 enum Axes {
     Homogeneous(IndexSet<Vec<u8>>),
@@ -241,27 +303,25 @@ impl Args {
 
         writer.write_byte_record(&output_record)?;
 
-        let mut flat_matrix: Vec<Option<f64>> = vec![None; cols * rows];
+        let mut matrix = Matrix::new(cols, rows);
 
         for ((x, y), val) in hash_matrix.iter() {
-            let index = y * cols + x;
-            flat_matrix[index] = Some(*val);
+            matrix.set(*x, *y, *val);
 
             if self.flag_undirected {
                 // NOTE: no need to have a special case for diagonal.
-                let other_index = x * cols + y;
-                flat_matrix[other_index] = Some(*val);
+                matrix.set(*y, *x, *val);
             }
         }
 
-        for (index, row) in flat_matrix.chunks_exact(cols).enumerate() {
+        for (index, row) in matrix.rows().enumerate() {
             let row_label = axes.get_y_label(index);
             output_record.clear();
             output_record.push_field(row_label);
 
             for v_opt in row {
                 match v_opt {
-                    Some(v) => output_record.push_field(v.to_string().as_bytes()),
+                    Some(v) => output_record.fmt_field(&v),
                     None => output_record.push_field(b""),
                 };
             }

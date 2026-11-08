@@ -67,7 +67,7 @@ impl Exploder {
                 serializer,
             } => {
                 let value =
-                    program.run_with_record_and_col_index(row_index, column_index, &record)?;
+                    program.run_with_record_and_col_index(row_index, column_index, record)?;
 
                 if drop_empty && value.is_nullish() {
                     return Ok(true);
