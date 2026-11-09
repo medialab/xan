@@ -907,15 +907,39 @@ impl Args {
                     Ok(InputPayload::Path(path.to_string(), ByteRecord::from([path])).into())
                 })),
             ))
-        } else if let Some(paths_path) = &self.flag_paths {
-            let conf = Config::new(&Some(paths_path.to_string()))
+        } else if let Some(path) = self.flag_paths.as_ref().or(self.flag_docs.as_ref()) {
+            let conf = Config::new(&Some(path.to_string()))
                 .delimiter(self.flag_delimiter)
                 .no_headers(self.flag_no_headers);
 
-            // CSV with path column
-            if let Some(sel) = &self.flag_path_column {
+            // Lines
+            if self.flag_paths.is_some() && self.flag_path_column.is_none() {
+                let reader = conf.io_reader()?;
+                let line_reader = BufReader::new(reader);
+
+                Ok((
+                    true,
+                    ByteRecord::from(["path"]),
+                    Box::new(line_reader.lines().map(|path| -> CliResult<Input> {
+                        let path = path?;
+                        let dummy_record = ByteRecord::from([&path]);
+                        Ok(InputPayload::Path(path, dummy_record).into())
+                    })),
+                ))
+            }
+            // CSV input
+            else {
                 let mut reader = conf.simd_reader()?;
                 let headers = reader.byte_headers()?;
+
+                let sel = if self.flag_paths.is_some() {
+                    self.flag_path_column.as_ref().unwrap()
+                } else if let Some(sel) = &self.flag_doc_column {
+                    sel
+                } else {
+                    Err("--docs requires --doc-column!")?
+                };
+
                 let i = sel.single_selection(headers, !conf.no_headers)?;
                 let encoding = self.encoding()?;
 
@@ -942,10 +966,14 @@ impl Args {
 
                                 let context = ScraperContext::new(url)?;
 
-                                let payload = InputPayload::Path(
-                                    String::from_utf8(record[i].to_vec())?,
-                                    record,
-                                );
+                                let payload = if self.flag_docs.is_some() {
+                                    InputPayload::Document(i, record)
+                                } else {
+                                    InputPayload::Path(
+                                        String::from_utf8(record[i].to_vec())?,
+                                        record,
+                                    )
+                                };
 
                                 Ok(Input {
                                     payload,
@@ -956,70 +984,6 @@ impl Args {
                     ),
                 ))
             }
-            // Lines
-            else {
-                let reader = conf.io_reader()?;
-                let line_reader = BufReader::new(reader);
-
-                Ok((
-                    true,
-                    ByteRecord::from(["path"]),
-                    Box::new(line_reader.lines().map(|path| -> CliResult<Input> {
-                        let path = path?;
-                        let dummy_record = ByteRecord::from([&path]);
-                        Ok(InputPayload::Path(path, dummy_record).into())
-                    })),
-                ))
-            }
-        } else if let Some(docs_path) = &self.flag_docs {
-            // Inline docs from CSV input
-            let Some(doc_column_selector) = self.flag_doc_column.as_ref() else {
-                Err("--docs requires --doc-column!")?
-            };
-
-            let conf = Config::new(&Some(docs_path.to_string()))
-                .delimiter(self.flag_delimiter)
-                .no_headers(self.flag_no_headers);
-
-            let mut reader = conf.simd_reader()?;
-            let headers = reader.byte_headers()?;
-
-            let doc_column_index =
-                doc_column_selector.single_selection(headers, !conf.no_headers)?;
-
-            let url_column_index_opt = self
-                .flag_url_column
-                .as_ref()
-                .map(|url_sel| url_sel.single_selection(headers, !conf.no_headers))
-                .transpose()?;
-
-            Ok((
-                !conf.no_headers,
-                headers.clone(),
-                Box::new(
-                    reader
-                        .into_byte_records()
-                        .map(move |result| -> CliResult<Input> {
-                            let record = result?;
-
-                            let url = if let Some(j) = url_column_index_opt {
-                                Some(from_utf8(&record[j])?)
-                            } else {
-                                None
-                            };
-
-                            let context = ScraperContext::new(url)?;
-
-                            let payload = InputPayload::Document(doc_column_index, record);
-
-                            Ok(Input {
-                                payload,
-                                encoding: None,
-                                context,
-                            })
-                        }),
-                ),
-            ))
         } else if let Some(pattern) = &self.flag_glob {
             // Glob pattern
             Ok((
@@ -1035,6 +999,7 @@ impl Args {
                 })),
             ))
         } else if self.flag_stdin_doc {
+            // Stdin doc
             let mut doc = Vec::new();
             io::stdin().read_to_end(&mut doc)?;
 
