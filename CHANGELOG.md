@@ -48,6 +48,7 @@
 * Fixing `xan scrape` not streaming input when using `--paths` & `--docs`.
 * Fixing performance issues when calling a command with a lot of positional arguments (e.g. 10k paths to `xan scrape`).
 * Fixing `xan explode --evaluate --drop-empty` semantics.
+* Fixing `xan bivar` to abide by correct coordinates and flip y axis to fit intuition.
 
 *Performance*
 

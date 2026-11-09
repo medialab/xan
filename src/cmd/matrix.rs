@@ -9,14 +9,14 @@ use crate::moonblade::agg::CovarianceWelford;
 use crate::select::SelectedColumns;
 use crate::utils;
 
-struct LabeledMatrix<L, T> {
-    columns: Vec<L>,
-    rows: Vec<L>,
+struct LabeledMatrix<T> {
+    columns: ByteRecord,
+    rows: ByteRecord,
     data: Vec<T>,
 }
 
-impl<L, T: Default> LabeledMatrix<L, T> {
-    fn new(columns: Vec<L>, rows: Vec<L>) -> Self {
+impl<T: Default> LabeledMatrix<T> {
+    fn new(columns: ByteRecord, rows: ByteRecord) -> Self {
         let len = columns.len() * rows.len();
 
         let mut data = Vec::with_capacity(len);
@@ -33,7 +33,7 @@ impl<L, T: Default> LabeledMatrix<L, T> {
     }
 }
 
-impl<L, T> LabeledMatrix<L, T> {
+impl<T> LabeledMatrix<T> {
     #[inline(always)]
     fn columns(&self) -> usize {
         self.columns.len()
@@ -52,23 +52,23 @@ impl<L, T> LabeledMatrix<L, T> {
         y * self.columns() + x
     }
 
-    fn x_labels(&self) -> impl Iterator<Item = &L> {
+    fn x_labels(&self) -> impl Iterator<Item = &[u8]> {
         self.columns.iter()
     }
 
-    fn labeled_rows(&self) -> impl Iterator<Item = (&L, &[T])> {
+    fn labeled_rows(&self) -> impl Iterator<Item = (&[u8], &[T])> {
         self.rows.iter().zip(self.data.chunks_exact(self.columns()))
     }
 }
 
-impl<L, T> LabeledMatrix<L, Option<T>> {
+impl<T> LabeledMatrix<Option<T>> {
     fn set(&mut self, x: usize, y: usize, v: T) {
         let i = self.flat_index(x, y);
         self.data[i] = Some(v);
     }
 }
 
-impl<L, T> Index<(usize, usize)> for LabeledMatrix<L, T> {
+impl<T> Index<(usize, usize)> for LabeledMatrix<T> {
     type Output = T;
 
     #[inline(always)]
@@ -77,7 +77,7 @@ impl<L, T> Index<(usize, usize)> for LabeledMatrix<L, T> {
     }
 }
 
-impl<L, T> IndexMut<(usize, usize)> for LabeledMatrix<L, T> {
+impl<T> IndexMut<(usize, usize)> for LabeledMatrix<T> {
     #[inline(always)]
     fn index_mut(&mut self, (x, y): (usize, usize)) -> &mut Self::Output {
         let i = self.flat_index(x, y);
@@ -120,16 +120,13 @@ impl Axes {
     }
 }
 
-impl From<Axes> for LabeledMatrix<Vec<u8>, Option<f64>> {
+impl From<Axes> for LabeledMatrix<Option<f64>> {
     fn from(value: Axes) -> Self {
         match value {
-            Axes::Heterogeneous { x, y } => {
-                Self::new(x.into_iter().collect(), y.into_iter().collect())
+            Axes::Heterogeneous { x, y } => Self::new(x.iter().collect(), y.iter().collect()),
+            Axes::Homogeneous(labels) => {
+                Self::new(labels.iter().collect(), labels.iter().collect())
             }
-            Axes::Homogeneous(labels) => Self::new(
-                labels.iter().cloned().collect(),
-                labels.into_iter().collect(),
-            ),
         }
     }
 }
@@ -511,64 +508,84 @@ impl Args {
         let cell_width: f64 = (max_x - min_x) / (nb_cols as f64);
         let cell_height: f64 = (max_y - min_y) / (nb_rows as f64);
 
-        let mut x_labels = Vec::with_capacity(nb_cols);
+        let mut x_labels = ByteRecord::new();
         let mut x_lower_bound = min_x;
         for _ in 0..(nb_cols - 1) {
-            x_labels.push(format!(
-                ">= {} < {}",
-                utils::format_number(x_lower_bound),
-                utils::format_number(x_lower_bound + cell_width)
-            ));
+            x_labels.push_field(
+                format!(
+                    ">= {} < {}",
+                    utils::format_number(x_lower_bound),
+                    utils::format_number(x_lower_bound + cell_width)
+                )
+                .as_bytes(),
+            );
             x_lower_bound += cell_width;
         }
-        x_labels.push(format!(
-            ">= {} <= {}",
-            utils::format_number(x_lower_bound),
-            utils::format_number(max_x)
-        ));
+        x_labels.push_field(
+            format!(
+                ">= {} <= {}",
+                utils::format_number(x_lower_bound),
+                utils::format_number(max_x)
+            )
+            .as_bytes(),
+        );
 
-        let mut y_labels = Vec::with_capacity(nb_rows);
+        let mut y_labels = ByteRecord::new();
         let mut y_lower_bound = min_y;
         for _ in 0..(nb_cols - 1) {
-            y_labels.push(format!(
-                ">= {} < {}",
-                utils::format_number(y_lower_bound),
-                utils::format_number(y_lower_bound + cell_height)
-            ));
+            y_labels.push_field(
+                format!(
+                    ">= {} < {}",
+                    utils::format_number(y_lower_bound),
+                    utils::format_number(y_lower_bound + cell_height)
+                )
+                .as_bytes(),
+            );
             y_lower_bound += cell_height;
         }
-        y_labels.push(format!(
-            ">= {} <= {}",
-            utils::format_number(y_lower_bound),
-            utils::format_number(max_y)
-        ));
+        y_labels.push_field(
+            format!(
+                ">= {} <= {}",
+                utils::format_number(y_lower_bound),
+                utils::format_number(max_y)
+            )
+            .as_bytes(),
+        );
+
+        y_labels = y_labels.into_iter().rev().collect();
+
+        let mut matrix = LabeledMatrix::new(x_labels, y_labels);
+
+        let max_x_index = nb_cols - 1;
+        let max_y_index = nb_rows - 1;
+
+        for (x_value, y_value, weight) in points.into_iter() {
+            let x = (((x_value - min_x) / cell_width).floor() as usize).min(max_x_index);
+            // NOTE: we flip y axis to fit intuition
+            let y =
+                max_y_index - (((y_value - min_y) / cell_height).floor() as usize).min(max_y_index);
+
+            let cell = &mut matrix[(x, y)];
+
+            match cell {
+                None => {
+                    *cell = Some(weight);
+                }
+                Some(w) => *w += weight,
+            };
+        }
 
         let mut writer = Config::new(&self.flag_output).simd_writer()?;
         let mut output_record = ByteRecord::new();
         output_record.push_field(b"");
 
-        for value in x_labels {
-            output_record.push_field(value.as_bytes());
+        for value in matrix.x_labels() {
+            output_record.push_field(value);
         }
 
         writer.write_byte_record(&output_record)?;
 
-        let mut flat_matrix: Vec<Option<f64>> = vec![None; nb_cols * nb_rows];
-
-        let list_points = points.into_iter();
-        for (x_value, y_value, weight) in list_points {
-            let idx_col = (((x_value - min_x) / cell_width).floor() as usize).min(nb_cols - 1);
-            let idx_row = (((y_value - min_y) / cell_height).floor() as usize).min(nb_rows - 1);
-
-            flat_matrix[idx_row + nb_rows * idx_col] =
-                Some(match flat_matrix[idx_row + nb_rows * idx_col] {
-                    Some(value) => value + weight,
-                    None => weight,
-                })
-        }
-
-        for (row, label) in flat_matrix.chunks_exact(nb_cols).zip(&y_labels) {
-            let row_label = label.as_bytes();
+        for (row_label, row) in matrix.labeled_rows() {
             output_record.clear();
             output_record.push_field(row_label);
 
