@@ -342,40 +342,36 @@ impl Scraper {
         }
     }
 
-    fn names(&self) -> Vec<String> {
+    fn names(&self) -> Vec<&'_ str> {
         match self {
-            Self::Head => vec!["title".to_string(), "canonical_url".to_string()],
-            Self::Urls => vec!["url".to_string()],
-            Self::Images => vec!["src".to_string()],
+            Self::Head => vec!["title", "canonical_url"],
+            Self::Urls => vec!["url"],
+            Self::Images => vec!["src"],
             Self::Article(scraper_opt) => {
                 let mut names = vec![
-                    "canonical_url".to_string(),
-                    "headline".to_string(),
-                    "description".to_string(),
-                    "date_created".to_string(),
-                    "date_published".to_string(),
-                    "date_modified".to_string(),
-                    "section".to_string(),
-                    "keywords".to_string(),
-                    "authors".to_string(),
-                    "image".to_string(),
-                    "image_caption".to_string(),
-                    "free".to_string(),
+                    "canonical_url",
+                    "headline",
+                    "description",
+                    "date_created",
+                    "date_published",
+                    "date_modified",
+                    "section",
+                    "keywords",
+                    "authors",
+                    "image",
+                    "image_caption",
+                    "free",
                 ];
 
                 if let Some(scraper) = scraper_opt {
                     for name in scraper.program.names() {
-                        names.push(name.to_string());
+                        names.push(name);
                     }
                 }
 
                 names
             }
-            Self::Custom(scraper) => scraper
-                .program
-                .names()
-                .map(|name| name.to_string())
-                .collect(),
+            Self::Custom(scraper) => scraper.program.names().collect(),
         }
     }
 
