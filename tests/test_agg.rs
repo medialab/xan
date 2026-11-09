@@ -265,7 +265,7 @@ fn agg_values() {
     cmd.arg("values(name) as V").arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![svec!["V"], svec!["John|Mary|Lucas"]];
+    let expected = vec![svec!["V"], svec!["[\"John\",\"Mary\",\"Lucas\"]"]];
     assert_eq!(got, expected);
 
     // Custom separator
@@ -286,7 +286,7 @@ fn agg_values_identity() {
     );
 
     let mut cmd = wrk.command("agg");
-    cmd.arg("values(name) as V1, values(name, '-') as V2")
+    cmd.arg("values(name, '|') as V1, values(name, '-') as V2")
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -316,7 +316,7 @@ fn agg_distinct_values() {
     cmd.arg("distinct_values(name) as V").arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![svec!["V"], svec!["John|Lucas|Mary"]];
+    let expected = vec![svec!["V"], svec!["[\"John\",\"Lucas\",\"Mary\"]"]];
     assert_eq!(got, expected);
 
     // Custom separator
@@ -401,7 +401,7 @@ fn agg_most_common() {
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
         svec!["top", "top_counts"],
-        svec!["blue|red|purple", "3|2|1"],
+        svec!["[\"blue\",\"red\",\"purple\"]", "[3,2,1]"],
     ];
     assert_eq!(got, expected);
 
@@ -438,7 +438,10 @@ fn agg_top() {
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![svec!["top", "argtop"], svec!["4|3|2", "ochre|red|yellow"]];
+    let expected = vec![
+        svec!["top", "argtop"],
+        svec!["[4,3,2]", "[\"ochre\",\"red\",\"yellow\"]"],
+    ];
     assert_eq!(got, expected);
 
     // Custom separator
@@ -470,7 +473,7 @@ fn agg_argtop() {
     cmd.arg("argtop(3, score) as top").arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![svec!["top"], svec!["4|1|2"]];
+    let expected = vec![svec!["top"], svec!["[4,1,2]"]];
     assert_eq!(got, expected);
 
     // Auxilliary expr
@@ -478,7 +481,7 @@ fn agg_argtop() {
     cmd.arg("argtop(3, score, color) as top").arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![svec!["top"], svec!["ochre|red|yellow"]];
+    let expected = vec![svec!["top"], svec!["[\"ochre\",\"red\",\"yellow\"]"]];
     assert_eq!(got, expected);
 
     // Custom separator

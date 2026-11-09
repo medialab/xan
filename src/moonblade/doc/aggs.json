@@ -39,7 +39,7 @@
     "name": "argtop",
     "arguments": ["k", "<expr>", "<expr>?", "separator?"],
     "returns": "string",
-    "help": "Find the top k values returned by the first expression and either return the indices of matching rows or the result of the second expression, joined by a pipe character ('|') or by the provided separator. Ties will be broken by original row index."
+    "help": "Find the top k values returned by the first expression and either return the indices of matching rows or the result of the second expression, serialized as JSON or joined by the provided separator. Ties will be broken by original row index."
   },
   {
     "name": "avg",
@@ -117,7 +117,7 @@
     "name": "distinct_values",
     "arguments": ["<expr>", "separator?"],
     "returns": "string",
-    "help": "List of sorted distinct values joined by a pipe character ('|') by default or by the provided separator."
+    "help": "List of sorted distinct values serialized as JSON or joined by the provided separator."
   },
   {
     "name": "earliest",
@@ -219,13 +219,13 @@
     "name": "most_common",
     "arguments": ["k", "<expr>", "separator?"],
     "returns": "string",
-    "help": "List of top k most common values returned by expression joined by a pipe character ('|') or by the provided separator. Ties will be broken by lexicographical order."
+    "help": "List of top k most common values returned by expression serialized as JSON or joined by the provided separator. Ties will be broken by lexicographical order."
   },
   {
     "name": "most_common_counts",
     "arguments": ["k", "<expr>", "separator?"],
     "returns": "string",
-    "help": "List of top k most common counts returned by expression joined by a pipe character ('|') or by the provided separator. Ties will be broken by lexicographical order."
+    "help": "List of top k most common counts returned by expression serialized as JSON or joined by the provided separator. Ties will be broken by lexicographical order."
   },
   {
     "name": "percentage",
@@ -297,7 +297,7 @@
     "name": "top",
     "arguments": ["k", "<expr>", "separator?"],
     "returns": "any",
-    "help": "Find the top k values returned by the expression and join them by a pipe character ('|') or by the provided separator. Ties will be broken by original row index."
+    "help": "Find the top k values returned by the expression serialized as JSON or joined by the provided separator. Ties will be broken by original row index."
   },
   {
     "name": "type",
@@ -315,7 +315,7 @@
     "name": "values",
     "arguments": ["<expr>", "separator?"],
     "returns": "string",
-    "help": "List of values joined by a pipe character ('|') by default or by the provided separator."
+    "help": "List of values serialized as JSON or joined by the provided separator."
   },
   {
     "name": "var",

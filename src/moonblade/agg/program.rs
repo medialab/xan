@@ -140,37 +140,48 @@ impl Aggregator {
             (ConcreteAggregationMethod::ApproxQuantile(q), Self::ApproxQuantiles(inner)) => {
                 DynamicValue::from(inner.get(*q))
             }
-            (ConcreteAggregationMethod::ArgTop(_, expr_opt, separator), Self::ArgTop(inner)) => {
-                DynamicValue::from(match expr_opt {
-                    None => inner
+            (
+                ConcreteAggregationMethod::ArgTop(_, expr_opt, separator_opt),
+                Self::ArgTop(inner),
+            ) => match expr_opt {
+                None => match separator_opt {
+                    Some(separator) => inner
                         .top_indices()
                         .map(|i| i.to_string())
                         .collect::<Vec<_>>()
-                        .join(separator),
-                    Some(expr) => {
-                        let mut strings = Vec::new();
-
-                        for (index, record, col_index) in inner.top_records() {
-                            let value = EvaluationContext::new_with_col_index(
+                        .join(separator)
+                        .into(),
+                    None => inner
+                        .top_indices()
+                        .map(DynamicValue::from)
+                        .collect::<Vec<_>>()
+                        .into(),
+                },
+                Some(expr) => {
+                    let values = inner
+                        .top_records()
+                        .map(|(index, record, col_index)| {
+                            EvaluationContext::new_with_col_index(
                                 Some(index),
                                 col_index,
                                 &record,
                                 headers_index,
                             )
-                            .evaluate(expr)?;
+                            .evaluate(expr)
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
 
-                            strings.push(
-                                value
-                                    .try_as_str()
-                                    .map_err(|err| err.specify("argtop"))?
-                                    .into_owned(),
-                            );
-                        }
-
-                        strings.join(separator)
+                    match separator_opt {
+                        Some(separator) => values
+                            .iter()
+                            .map(|value| value.try_as_str().map_err(|err| err.specify("top")))
+                            .collect::<Result<Vec<_>, _>>()?
+                            .join(separator)
+                            .into(),
+                        None => values.into(),
                     }
-                })
-            }
+                }
+            },
             (ConcreteAggregationMethod::Cardinality, Self::Frequencies(inner)) => {
                 DynamicValue::from(inner.cardinality())
             }
@@ -193,9 +204,18 @@ impl Aggregator {
             (ConcreteAggregationMethod::Percentage(decimals), Self::Count(inner)) => {
                 DynamicValue::from(inner.percentage(*decimals))
             }
-            (ConcreteAggregationMethod::DistinctValues(separator), Self::Frequencies(inner)) => {
-                DynamicValue::from(inner.join(separator))
-            }
+            (
+                ConcreteAggregationMethod::DistinctValues(separator_opt),
+                Self::Frequencies(inner),
+            ) => match separator_opt {
+                None => inner
+                    .distinct_values()
+                    .into_iter()
+                    .map(DynamicValue::from)
+                    .collect::<Vec<_>>()
+                    .into(),
+                Some(separator) => inner.join(separator).into(),
+            },
             (ConcreteAggregationMethod::First, Self::First(inner)) => {
                 DynamicValue::from(inner.first())
             }
@@ -287,24 +307,54 @@ impl Aggregator {
             (ConcreteAggregationMethod::Mode, Self::Frequencies(inner)) => {
                 DynamicValue::from(inner.mode())
             }
-            (ConcreteAggregationMethod::Modes(separator), Self::Frequencies(inner)) => {
-                DynamicValue::from(inner.modes().map(|m| m.join(separator)))
+            (ConcreteAggregationMethod::Modes(separator_opt), Self::Frequencies(inner)) => inner
+                .modes()
+                .map(|modes| -> DynamicValue {
+                    match separator_opt {
+                        Some(separator) => modes.join(separator).into(),
+                        None => modes
+                            .into_iter()
+                            .map(DynamicValue::from)
+                            .collect::<Vec<_>>()
+                            .into(),
+                    }
+                })
+                .into(),
+            (
+                ConcreteAggregationMethod::MostCommonCounts(k, separator_opt),
+                Self::Frequencies(inner),
+            ) => {
+                let counts = inner.most_common_counts(*k);
+
+                match separator_opt {
+                    Some(separator) => counts
+                        .into_iter()
+                        .map(|c| c.to_string())
+                        .collect::<Vec<_>>()
+                        .join(separator)
+                        .into(),
+                    None => counts
+                        .into_iter()
+                        .map(DynamicValue::from)
+                        .collect::<Vec<_>>()
+                        .into(),
+                }
             }
             (
-                ConcreteAggregationMethod::MostCommonCounts(k, separator),
+                ConcreteAggregationMethod::MostCommonValues(k, separator_opt),
                 Self::Frequencies(inner),
-            ) => DynamicValue::from(
-                inner
-                    .most_common_counts(*k)
-                    .into_iter()
-                    .map(|n| n.to_string())
-                    .collect::<Vec<_>>()
-                    .join(separator),
-            ),
-            (
-                ConcreteAggregationMethod::MostCommonValues(k, separator),
-                Self::Frequencies(inner),
-            ) => DynamicValue::from(inner.most_common(*k).join(separator)),
+            ) => {
+                let values = inner.most_common(*k);
+
+                match separator_opt {
+                    Some(separator) => values.join(separator).into(),
+                    None => values
+                        .into_iter()
+                        .map(DynamicValue::from)
+                        .collect::<Vec<_>>()
+                        .into(),
+                }
+            }
             (ConcreteAggregationMethod::GeometricMean, Self::GeometricMeanWelford(inner)) => {
                 DynamicValue::from(inner.geometric_mean())
             }
@@ -327,14 +377,22 @@ impl Aggregator {
             (ConcreteAggregationMethod::StddevSample, Self::Welford(inner)) => {
                 DynamicValue::from(inner.sample_stddev())
             }
-            (ConcreteAggregationMethod::Top(_, separator), Self::ArgTop(inner)) => {
-                DynamicValue::from(
-                    inner
-                        .top_values()
-                        .map(|v| v.to_string())
+            (ConcreteAggregationMethod::Top(_, separator_opt), Self::ArgTop(inner)) => {
+                let values = inner.top_values();
+
+                match separator_opt {
+                    Some(separator) => values
+                        .into_iter()
+                        .map(|c| c.to_string())
                         .collect::<Vec<_>>()
-                        .join(separator),
-                )
+                        .join(separator)
+                        .into(),
+                    None => values
+                        .into_iter()
+                        .map(DynamicValue::from)
+                        .collect::<Vec<_>>()
+                        .into(),
+                }
             }
             (ConcreteAggregationMethod::Types, Self::Types(inner)) => {
                 DynamicValue::from(inner.sorted_types().join("|"))
@@ -342,8 +400,17 @@ impl Aggregator {
             (ConcreteAggregationMethod::Type, Self::Types(inner)) => {
                 DynamicValue::from(inner.most_likely_type())
             }
-            (ConcreteAggregationMethod::Values(separator), Self::Values(inner)) => {
-                DynamicValue::from(inner.join(separator))
+            (ConcreteAggregationMethod::Values(separator_opt), Self::Values(inner)) => {
+                match separator_opt {
+                    Some(separator) => inner.join(separator).into(),
+                    None => inner
+                        .values()
+                        .iter()
+                        .map(|s| s.as_str())
+                        .map(DynamicValue::from)
+                        .collect::<Vec<_>>()
+                        .into(),
+                }
             }
             _ => unreachable!(),
         })
@@ -756,16 +823,18 @@ fn cast_as_static_value<T>(
     }
 }
 
-fn cast_as_separator(arg_opt: Option<&ConcreteExpr>) -> Result<String, ConcretizationError> {
+fn cast_as_separator(
+    arg_opt: Option<&ConcreteExpr>,
+) -> Result<Option<String>, ConcretizationError> {
     match arg_opt {
-        None => Ok("|".to_string()),
+        None => Ok(None),
         Some(arg) => {
             if let ConcreteExpr::Value(v) = arg {
                 let sep = v
                     .try_as_str()
                     .map_err(|_| ConcretizationError::NotStaticallyAnalyzable)?;
 
-                Ok(sep.into_owned())
+                Ok(Some(sep.into_owned()))
             } else {
                 Err(ConcretizationError::NotStaticallyAnalyzable)
             }
@@ -947,14 +1016,14 @@ enum ConcreteAggregationMethod {
     ApproxQuantile(f64),
     ArgMin(Option<ConcreteExpr>),
     ArgMax(Option<ConcreteExpr>),
-    ArgTop(usize, Option<ConcreteExpr>, String),
+    ArgTop(usize, Option<ConcreteExpr>, Option<String>),
     Cardinality,
     Correlation,
     Count,
     CountTime(Unit),
     CovariancePop,
     CovarianceSample,
-    DistinctValues(String),
+    DistinctValues(Option<String>),
     Distribution(usize, bool),
     Earliest,
     First,
@@ -969,21 +1038,21 @@ enum ConcreteAggregationMethod {
     HarmonicMean,
     Median(MedianType),
     Mode,
-    Modes(String),
-    MostCommonValues(usize, String),
-    MostCommonCounts(usize, String),
+    Modes(Option<String>),
+    MostCommonValues(usize, Option<String>),
+    MostCommonCounts(usize, Option<String>),
     Percentage(Option<usize>),
     Quartile(usize),
     Quantile(f64),
     Ratio(Option<usize>),
     Rms,
     Sum,
-    Values(String),
+    Values(Option<String>),
     VarPop,
     VarSample,
     StddevPop,
     StddevSample,
-    Top(usize, String),
+    Top(usize, Option<String>),
     Type,
     Types,
 }

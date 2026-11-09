@@ -13,6 +13,8 @@
 * `xan flatten -H/--highlight` is now boolean and will perform tag highlighting. To get the old behavior, use the `-r/--highlight-regex` instead so it can easily be used with the newest `xan search -H/--highlight` action.
 * Renaming the obscure `xan search --left` flag to `-k/--keep-unmatched`.
 * `xan search -R/--replace & --replacement-column` now only emit rows with matches unless `-k/--keep-unmatched` is given.
+* `xan explode -e` no longer flatmaps by default and expects an optional list of values instead.
+* `argtop`, `distinct_values`, `most_common`, `most_common_counts`, `top` & `values` aggregation functions no longer join values by `|` and instead serialize to JSON.
 
 *Features*
 
