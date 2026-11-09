@@ -59,6 +59,7 @@
 * Improving performance of the `fmt` & trimming moonblade function.
 * Improving performance of `xan rename`.
 * Improving performance of `xan explode -e`.
+* Improving performance of `xan matrix`.
 
 ## 0.61.0
 

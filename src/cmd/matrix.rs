@@ -1,3 +1,4 @@
+use std::iter::once;
 use std::ops::{Index, IndexMut};
 
 use simd_csv::ByteRecord;
@@ -61,10 +62,17 @@ impl<T> LabeledMatrix<T> {
     }
 }
 
-impl<T> LabeledMatrix<Option<T>> {
+impl<T: Copy> LabeledMatrix<Option<T>> {
     fn set(&mut self, x: usize, y: usize, v: T) {
         let i = self.flat_index(x, y);
         self.data[i] = Some(v);
+    }
+
+    fn fill_diagonal(&mut self, v: T) {
+        for x in 0..self.columns() {
+            let i = self.flat_index(x, x);
+            self.data[i] = Some(v);
+        }
     }
 }
 
@@ -245,8 +253,10 @@ struct Args {
     flag_output: Option<String>,
 }
 
+type Matrix = LabeledMatrix<Option<f64>>;
+
 impl Args {
-    fn adj_or_count(self) -> CliResult<()> {
+    fn adj_or_count(&self) -> CliResult<Matrix> {
         if self.cmd_count && self.flag_undirected {
             Err("-U/--undirected does not make sense with `count` mode!")?;
         }
@@ -308,34 +318,10 @@ impl Args {
             }
         }
 
-        let mut writer = Config::new(&self.flag_output).simd_writer()?;
-        let mut output_record = ByteRecord::new();
-        output_record.push_field(b"");
-
-        for value in matrix.x_labels() {
-            output_record.push_field(value);
-        }
-
-        writer.write_byte_record(&output_record)?;
-
-        for (row_label, row) in matrix.labeled_rows() {
-            output_record.clear();
-            output_record.push_field(row_label);
-
-            for v_opt in row {
-                match v_opt {
-                    Some(v) => output_record.fmt_field(&v),
-                    None => output_record.push_field(b""),
-                };
-            }
-
-            writer.write_byte_record(&output_record)?;
-        }
-
-        Ok(())
+        Ok(matrix)
     }
 
-    fn correlation(self) -> CliResult<()> {
+    fn correlation(&self) -> CliResult<Matrix> {
         let rconf = Config::new(&self.arg_input)
             .delimiter(self.flag_delimiter)
             .no_headers(self.flag_no_headers)
@@ -407,11 +393,7 @@ impl Args {
             }
         }
 
-        let mut correlation_matrix: Vec<Vec<Option<f64>>> = Vec::new();
-
-        for _ in 0..n {
-            correlation_matrix.push(vec![None; n]);
-        }
+        let mut matrix = Matrix::new(output_headers.clone(), output_headers);
 
         k = 0;
 
@@ -419,34 +401,21 @@ impl Args {
             for j in (i + 1)..n {
                 let correlation = welfords[k].correlation();
 
-                correlation_matrix[i][j] = correlation;
-                correlation_matrix[j][i] = correlation;
+                matrix[(i, j)] = correlation;
+                matrix[(j, i)] = correlation;
 
                 k += 1;
             }
         }
 
-        for (row, name) in correlation_matrix
-            .into_iter()
-            .zip(output_headers.iter().skip(1))
-        {
-            record.clear();
-            record.push_field(name);
-
-            for cell in row {
-                match cell {
-                    None => record.push_field(if self.flag_fill_diagonal { b"1.0" } else { b"" }),
-                    Some(f) => record.push_field(f.to_string().as_bytes()),
-                }
-            }
-
-            writer.write_byte_record(&record)?;
+        if self.flag_fill_diagonal {
+            matrix.fill_diagonal(1.0);
         }
 
-        Ok(())
+        Ok(matrix)
     }
 
-    fn bivar(self) -> CliResult<()> {
+    fn bivar(&self) -> CliResult<Matrix> {
         let rconf = Config::new(&self.arg_input)
             .delimiter(self.flag_delimiter)
             .no_headers(self.flag_no_headers);
@@ -575,43 +544,48 @@ impl Args {
             };
         }
 
-        let mut writer = Config::new(&self.flag_output).simd_writer()?;
-        let mut output_record = ByteRecord::new();
-        output_record.push_field(b"");
-
-        for value in matrix.x_labels() {
-            output_record.push_field(value);
-        }
-
-        writer.write_byte_record(&output_record)?;
-
-        for (row_label, row) in matrix.labeled_rows() {
-            output_record.clear();
-            output_record.push_field(row_label);
-
-            for v_opt in row {
-                match v_opt {
-                    Some(v) => output_record.fmt_field(&v),
-                    None => output_record.push_field(b""),
-                };
-            }
-
-            writer.write_byte_record(&output_record)?;
-        }
-        Ok(())
+        Ok(matrix)
     }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = utils::get_args(USAGE, argv)?;
 
-    if args.cmd_adj || args.cmd_count {
-        args.adj_or_count()
+    let matrix = if args.cmd_adj || args.cmd_count {
+        args.adj_or_count()?
     } else if args.cmd_corr {
-        args.correlation()
+        args.correlation()?
     } else if args.cmd_bivar {
-        args.bivar()
+        args.bivar()?
     } else {
         unreachable!()
+    };
+
+    let mut buffer = zmij::Buffer::new();
+
+    let mut writer = Config::new(&args.flag_output).simd_writer()?;
+
+    writer.write_record(once(&b""[..]).chain(matrix.x_labels()))?;
+
+    for (row_label, row) in matrix.labeled_rows() {
+        writer.write_fields(|w| {
+            w.write_field(row_label)?;
+
+            for v_opt in row {
+                match v_opt {
+                    Some(v) => {
+                        let mut formatted = buffer.format(*v);
+                        formatted = formatted.strip_suffix(".0").unwrap_or(formatted);
+
+                        w.write_field_no_quoting(formatted)?
+                    }
+                    None => w.write_field_no_quoting(b"")?,
+                }
+            }
+
+            Ok(())
+        })?;
     }
+
+    Ok(writer.flush()?)
 }
