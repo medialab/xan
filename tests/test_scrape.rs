@@ -18,6 +18,20 @@ fn scrape() {
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
+        svec!["title", "canonical_url",],
+        svec!["One", ""],
+        svec!["Two", ""],
+    ];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("scrape");
+    cmd.arg("head")
+        .arg("-k")
+        .args(["--doc-column", "html"])
+        .args(["--docs", "data.csv"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
         svec!["html", "title", "canonical_url",],
         svec!["<title>One</title>", "One", ""],
         svec!["<title>Two</title>", "Two", ""],
@@ -41,14 +55,7 @@ fn scrape_xml() {
         .args(["--docs", "data.csv"]);
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![
-        ["xml", "name", "surname"],
-        [
-            "<agenda><name>John</name><surname>landis</surname></agenda>",
-            "John",
-            "landis",
-        ],
-    ];
+    let expected = vec![["name", "surname"], ["John", "landis"]];
     assert_eq!(got, expected);
 }
 
@@ -73,11 +80,11 @@ fn scrape_parallel() {
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
-        svec!["html", "title", "canonical_url"],
-        svec!["<title>One</title>", "One", ""],
-        svec!["<title>Two</title>", "Two", ""],
-        svec!["<title>Three</title>", "Three", ""],
-        svec!["<title>Four</title>", "Four", ""],
+        svec!["title", "canonical_url"],
+        svec!["One", ""],
+        svec!["Two", ""],
+        svec!["Three", ""],
+        svec!["Four", ""],
     ];
     assert_eq!(got, expected);
 }
@@ -134,32 +141,6 @@ fn scrape_paths() {
 }
 
 #[test]
-fn scrape_keep() {
-    let wrk = Workdir::new("scrape_keep");
-    wrk.create(
-        "data.csv",
-        vec![
-            svec!["html"],
-            svec!["<title>One</title>"],
-            svec!["<title>Two</title>"],
-        ],
-    );
-    let mut cmd = wrk.command("scrape");
-    cmd.arg("head")
-        .args(["--keep", ""])
-        .args(["--doc-column", "html"])
-        .args(["--docs", "data.csv"]);
-
-    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![
-        svec!["title", "canonical_url"],
-        svec!["One", ""],
-        svec!["Two", ""],
-    ];
-    assert_eq!(got, expected);
-}
-
-#[test]
 fn scrape_evaluate() {
     let wrk = Workdir::new("scrape_evaluate");
     wrk.create(
@@ -172,7 +153,6 @@ fn scrape_evaluate() {
     );
     let mut cmd = wrk.command("scrape");
     cmd.args(["-e", "a {title: text; url: attr('href');}"])
-        .args(["--keep", ""])
         .args(["--doc-column", "html"])
         .args(["--docs", "data.csv"]);
 
@@ -195,12 +175,85 @@ fn scrape_evaluate_foreach() {
     let mut cmd = wrk.command("scrape");
 
     cmd.args(["-e", "& {item: text;}"])
-        .args(["--keep", ""])
         .args(["--foreach", "li"])
         .args(["--doc-column", "html"])
         .args(["--docs", "data.csv"]);
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["item"], svec!["one"], svec!["two"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn scrape_select() {
+    let wrk = Workdir::new("scrape_select");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["html", "id", "name"],
+            svec!["<title>One</title>", "1", "one"],
+            svec!["<title>Two</title>", "2", "two"],
+        ],
+    );
+
+    // Simple selection
+    let mut cmd = wrk.command("scrape");
+    cmd.arg("head")
+        .args(["-s", "id"])
+        .args(["--doc-column", "html"])
+        .args(["--docs", "data.csv"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["id", "title", "canonical_url"],
+        svec!["1", "One", ""],
+        svec!["2", "Two", ""],
+    ];
+    assert_eq!(got, expected);
+
+    // Empty selection
+    let mut cmd = wrk.command("scrape");
+    cmd.arg("head")
+        .args(["-s", "!"])
+        .args(["--doc-column", "html"])
+        .args(["--docs", "data.csv"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["title", "canonical_url"],
+        svec!["One", ""],
+        svec!["Two", ""],
+    ];
+    assert_eq!(got, expected);
+
+    // Doc in selection
+    let mut cmd = wrk.command("scrape");
+    cmd.arg("head")
+        .args(["-s", "id,html"])
+        .args(["--doc-column", "html"])
+        .args(["--docs", "data.csv"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["id", "html", "title", "canonical_url"],
+        ["1", "<title>One</title>", "One", ""],
+        ["2", "<title>Two</title>", "Two", ""],
+    ];
+    assert_eq!(got, expected);
+
+    // -k with selection
+    let mut cmd = wrk.command("scrape");
+    cmd.arg("head")
+        .args(["-s", "id"])
+        .arg("-k")
+        .args(["--doc-column", "html"])
+        .args(["--docs", "data.csv"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["id", "html", "title", "canonical_url"],
+        ["1", "<title>One</title>", "One", ""],
+        ["2", "<title>Two</title>", "Two", ""],
+    ];
     assert_eq!(got, expected);
 }

@@ -18,7 +18,7 @@ use simd_csv::ByteRecord;
 use url::Url;
 
 use crate::config::{Config, Delimiter};
-use crate::moonblade::{DynamicValue, ScrapingProgram};
+use crate::moonblade::{AmortizedSerializer, DynamicValue, ScrapingProgram};
 use crate::select::{SelectedColumns, Selection};
 use crate::urls::should_follow_href;
 use crate::utils;
@@ -195,10 +195,15 @@ impl ScraperTarget<'_> {
     }
 }
 
+#[derive(Clone, Copy)]
+enum InputMode {
+    Path,
+    Document(usize),
+}
+
 enum InputPayload {
     Path(String, ByteRecord),
     Document(usize, ByteRecord),
-    SingleDocument(Vec<u8>),
 }
 
 #[derive(Default)]
@@ -225,7 +230,6 @@ impl Input {
         match &self.payload {
             InputPayload::Path(path, _) => path.trim().is_empty(),
             InputPayload::Document(i, record) => record[*i].trim().is_empty(),
-            InputPayload::SingleDocument(doc) => doc.trim().is_empty(),
         }
     }
 
@@ -237,14 +241,12 @@ impl Input {
                 encoding: self.encoding,
             },
             InputPayload::Document(i, record) => ScraperTarget::HtmlCell(&record[*i]),
-            InputPayload::SingleDocument(doc) => ScraperTarget::HtmlCell(doc),
         }
     }
 
     fn as_record(&self) -> Option<&ByteRecord> {
         match &self.payload {
             InputPayload::Path(_, record) | InputPayload::Document(_, record) => Some(record),
-            _ => None,
         }
     }
 }
@@ -783,9 +785,25 @@ scraper given to -e/-f WITHOUT -F/--foreach.
 Scrapers outputting 0 to n rows per input row: \"urls\", \"images\", any scraper
 given to -e/-f WITH -F/--foreach.
 
-It can be useful sometimes to use the -k/--keep flag to select the input columns
-to keep in the output. Note that using this flag with an empty selection (-k '')
-means outputting only the scraped columns.
+# Columns kept in the output
+
+By default, all columns from input are kept in the output. You can still choose
+columns to keep using the -s/--select flag. This also means you can pass the '!'
+empty selection to keep nothing from your input.
+
+Note that if you are not providing a CSV input to the command (i.e. when not
+using the --paths nor --docs flags), the command will pretend it was fed with
+one having columns depending on how the command was fed its paths or documents:
+
+- Passing <inputs>..., one path per line (--paths without --path-column) or --glob:
+  a single \"path\" column containing scraped path.
+
+- Using -D/--stdin-doc:
+  a single \"doc\" column containing scraped document.
+
+Then, note that since keeping inline docs is usually undesirable, the column
+containing it is dropped by default, unless explicitly given to -s/--select
+or when using -k/--keep-doc.
 
 Usage:
     xan scrape (head|urls|article|images) [options] [<inputs>...]
@@ -812,8 +830,9 @@ scrape options:
     --glob <pattern>            If given, collects document paths to process by applying
                                 the given glob pattern.
     -E, --encoding <name>       Encoding of to read on disk. Will default utf-8.
-    -k, --keep <column>         Selection of columns from the input to keep in
-                                the output. Default is to keep all columns from input.
+    -s, --select <columns>      Select columns of input to keep in the output.
+    -k, --keep-docs             Whether to keep inline documents (when using --docs or -D/--stdin-doc)
+                                in the output.
     -I, --input-dir <path>      When set, processed paths will be read relative to the
                                 given base <path>.
                                 [default: .]
@@ -863,7 +882,8 @@ struct Args {
     flag_encoding: Option<String>,
     flag_url_column: Option<SelectedColumns>,
     flag_input_dir: String,
-    flag_keep: Option<SelectedColumns>,
+    flag_select: Option<SelectedColumns>,
+    flag_keep_docs: bool,
     flag_parallel: bool,
     flag_threads: Option<usize>,
 }
@@ -871,6 +891,7 @@ struct Args {
 type InputsData<'a> = (
     bool,
     ByteRecord,
+    InputMode,
     Box<dyn Iterator<Item = CliResult<Input>> + 'a>,
 );
 
@@ -903,6 +924,7 @@ impl Args {
             Ok((
                 true,
                 ByteRecord::from(["path"]),
+                InputMode::Path,
                 Box::new(self.arg_inputs.iter().map(|path| {
                     Ok(InputPayload::Path(path.to_string(), ByteRecord::from([path])).into())
                 })),
@@ -920,6 +942,7 @@ impl Args {
                 Ok((
                     true,
                     ByteRecord::from(["path"]),
+                    InputMode::Path,
                     Box::new(line_reader.lines().map(|path| -> CliResult<Input> {
                         let path = path?;
                         let dummy_record = ByteRecord::from([&path]);
@@ -952,6 +975,11 @@ impl Args {
                 Ok((
                     !conf.no_headers,
                     headers.clone(),
+                    if self.flag_docs.is_some() {
+                        InputMode::Document(i)
+                    } else {
+                        InputMode::Path
+                    },
                     Box::new(
                         reader
                             .into_byte_records()
@@ -989,6 +1017,7 @@ impl Args {
             Ok((
                 true,
                 ByteRecord::from(["path"]),
+                InputMode::Path,
                 Box::new(glob::glob(pattern)?.map(|result| match result {
                     Ok(p) => {
                         let p = p.to_string_lossy().into_owned();
@@ -1003,10 +1032,13 @@ impl Args {
             let mut doc = Vec::new();
             io::stdin().read_to_end(&mut doc)?;
 
+            let record = ByteRecord::from_field(doc);
+
             Ok((
                 true,
-                ByteRecord::new(),
-                Box::new(once(Ok(InputPayload::SingleDocument(doc).into()))),
+                ByteRecord::from(["doc"]),
+                InputMode::Document(0),
+                Box::new(once(Ok(InputPayload::Document(0, record).into()))),
             ))
         } else {
             unreachable!()
@@ -1038,7 +1070,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("--foreach only works with -e/--evaluate!")?;
     }
 
-    let (has_headers, headers, inputs) = args.inputs()?;
+    let (has_headers, headers, input_mode, inputs) = args.inputs()?;
 
     let scraper = if args.cmd_head {
         Scraper::Head
@@ -1077,35 +1109,40 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         })
     };
 
-    let keep = args
-        .flag_keep
-        .as_ref()
-        .map(|s| {
-            if s.is_empty() {
-                Ok(Selection::empty())
-            } else {
-                s.selection(&headers, has_headers)
+    let mut sel = if let Some(s) = &args.flag_select {
+        s.selection(&headers, has_headers)?
+    } else {
+        Selection::full(headers.len())
+    };
+
+    sel.dedup();
+
+    if let InputMode::Document(i) = input_mode {
+        if args.flag_keep_docs {
+            if !sel.contains(i) {
+                sel = sel.iter().copied().chain([i]).collect::<Vec<_>>().into();
             }
-        })
-        .transpose()?;
+        } else if args.flag_select.is_none() {
+            sel = sel
+                .iter()
+                .copied()
+                .filter(|j| i != *j)
+                .collect::<Vec<_>>()
+                .into();
+        }
+    }
 
     let mut writer = Config::new(&args.flag_output).simd_writer()?;
+    let mut serializer = AmortizedSerializer::new();
 
     let scraper_field_names = scraper.names();
     let padding = scraper_field_names.len();
 
     if has_headers {
-        let mut output_headers = headers.clone();
-
-        if let Some(keep_sel) = &keep {
-            output_headers = keep_sel.select(&output_headers).collect();
-        }
-
-        for name in scraper_field_names {
-            output_headers.push_field(name.as_bytes());
-        }
-
-        writer.write_byte_record(&output_headers)?;
+        writer.write_record(
+            sel.select(&headers)
+                .chain(scraper_field_names.iter().map(|name| name.as_bytes())),
+        )?;
     }
 
     let scrape_dummy_record = ByteRecord::new();
@@ -1127,21 +1164,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         scraper.scrape_or_report(row_index, record, &target, &input.context)
     };
 
-    // TODO: amortize allocations
+    // TODO: amortize allocations, fast path if sel is empty?
     let mut write_output =
         |output_rows: &[Vec<DynamicValue>], record: &ByteRecord| -> CliResult<()> {
             for output_row in output_rows {
-                let mut output_record = if let Some(keep_sel) = &keep {
-                    keep_sel.select(record).collect()
-                } else {
-                    record.clone()
-                };
+                writer.write_fields(|w| {
+                    for cell in sel.select(record) {
+                        w.write_field(cell)?;
+                    }
 
-                for value in output_row {
-                    value.push_field_to_record(&mut output_record);
-                }
+                    for value in output_row {
+                        w.write_field(serializer.serialize(value))?;
+                    }
 
-                writer.write_byte_record(&output_record)?;
+                    Ok(())
+                })?;
             }
 
             Ok(())

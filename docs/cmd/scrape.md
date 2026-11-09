@@ -101,9 +101,25 @@ scraper given to -e/-f WITHOUT -F/--foreach.
 Scrapers outputting 0 to n rows per input row: "urls", "images", any scraper
 given to -e/-f WITH -F/--foreach.
 
-It can be useful sometimes to use the -k/--keep flag to select the input columns
-to keep in the output. Note that using this flag with an empty selection (-k '')
-means outputting only the scraped columns.
+# Columns kept in the output
+
+By default, all columns from input are kept in the output. You can still choose
+columns to keep using the -s/--select flag. This also means you can pass the ''
+empty selection to keep nothing from your input.
+
+Note that if you are not providing a CSV input to the command (i.e. when not
+using the --paths nor --docs flags), the command will pretend it was fed with
+one having columns depending on how the command was fed its paths or documents:
+
+- Passing <inputs>..., one path per line (--paths without --path-column) or --glob:
+  a single "path" column containing scraped path.
+
+- Using -D/--stdin-doc:
+  a single "doc" column containing scraped document.
+
+Then, note that since keeping inline docs is usually undesirable, the column
+containing it is dropped by default, unless explicitly given to -s/--select
+or when using -k/--keep-doc.
 
 Usage:
     xan scrape (head|urls|article|images) [options] [<inputs>...]
@@ -130,8 +146,9 @@ scrape options:
     --glob <pattern>            If given, collects document paths to process by applying
                                 the given glob pattern.
     -E, --encoding <name>       Encoding of to read on disk. Will default utf-8.
-    -k, --keep <column>         Selection of columns from the input to keep in
-                                the output. Default is to keep all columns from input.
+    -s, --select <columns>      Select columns of input to keep in the output.
+    -k, --keep-docs             Whether to keep inline documents (when using --docs or -D/--stdin-doc)
+                                in the output.
     -I, --input-dir <path>      When set, processed paths will be read relative to the
                                 given base <path>.
                                 [default: .]

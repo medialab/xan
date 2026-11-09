@@ -2373,9 +2373,9 @@ checksum = "d66dc143e6b11c1eddc06d5c423cfc97062865baf299914ab64caa38182078fe"
 
 [[package]]
 name = "simd-csv"
-version = "0.16.0"
+version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb5fd3def2250cedf21866e2112eb64c78159074928297a63a4c359b3f749087"
+checksum = "b93411d676d860426a7d53ae4691ea55612a6a9daf38d3a03a8b5a602762e126"
 dependencies = [
  "memchr",
  "simdutf8",

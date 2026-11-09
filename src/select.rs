@@ -1001,6 +1001,12 @@ impl ops::DerefMut for Selection {
     }
 }
 
+impl From<Vec<usize>> for Selection {
+    fn from(value: Vec<usize>) -> Self {
+        Self(value)
+    }
+}
+
 // #[cfg(test)]
 // mod tests {
 //     use super::*;
