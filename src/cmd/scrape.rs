@@ -244,9 +244,9 @@ impl Input {
         }
     }
 
-    fn as_record(&self) -> Option<&ByteRecord> {
+    fn as_record(&self) -> &ByteRecord {
         match &self.payload {
-            InputPayload::Path(_, record) | InputPayload::Document(_, record) => Some(record),
+            InputPayload::Path(_, record) | InputPayload::Document(_, record) => record,
         }
     }
 }
@@ -291,6 +291,10 @@ struct CustomScraper {
 }
 
 impl CustomScraper {
+    fn padding_len(&self) -> usize {
+        self.program.capacity
+    }
+
     fn is_plural(&self) -> bool {
         self.foreach.is_some()
     }
@@ -334,11 +338,28 @@ enum Scraper {
 }
 
 impl Scraper {
+    #[inline]
     fn is_plural(&self) -> bool {
         match self {
             Self::Head | Self::Article(_) => false,
             Self::Urls | Self::Images => true,
             Self::Custom(inner) => inner.is_plural(),
+        }
+    }
+
+    #[inline]
+    fn padding_len(&self) -> usize {
+        match self {
+            Self::Urls | Self::Images => 1,
+            Self::Head => 2,
+            Self::Article(scraper_opt) => {
+                scraper_opt
+                    .as_ref()
+                    .map(|scraper| scraper.padding_len())
+                    .unwrap_or(0)
+                    + 12
+            }
+            Self::Custom(scraper) => scraper.padding_len(),
         }
     }
 
@@ -621,20 +642,31 @@ impl Scraper {
     // TODO: could be lazy iterators sometimes
     fn scrape(
         &self,
-        index: usize,
-        record: &ByteRecord,
-        target: &ScraperTarget,
-        context: &ScraperContext,
+        input_dir: &str,
+        row_index: usize,
+        input: &Input,
     ) -> CliResult<Vec<Vec<DynamicValue>>> {
+        if input.is_empty() {
+            return Ok(if self.is_plural() {
+                vec![]
+            } else {
+                vec![vec![DynamicValue::None; self.padding_len()]]
+            });
+        }
+
+        let target = input.as_target(input_dir);
+        let record = input.as_record();
+        let context = &input.context;
+
         match self {
-            Self::Head => Ok(vec![self.scrape_head(target)?]),
+            Self::Head => Ok(vec![self.scrape_head(&target)?]),
             Self::Urls => {
-                let urls = self.scrape_urls(target, context)?;
+                let urls = self.scrape_urls(&target, context)?;
 
                 Ok(urls.into_iter().map(|url| vec![url]).collect())
             }
             Self::Images => {
-                let images = self.scrape_images(target, context)?;
+                let images = self.scrape_images(&target, context)?;
 
                 Ok(images
                     .into_iter()
@@ -647,30 +679,29 @@ impl Scraper {
                 let mut output = self.scrape_article(&html)?;
 
                 if let Some(scraper) = scraper_opt {
-                    let supplementary_output = scraper.run_singular(index, record, &html)?;
+                    let supplementary_output = scraper.run_singular(row_index, record, &html)?;
 
                     output.extend(supplementary_output);
                 }
 
                 Ok(vec![output])
             }
-            Self::Custom(scraper) => scraper.scrape(index, record, target),
+            Self::Custom(scraper) => scraper.scrape(row_index, record, &target),
         }
     }
 
     fn scrape_or_report(
         &self,
-        index: usize,
-        record: &ByteRecord,
-        target: &ScraperTarget,
-        context: &ScraperContext,
+        input_dir: &str,
+        row_index: usize,
+        input: &Input,
     ) -> CliResult<Vec<Vec<DynamicValue>>> {
-        self.scrape(index, record, target, context).map_err(|err| {
+        self.scrape(input_dir, row_index, input).map_err(|err| {
             CliError::Other(format!(
                 "Row index {}{}\n{}",
-                index,
-                match target {
-                    ScraperTarget::HtmlFile { filename, .. } => {
+                row_index,
+                match &input.payload {
+                    InputPayload::Path(filename, _) => {
                         format!(", in path {}", filename.cyan())
                     }
                     _ => "".to_string(),
@@ -1131,34 +1162,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut writer = Config::new(&args.flag_output).simd_writer()?;
     let mut serializer = AmortizedSerializer::new();
 
-    let scraper_field_names = scraper.names();
-    let padding = scraper_field_names.len();
-
     if has_headers {
         writer.write_record(
             sel.select(&headers)
-                .chain(scraper_field_names.iter().map(|name| name.as_bytes())),
+                .chain(scraper.names().iter().map(|name| name.as_bytes())),
         )?;
     }
 
-    let scrape_dummy_record = ByteRecord::new();
     let input_dir = args.flag_input_dir.clone();
-
-    // TODO: amortize allocations
-    let scrape = move |row_index: usize, input: &Input| -> CliResult<Vec<Vec<DynamicValue>>> {
-        if input.is_empty() {
-            return Ok(if scraper.is_plural() {
-                vec![]
-            } else {
-                vec![vec![DynamicValue::None; padding]]
-            });
-        }
-
-        let target = input.as_target(&input_dir);
-        let record = input.as_record().unwrap_or(&scrape_dummy_record);
-
-        scraper.scrape_or_report(row_index, record, &target, &input.context)
-    };
 
     // TODO: amortize allocations, fast path if sel is empty?
     let mut write_output =
@@ -1180,16 +1191,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Ok(())
         };
 
-    let dummy_record = ByteRecord::new();
-
     if let Some(t) = threads {
         inputs
             .enumerate()
             .parallel_map_custom(
                 |o| o.threads(t),
-                move |(index, result)| -> CliResult<(Input, Vec<Vec<DynamicValue>>)> {
+                move |(row_index, result)| -> CliResult<(Input, Vec<Vec<DynamicValue>>)> {
                     let input = result?;
-                    let output_rows = scrape(index, &input)?;
+                    let output_rows = scraper.scrape_or_report(&input_dir, row_index, &input)?;
 
                     Ok((input, output_rows))
                 },
@@ -1197,17 +1206,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .try_for_each(|result| -> CliResult<()> {
                 let (input, output_rows) = result?;
 
-                write_output(&output_rows, input.as_record().unwrap_or(&dummy_record))?;
+                write_output(&output_rows, input.as_record())?;
 
                 Ok(())
             })?;
     } else {
-        for (i, result) in inputs.enumerate() {
+        for (row_index, result) in inputs.enumerate() {
             let input = result?;
 
-            let output_rows = scrape(i, &input)?;
+            let output_rows = scraper.scrape_or_report(&input_dir, row_index, &input)?;
 
-            write_output(&output_rows, input.as_record().unwrap_or(&dummy_record))?;
+            write_output(&output_rows, input.as_record())?;
         }
     }
 
