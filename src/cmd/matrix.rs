@@ -9,17 +9,19 @@ use crate::moonblade::agg::CovarianceWelford;
 use crate::select::SelectedColumns;
 use crate::utils;
 
-struct Matrix<T> {
-    columns: usize,
-    rows: usize,
+struct LabeledMatrix<L, T> {
+    columns: Vec<L>,
+    rows: Vec<L>,
     data: Vec<T>,
 }
 
-impl<T: Default> Matrix<T> {
-    fn new(columns: usize, rows: usize) -> Self {
-        let mut data = Vec::with_capacity(columns * rows);
+impl<L, T: Default> LabeledMatrix<L, T> {
+    fn new(columns: Vec<L>, rows: Vec<L>) -> Self {
+        let len = columns.len() * rows.len();
 
-        for _ in 0..columns * rows {
+        let mut data = Vec::with_capacity(len);
+
+        for _ in 0..len {
             data.push(Default::default());
         }
 
@@ -31,28 +33,42 @@ impl<T: Default> Matrix<T> {
     }
 }
 
-impl<T> Matrix<T> {
+impl<L, T> LabeledMatrix<L, T> {
     #[inline(always)]
-    fn flat_index(&self, x: usize, y: usize) -> usize {
-        debug_assert!(x < self.columns);
-        debug_assert!(y < self.rows);
-
-        y * self.columns + x
+    fn columns(&self) -> usize {
+        self.columns.len()
     }
 
-    fn rows(&self) -> impl Iterator<Item = &[T]> {
-        self.data.chunks_exact(self.columns)
+    #[inline(always)]
+    fn rows(&self) -> usize {
+        self.rows.len()
+    }
+
+    #[inline(always)]
+    fn flat_index(&self, x: usize, y: usize) -> usize {
+        debug_assert!(x < self.columns());
+        debug_assert!(y < self.rows());
+
+        y * self.columns() + x
+    }
+
+    fn x_labels(&self) -> impl Iterator<Item = &L> {
+        self.columns.iter()
+    }
+
+    fn labeled_rows(&self) -> impl Iterator<Item = (&L, &[T])> {
+        self.rows.iter().zip(self.data.chunks_exact(self.columns()))
     }
 }
 
-impl<T> Matrix<Option<T>> {
+impl<L, T> LabeledMatrix<L, Option<T>> {
     fn set(&mut self, x: usize, y: usize, v: T) {
         let i = self.flat_index(x, y);
         self.data[i] = Some(v);
     }
 }
 
-impl<T> Index<(usize, usize)> for Matrix<T> {
+impl<L, T> Index<(usize, usize)> for LabeledMatrix<L, T> {
     type Output = T;
 
     #[inline(always)]
@@ -61,7 +77,7 @@ impl<T> Index<(usize, usize)> for Matrix<T> {
     }
 }
 
-impl<T> IndexMut<(usize, usize)> for Matrix<T> {
+impl<L, T> IndexMut<(usize, usize)> for LabeledMatrix<L, T> {
     #[inline(always)]
     fn index_mut(&mut self, (x, y): (usize, usize)) -> &mut Self::Output {
         let i = self.flat_index(x, y);
@@ -102,25 +118,18 @@ impl Axes {
             Self::Heterogeneous { y, .. } => y.insert_full(label).0,
         }
     }
+}
 
-    fn shape(&self) -> (usize, usize) {
-        match self {
-            Self::Homogeneous(labels) => (labels.len(), labels.len()),
-            Self::Heterogeneous { x, y } => (x.len(), y.len()),
-        }
-    }
-
-    fn x_labels(&self) -> impl Iterator<Item = &Vec<u8>> {
-        match self {
-            Self::Homogeneous(labels) => labels.iter(),
-            Self::Heterogeneous { x, .. } => x.iter(),
-        }
-    }
-
-    fn get_y_label(&self, index: usize) -> &Vec<u8> {
-        match self {
-            Self::Homogeneous(labels) => labels.get_index(index).unwrap(),
-            Self::Heterogeneous { y, .. } => y.get_index(index).unwrap(),
+impl From<Axes> for LabeledMatrix<Vec<u8>, Option<f64>> {
+    fn from(value: Axes) -> Self {
+        match value {
+            Axes::Heterogeneous { x, y } => {
+                Self::new(x.into_iter().collect(), y.into_iter().collect())
+            }
+            Axes::Homogeneous(labels) => Self::new(
+                labels.iter().cloned().collect(),
+                labels.into_iter().collect(),
+            ),
         }
     }
 }
@@ -291,19 +300,7 @@ impl Args {
                 .or_insert(weight);
         }
 
-        let (cols, rows) = axes.shape();
-
-        let mut writer = Config::new(&self.flag_output).simd_writer()?;
-        let mut output_record = ByteRecord::new();
-        output_record.push_field(b"");
-
-        for value in axes.x_labels() {
-            output_record.push_field(value);
-        }
-
-        writer.write_byte_record(&output_record)?;
-
-        let mut matrix = Matrix::new(cols, rows);
+        let mut matrix = LabeledMatrix::from(axes);
 
         for ((x, y), val) in hash_matrix.iter() {
             matrix.set(*x, *y, *val);
@@ -314,8 +311,17 @@ impl Args {
             }
         }
 
-        for (index, row) in matrix.rows().enumerate() {
-            let row_label = axes.get_y_label(index);
+        let mut writer = Config::new(&self.flag_output).simd_writer()?;
+        let mut output_record = ByteRecord::new();
+        output_record.push_field(b"");
+
+        for value in matrix.x_labels() {
+            output_record.push_field(value);
+        }
+
+        writer.write_byte_record(&output_record)?;
+
+        for (row_label, row) in matrix.labeled_rows() {
             output_record.clear();
             output_record.push_field(row_label);
 
