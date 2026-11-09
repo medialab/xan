@@ -26,6 +26,33 @@ fn scrape() {
 }
 
 #[test]
+fn scrape_xml() {
+    let wrk = Workdir::new("scrape_xml");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["xml"],
+            svec!["<agenda><name>John</name><surname>landis</surname></agenda>"],
+        ],
+    );
+    let mut cmd = wrk.command("scrape");
+    cmd.args(["-e", "agenda {name {name: text} surname {surname: text}}"])
+        .args(["--doc-column", "xml"])
+        .args(["--docs", "data.csv"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["xml", "name", "surname"],
+        [
+            "<agenda><name>John</name><surname>landis</surname></agenda>",
+            "John",
+            "landis",
+        ],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn scrape_parallel() {
     let wrk = Workdir::new("scrape");
     wrk.create(
