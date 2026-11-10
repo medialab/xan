@@ -50,9 +50,12 @@ fn scrape_xml() {
         ],
     );
     let mut cmd = wrk.command("scrape");
-    cmd.args(["-e", "agenda {name {name: text} surname {surname: text}}"])
-        .args(["--doc-column", "xml"])
-        .args(["--docs", "data.csv"]);
+    cmd.args([
+        "-e",
+        "agenda {name {name: text()} surname {surname: text()}}",
+    ])
+    .args(["--doc-column", "xml"])
+    .args(["--docs", "data.csv"]);
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![["name", "surname"], ["John", "landis"]];
@@ -152,7 +155,7 @@ fn scrape_evaluate() {
         ],
     );
     let mut cmd = wrk.command("scrape");
-    cmd.args(["-e", "a {title: text; url: attr('href');}"])
+    cmd.args(["-e", "a {title: text(); url: attr('href');}"])
         .args(["--doc-column", "html"])
         .args(["--docs", "data.csv"]);
 
@@ -174,7 +177,7 @@ fn scrape_evaluate_foreach() {
     );
     let mut cmd = wrk.command("scrape");
 
-    cmd.args(["-e", "& {item: text;}"])
+    cmd.args(["-e", "& {item: text();}"])
         .args(["--foreach", "li"])
         .args(["--doc-column", "html"])
         .args(["--docs", "data.csv"]);

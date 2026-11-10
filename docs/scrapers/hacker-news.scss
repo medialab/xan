@@ -1,0 +1,31 @@
+& {
+  id: id();
+
+  .rank {
+    rank: text().trim('.');
+  }
+
+  .titleline > a {
+    title: text();
+    url: attr("href");
+  }
+
+  next_sibling() {
+    .score {
+      points: text().split(" points")[0];
+    }
+
+    [href^=user] {
+      user: text();
+    }
+
+    .age {
+      datetime: attr("title").split(" ")[0];
+      timestamp: attr("title").split(" ")[-1];
+    }
+
+    last("a") {
+      comments: text() | if(_ eq "discuss", 0, _.split(" comments")[0]);
+    }
+  }
+}

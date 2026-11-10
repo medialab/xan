@@ -1,0 +1,29 @@
+& {
+  id: attr("data-news-id");
+
+  h2 > a {
+    title: text();
+    url: attr("href");
+  }
+
+  address {
+    domain: text().replace("at ", "");
+  }
+
+  username {
+    user: text();
+  }
+
+  .downvotes {
+    downvotes: text();
+  }
+
+  .upvotes {
+    upvotes: text();
+  }
+
+  p > a {
+    comments_url: "https://www.echojs.com/".urljoin(attr("href"));
+    comments_count: text() | if(_ eq "discuss", 0, _.split(" comm")[0]);
+  }
+}

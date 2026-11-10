@@ -793,11 +793,11 @@ element matching the CSS selector given to -F/--foreach.
 
 Example scraping the first h2 title from a HTML document:
 
-    $ xan scrape -e 'h2 > a {title: text; url: attr(\"href\");}' page.html
+    $ xan scrape -e 'h2 > a {title: text(); url: attr(\"href\");}' page.html
 
 Example scraping all the h2 titles from a HTML document:
 
-    $ xan scrape --foreach 'h2 > a' -e '& {title: text; url: attr(\"href\");}' page.html
+    $ xan scrape --foreach 'h2 > a' -e '& {title: text(); url: attr(\"href\");}' page.html
 
 A full reference of this language can be found using `xan help scraping`.
 

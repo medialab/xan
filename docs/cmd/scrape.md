@@ -82,11 +82,11 @@ element matching the CSS selector given to -F/--foreach.
 
 Example scraping the first h2 title from a HTML document:
 
-    $ xan scrape -e 'h2 > a {title: text; url: attr("href");}' page.html
+    $ xan scrape -e 'h2 > a {title: text(); url: attr("href");}' page.html
 
 Example scraping all the h2 titles from a HTML document:
 
-    $ xan scrape --foreach 'h2 > a' -e '& {title: text; url: attr("href");}' page.html
+    $ xan scrape --foreach 'h2 > a' -e '& {title: text(); url: attr("href");}' page.html
 
 A full reference of this language can be found using `xan help scraping`.
 
@@ -104,7 +104,7 @@ given to -e/-f WITH -F/--foreach.
 # Columns kept in the output
 
 By default, all columns from input are kept in the output. You can still choose
-columns to keep using the -s/--select flag. This also means you can pass the ''
+columns to keep using the -s/--select flag. This also means you can pass the '!'
 empty selection to keep nothing from your input.
 
 Note that if you are not providing a CSV input to the command (i.e. when not

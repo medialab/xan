@@ -16,6 +16,7 @@
 * `xan explode -e` no longer flatmaps by default and expects an optional list of values instead.
 * `argtop`, `distinct_values`, `most_common`, `most_common_counts`, `top` & `values` aggregation functions no longer join values by `|` and instead serialize to JSON.
 * `xan scrape -k/--keep` becomes a combination of `-s/--select` & `-k/--keep-doc`.
+* Better integration of value post-processing in `xan scrape -e` DSL.
 
 *Features*
 

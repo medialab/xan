@@ -780,7 +780,7 @@ impl ScrapingProgram {
         let headers_index = HeadersIndex::new(headers, headless);
         let scraper = parse_scraper(code).map_err(ConcretizationError::ParseError)?;
 
-        let concrete_scraper = concretize_scraper(scraper, &headers_index, Some(&["value"]))?;
+        let concrete_scraper = concretize_scraper(scraper, &headers_index, Some(&["__value__"]))?;
 
         let capacity = concrete_scraper.names().count();
 
@@ -865,14 +865,14 @@ mod tests {
         let concrete_scraper = concretize_scraper(
             parse_scraper(
                 "h2 > a {
-                    title: text;
+                    title: text();
 
                     first('.main').all('p') {
                         a {
                             url: attr('href');
                         }
 
-                        content: text;
+                        content: text();
                     }
                 }",
             )
@@ -895,7 +895,7 @@ mod tests {
         assert_eq!(
             eval(
                 "<ul><li>one</li><li>two</li><li>three</li></ul>",
-                "li {content: text; upper_content: text, upper; first: text(), value[0];}"
+                "li {content: text(); upper_content: text().upper(); first: text()[0];}"
             ),
             Ok(vec![
                 DynamicValue::from("one"),
@@ -910,7 +910,7 @@ mod tests {
         assert_eq!(
             eval(
                 "<ul><li>one</li><li>two</li><li>three</li></ul>",
-                "all('li') {text: text}"
+                "all('li') {text: text()}"
             ),
             Ok(vec![DynamicValue::from(vec![
                 DynamicValue::from("one"),

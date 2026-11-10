@@ -16,7 +16,7 @@ h2 tag:
 
 ```scss
 h2 > a {
-  title: text;
+  title: text();
   url: attr("href");
 }
 ```
@@ -26,29 +26,26 @@ of selected tag and a "url" column containing its "href" attribute value.
 
 Each inner directive is understood as:
 
-`<column-name>: <extractor-function>;`
+`<output-column-name>: <extractor-expression>;`
 
 A full list of extractor functions can be found at the end of this help.
 
-And processing using a moonblade expression taking `value` as the extractor
-function's output value is also possible:
+The extractor expression can be as complex as need but MUST contain a single call
+to an extraction function. As such, you can very well process the scraped value further
+like so:
 
 ```scss
 h2 > a {
-  title: text, lower(value)[10:];
+  title: text().lower()[10:];
   url: attr("href");
 }
 ```
-
-In which case, inner directives will be understood as:
-
-`<column-name>: <extractor-function>, <processing-expression>;`
 
 Multiple selection rules can be given per scraper, like in a CSS stylesheet:
 
 ```scss
 [data-id=45] {
-  title: text;
+  title: text();
 }
 
 script[type="application/ld+json"] {
@@ -61,7 +58,7 @@ Selections can be nested:
 ```scss
 .main-content {
   h2 {
-    title: text;
+    title: text();
   }
 
   a.main-link {
@@ -75,7 +72,7 @@ a comprehensive list of all selector functions at the end of this help):
 
 ```scss
 first("h2", containing="Summary").parent() {
-  title: text;
+  title: text();
 }
 
 main > p {
@@ -104,13 +101,14 @@ The following example assumes we gave --foreach "h2 > a" to `xan scrape`:
 
 ```scss
 & {
-  title: text;
+  title: text();
   url: attr("href");
 }
 ```
 
 For more examples of real-life scrapers, check out this link:
 https://github.com/medialab/xan/tree/master/docs/scrapers
+
 
 ## Selector functions
 
