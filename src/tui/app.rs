@@ -81,7 +81,7 @@ impl App {
                     }
                     #[cfg(windows)]
                     if key.kind == KeyEventKind::Press || key.kind == KeyEventKind::Repeat {
-                        self.handle_key(key.code, viewport_width);
+                        self.handle_key(key.code);
                     }
                 }
                 has_event = event::poll(Duration::ZERO)?;
