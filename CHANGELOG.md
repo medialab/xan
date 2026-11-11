@@ -2,6 +2,8 @@
 
 ## 0.62.0 (provisional)
 
+The **laminated** update.
+
 *Breaking*
 
 * Bumping MSRV to `1.88.0`.
@@ -27,6 +29,7 @@
 * Adding the `coalesce` moonblade function.
 * Adding `xan from -f=ndjson -p/-t`.
 * Adding `xan from -f=parquet -s/--select`.
+* Adding `xan from -D/--output-delimiter`.
 * Adding support for missing `xan sample -g -w -S`.
 * Adding `xan heatmap --scale, --log, --hide-labels, --hide-col-labels, --hide-row-labels`.
 * Adding an optional default value to the `try` moonblade function.

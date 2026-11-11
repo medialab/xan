@@ -15,7 +15,7 @@ use simd_csv::ByteRecord;
 
 use crate::CliError;
 use crate::CliResult;
-use crate::config::Config;
+use crate::config::{Config, Delimiter};
 use crate::json::{GetPathOwned, JSONTabularizer, fill_record_from_tape_value};
 use crate::moonblade::Path as JSONPath;
 use crate::select::SelectedColumns;
@@ -136,10 +136,11 @@ Also try to tweak --chunk-size as the sweet spot is often very dependent on the
 actual JSON records being parsed.
 
 from options:
-    -f, --format <format>  Format to convert from. Will be inferred from file
-                           extension if not given. Must be specified when reading
-                           from stdin, since we don't have a file extension to
-                           work with.
+    -f, --format <format>         Format to convert from. Will be inferred from file
+                                  extension if not given. Must be specified when reading
+                                  from stdin, since we don't have a file extension to
+                                  work with.
+    -D, --output-delimiter <arg>  Delimiter for the output CSV format. Defaults to a comma.
 
 Excel/OpenOffice-related options:
     --sheet-index <i>    0-based index of the sheet to convert. Defaults to converting
@@ -220,11 +221,14 @@ struct Args {
     flag_threads: Option<NonZeroUsize>,
     flag_chunk_size: NonZeroUsize,
     flag_select: Option<SelectedColumns>,
+    flag_output_delimiter: Option<Delimiter>,
 }
 
 impl Args {
     fn writer(&self) -> io::Result<simd_csv::Writer<Box<dyn io::Write + Send>>> {
-        Config::new(&self.flag_output).simd_writer()
+        Config::new(&self.flag_output)
+            .delimiter(self.flag_output_delimiter)
+            .simd_writer()
     }
 
     fn sample_size(&self) -> Option<NonZeroUsize> {
