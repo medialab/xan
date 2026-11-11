@@ -29,6 +29,8 @@ count options:
     -a, --approx             Attempt to approximate a CSV file row count by sampling its
                              first rows. Target must be seekable, which means this cannot
                              work on a stream fed through stdin nor with gzipped data.
+    --row-groups             When used on a parquet file, return the number of row groups of
+                             the file.
     -c, --check-alignment    Use a slower parser validating that given CSV stream yields rows
                              having the same number of columns.
     -p, --parallel           Whether to use parallelization to speed up counting.

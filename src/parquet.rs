@@ -66,6 +66,10 @@ impl ParquetReader {
         self.0.metadata().file_metadata().num_rows() as u64
     }
 
+    pub fn count_row_groups(&self) -> u64 {
+        self.0.metadata().num_row_groups() as u64
+    }
+
     pub fn into_inner(self) -> SerializedFileReader<File> {
         self.0
     }
@@ -111,6 +115,17 @@ fn human_readable_column_type(column: &ColumnDescriptor) -> &'static str {
                 LogicalType::Map => "map",
                 LogicalType::List => "list",
                 LogicalType::String => "string",
+                LogicalType::Integer(int_type) => match (int_type.bit_width, int_type.is_signed) {
+                    (8, false) => "uint8",
+                    (16, false) => "uint16",
+                    (32, false) => "uint32",
+                    (64, false) => "uint64",
+                    (8, true) => "int8",
+                    (16, true) => "int16",
+                    (32, true) => "int32",
+                    (64, true) => "int64",
+                    _ => "unknown",
+                },
                 _ => "unknown",
             };
         }
