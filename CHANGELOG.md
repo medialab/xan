@@ -29,7 +29,7 @@ The **laminated** update.
 * Adding the `ord`, `chr`, `chars` & `graphemes` moonblade functions.
 * Adding the `coalesce` moonblade function.
 * Adding `xan from -f=ndjson -p/-t`.
-* Adding `xan from -f=parquet -s/--select`.
+* Adding `xan from -f=parquet -s/--select & --row-group-index`.
 * Adding `xan from -D/--output-delimiter`.
 * Adding support for missing `xan sample -g -w -S`.
 * Adding `xan heatmap --scale, --log, --hide-labels, --hide-col-labels, --hide-row-labels`.

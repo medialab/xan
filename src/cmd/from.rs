@@ -185,6 +185,7 @@ NDJSON options:
 
 Parquet options:
     -s, --select <columns>  Selection of columns to keep in the CSV output.
+    --row-group-index <i>   Only yield rows from desired row group, by index.
 
 Text lines & raw options:
     -c, --column <name>    Name of the column to create. Will default to "line" with -f=txt
@@ -221,6 +222,7 @@ struct Args {
     flag_threads: Option<NonZeroUsize>,
     flag_chunk_size: NonZeroUsize,
     flag_select: Option<SelectedColumns>,
+    flag_row_group_index: Option<usize>,
     flag_output_delimiter: Option<Delimiter>,
 }
 
@@ -748,9 +750,20 @@ impl Args {
     }
 
     fn convert_parquet(&self) -> CliResult<()> {
-        use parquet::file::reader::FileReader;
+        use parquet::file::reader::{FileReader, RowGroupReader};
 
         let reader = Config::new(&self.arg_input).parquet_reader()?;
+
+        if let Some(row_group_index) = self.flag_row_group_index {
+            let row_groups = reader.count_row_groups() as usize;
+
+            if row_group_index >= row_groups {
+                Err(format!(
+                    "--row-group-index {row_group_index} is out of bound (only {row_groups} row groups in target parquet file)!"
+                ))?;
+            }
+        }
+
         let mut headers = reader.byte_headers();
 
         let mut sel_opt = self
@@ -775,7 +788,14 @@ impl Args {
         let reader = reader.into_inner();
 
         let mut output_record = ByteRecord::new();
-        let iter = reader.get_row_iter(projection)?;
+        let row_group_opt: Option<Box<dyn RowGroupReader>>;
+
+        let iter = if let Some(row_group_index) = self.flag_row_group_index {
+            row_group_opt = Some(reader.get_row_group(row_group_index)?);
+            row_group_opt.as_ref().unwrap().get_row_iter(projection)?
+        } else {
+            reader.get_row_iter(projection)?
+        };
 
         for result in iter {
             output_record.clear();

@@ -113,6 +113,7 @@ NDJSON options:
 
 Parquet options:
     -s, --select <columns>  Selection of columns to keep in the CSV output.
+    --row-group-index <i>   Only yield rows from desired row group, by index.
 
 Text lines & raw options:
     -c, --column <name>    Name of the column to create. Will default to "line" with -f=txt
