@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::cell::RefCell;
 use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader, Read};
 use std::iter::once;
@@ -38,69 +39,90 @@ fn open(input_dir: &str, filename: &str) -> io::Result<Box<dyn Read>> {
     })
 }
 
-fn read_string(
-    input_dir: &str,
-    filename: &str,
-    encoding: Option<EncodingRef>,
-) -> io::Result<String> {
-    if let Some(encoding_ref) = encoding {
-        let bytes = read_bytes(input_dir, filename)?;
-
-        Ok(encoding_ref
-            .decode(&bytes, DecoderTrap::Replace)
-            .expect("could not decode"))
-    } else {
-        let mut string = String::new();
-
-        open(input_dir, filename)?.read_to_string(&mut string)?;
-
-        Ok(string)
-    }
-}
-
-fn read_bytes(input_dir: &str, filename: &str) -> io::Result<Vec<u8>> {
-    let mut bytes = Vec::new();
-
-    open(input_dir, filename)?.read_to_end(&mut bytes)?;
-
-    Ok(bytes)
-}
-
 const PREBUFFER_SIZE: usize = 4096;
 
 fn find_head(bytes: &[u8]) -> Option<usize> {
     bytes.rfind(b"</head>").or_else(|| bytes.rfind(b"</HEAD>"))
 }
 
-fn read_up_to_head(input_dir: &str, filename: &str) -> io::Result<Vec<u8>> {
-    let mut bytes = Vec::new();
-    let mut buffer = [0u8; PREBUFFER_SIZE];
-
-    let mut reader = open(input_dir, filename)?;
-
-    while let Ok(len) = reader.read(&mut buffer) {
-        if len == 0 {
-            break;
-        }
-
-        bytes.extend_from_slice(&buffer[..len]);
-
-        let offset = bytes.len().saturating_sub(len + 7);
-        let haystack = &bytes[offset..];
-
-        debug_assert!(haystack.len() <= PREBUFFER_SIZE + 7);
-
-        if let Some(i) = find_head(haystack) {
-            bytes.truncate(offset + i + 7);
-            break;
-        }
-    }
-
-    Ok(bytes)
+#[derive(Default)]
+struct IOBuffer {
+    bytes: Vec<u8>,
+    string: String,
 }
 
-fn read_html(input_dir: &str, filename: &str, encoding: Option<EncodingRef>) -> io::Result<Html> {
-    read_string(input_dir, filename, encoding).map(|string| Html::parse_document(&string))
+impl IOBuffer {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn read_file_as_bytes(&mut self, input_dir: &str, filename: &str) -> io::Result<&[u8]> {
+        self.bytes.clear();
+
+        open(input_dir, filename)?.read_to_end(&mut self.bytes)?;
+
+        Ok(&self.bytes)
+    }
+
+    fn read_up_to_head(&mut self, input_dir: &str, filename: &str) -> io::Result<&[u8]> {
+        self.bytes.clear();
+
+        let mut buffer = [0u8; PREBUFFER_SIZE];
+
+        let mut reader = open(input_dir, filename)?;
+
+        while let Ok(len) = reader.read(&mut buffer) {
+            if len == 0 {
+                break;
+            }
+
+            self.bytes.extend_from_slice(&buffer[..len]);
+
+            let offset = self.bytes.len().saturating_sub(len + 7);
+            let haystack = &self.bytes[offset..];
+
+            debug_assert!(haystack.len() <= PREBUFFER_SIZE + 7);
+
+            if let Some(i) = find_head(haystack) {
+                self.bytes.truncate(offset + i + 7);
+                break;
+            }
+        }
+
+        Ok(&self.bytes)
+    }
+
+    fn read_file_as_str(
+        &mut self,
+        input_dir: &str,
+        filename: &str,
+        encoding: Option<EncodingRef>,
+    ) -> CliResult<&str> {
+        self.bytes.clear();
+        self.string.clear();
+
+        if let Some(encoding_ref) = encoding {
+            open(input_dir, filename)?.read_to_end(&mut self.bytes)?;
+
+            encoding_ref
+                .decode_to(&self.bytes, DecoderTrap::Replace, &mut self.string)
+                .map_err(|err| err.to_string())?;
+        } else {
+            open(input_dir, filename)?.read_to_string(&mut self.string)?;
+        }
+
+        Ok(&self.string)
+    }
+
+    fn read_file_as_html(
+        &mut self,
+        input_dir: &str,
+        filename: &str,
+        encoding: Option<EncodingRef>,
+    ) -> CliResult<Html> {
+        self.read_file_as_str(input_dir, filename, encoding)
+            .map(Html::parse_document)
+    }
 }
 
 enum ScraperTarget<'a> {
@@ -144,53 +166,57 @@ fn guard_invalid_html_cell(cell: &[u8]) -> CliResult<()> {
 }
 
 impl ScraperTarget<'_> {
-    fn prebuffer_up_to_head(&self) -> CliResult<Cow<'_, [u8]>> {
+    fn prebuffer_up_to_head<'t, 'b>(&'t self, buffer: &'b mut IOBuffer) -> CliResult<&'b [u8]>
+    where
+        't: 'b,
+    {
         match self {
             Self::HtmlCell(cell) => {
                 guard_invalid_html_cell(cell)?;
 
                 Ok(match find_head(cell) {
-                    Some(i) => Cow::Borrowed(&cell[..i + 7]),
-                    None => Cow::Borrowed(cell),
+                    Some(i) => &cell[..i + 7],
+                    None => cell,
                 })
             }
             Self::HtmlFile {
                 input_dir,
                 filename,
                 ..
-            } => Ok(Cow::Owned(read_up_to_head(input_dir, filename)?)),
+            } => Ok(buffer.read_up_to_head(input_dir, filename)?),
         }
     }
 
-    fn read_bytes(&self) -> CliResult<Cow<'_, [u8]>> {
+    fn read_bytes<'t, 'b>(&'t self, buffer: &'b mut IOBuffer) -> CliResult<&'b [u8]>
+    where
+        't: 'b,
+    {
         match self {
             Self::HtmlCell(cell) => {
                 guard_invalid_html_cell(cell)?;
 
-                Ok(Cow::Borrowed(cell))
+                Ok(cell)
             }
             Self::HtmlFile {
                 input_dir,
                 filename,
                 ..
-            } => Ok(Cow::Owned(read_bytes(input_dir, filename)?)),
+            } => Ok(buffer.read_file_as_bytes(input_dir, filename)?),
         }
     }
 
-    fn read_html(&self) -> CliResult<Html> {
+    fn read_html(&self, buffer: &mut IOBuffer) -> CliResult<Html> {
         match self {
             Self::HtmlCell(cell) => {
                 guard_invalid_html_cell(cell)?;
 
-                Ok(Html::parse_document(
-                    from_utf8(cell).expect("invalid utf-8"),
-                ))
+                Ok(Html::parse_document(from_utf8(cell)?))
             }
             Self::HtmlFile {
                 input_dir,
                 filename,
                 encoding,
-            } => Ok(read_html(input_dir, filename, *encoding)?),
+            } => Ok(buffer.read_file_as_html(input_dir, filename, *encoding)?),
         }
     }
 }
@@ -313,8 +339,9 @@ impl CustomScraper {
         index: usize,
         record: &ByteRecord,
         target: &ScraperTarget,
+        buffer: &mut IOBuffer,
     ) -> CliResult<Vec<Vec<DynamicValue>>> {
-        let html = target.read_html()?;
+        let html = target.read_html(buffer)?;
 
         if let Some(selector) = &self.foreach {
             Ok(self
@@ -402,9 +429,13 @@ impl Scraper {
         }
     }
 
-    fn scrape_head(&self, target: &ScraperTarget) -> CliResult<Vec<DynamicValue>> {
-        let bytes = target.prebuffer_up_to_head()?;
-        let html = Html::parse_document(&target.decode(&bytes)?);
+    fn scrape_head(
+        &self,
+        target: &ScraperTarget,
+        buffer: &mut IOBuffer,
+    ) -> CliResult<Vec<DynamicValue>> {
+        let bytes = target.prebuffer_up_to_head(buffer)?;
+        let html = Html::parse_document(&target.decode(bytes)?);
 
         Ok(html
             .select(&HEAD_SELECTOR)
@@ -431,9 +462,10 @@ impl Scraper {
         &self,
         target: &ScraperTarget,
         context: &ScraperContext,
+        buffer: &mut IOBuffer,
     ) -> CliResult<Vec<DynamicValue>> {
-        let bytes = target.read_bytes()?;
-        let bytes = SCRIPT_REGEX.replace_all(&bytes, b"");
+        let bytes = target.read_bytes(buffer)?;
+        let bytes = SCRIPT_REGEX.replace_all(bytes, b"");
 
         let mut urls = Vec::new();
 
@@ -465,8 +497,9 @@ impl Scraper {
         &self,
         target: &ScraperTarget,
         context: &ScraperContext,
+        buffer: &mut IOBuffer,
     ) -> CliResult<Vec<String>> {
-        let html = target.read_html()?;
+        let html = target.read_html(buffer)?;
         let mut images = Vec::new();
 
         for img_element in html.select(&IMG_SELECTOR) {
@@ -646,7 +679,12 @@ impl Scraper {
     }
 
     // TODO: could be lazy iterators sometimes
-    fn scrape(&self, row_index: usize, input: &Input) -> CliResult<Vec<Vec<DynamicValue>>> {
+    fn scrape(
+        &self,
+        row_index: usize,
+        input: &Input,
+        buffer: &mut IOBuffer,
+    ) -> CliResult<Vec<Vec<DynamicValue>>> {
         if input.is_empty() {
             return Ok(if self.is_plural() {
                 vec![]
@@ -660,14 +698,14 @@ impl Scraper {
         let context = &input.context;
 
         match &self.mode {
-            ScraperMode::Head => Ok(vec![self.scrape_head(&target)?]),
+            ScraperMode::Head => Ok(vec![self.scrape_head(&target, buffer)?]),
             ScraperMode::Urls => {
-                let urls = self.scrape_urls(&target, context)?;
+                let urls = self.scrape_urls(&target, context, buffer)?;
 
                 Ok(urls.into_iter().map(|url| vec![url]).collect())
             }
             ScraperMode::Images => {
-                let images = self.scrape_images(&target, context)?;
+                let images = self.scrape_images(&target, context, buffer)?;
 
                 Ok(images
                     .into_iter()
@@ -675,7 +713,7 @@ impl Scraper {
                     .collect())
             }
             ScraperMode::Article(scraper_opt) => {
-                let html = target.read_html()?;
+                let html = target.read_html(buffer)?;
 
                 let mut output = self.scrape_article(&html)?;
 
@@ -687,7 +725,7 @@ impl Scraper {
 
                 Ok(vec![output])
             }
-            ScraperMode::Custom(scraper) => scraper.scrape(row_index, record, &target),
+            ScraperMode::Custom(scraper) => scraper.scrape(row_index, record, &target, buffer),
         }
     }
 
@@ -695,8 +733,9 @@ impl Scraper {
         &self,
         row_index: usize,
         input: &Input,
+        buffer: &mut IOBuffer,
     ) -> CliResult<Vec<Vec<DynamicValue>>> {
-        self.scrape(row_index, input).map_err(|err| {
+        self.scrape(row_index, input, buffer).map_err(|err| {
             CliError::Other(format!(
                 "Row index {}{}\n{}",
                 row_index,
@@ -1195,13 +1234,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         };
 
     if let Some(t) = threads {
+        thread_local! {
+            static BUFFER: RefCell<IOBuffer> = RefCell::new(IOBuffer::new());
+        }
+
         inputs
             .enumerate()
             .parallel_map_custom(
                 |o| o.threads(t),
                 move |(row_index, result)| -> CliResult<(Input, Vec<Vec<DynamicValue>>)> {
                     let input = result?;
-                    let output_rows = scraper.scrape_or_report(row_index, &input)?;
+                    let output_rows = BUFFER.with_borrow_mut(|buffer| {
+                        scraper.scrape_or_report(row_index, &input, buffer)
+                    })?;
 
                     Ok((input, output_rows))
                 },
@@ -1214,10 +1259,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 Ok(())
             })?;
     } else {
+        let mut buffer = IOBuffer::new();
+
         for (row_index, result) in inputs.enumerate() {
             let input = result?;
 
-            let output_rows = scraper.scrape_or_report(row_index, &input)?;
+            let output_rows = scraper.scrape_or_report(row_index, &input, &mut buffer)?;
 
             write_output(&output_rows, input.as_record())?;
         }
