@@ -329,7 +329,7 @@ impl CustomScraper {
 
 // TODO: Urls & Images could take a future base url if required
 #[derive(Clone, Debug)]
-enum Scraper {
+enum ScraperMode {
     Head,
     Urls,
     Images,
@@ -337,38 +337,44 @@ enum Scraper {
     Custom(CustomScraper),
 }
 
+#[derive(Clone, Debug)]
+struct Scraper {
+    input_dir: String,
+    mode: ScraperMode,
+}
+
 impl Scraper {
     #[inline]
     fn is_plural(&self) -> bool {
-        match self {
-            Self::Head | Self::Article(_) => false,
-            Self::Urls | Self::Images => true,
-            Self::Custom(inner) => inner.is_plural(),
+        match &self.mode {
+            ScraperMode::Head | ScraperMode::Article(_) => false,
+            ScraperMode::Urls | ScraperMode::Images => true,
+            ScraperMode::Custom(inner) => inner.is_plural(),
         }
     }
 
     #[inline]
     fn padding_len(&self) -> usize {
-        match self {
-            Self::Urls | Self::Images => 1,
-            Self::Head => 2,
-            Self::Article(scraper_opt) => {
+        match &self.mode {
+            ScraperMode::Urls | ScraperMode::Images => 1,
+            ScraperMode::Head => 2,
+            ScraperMode::Article(scraper_opt) => {
                 scraper_opt
                     .as_ref()
                     .map(|scraper| scraper.padding_len())
                     .unwrap_or(0)
                     + 12
             }
-            Self::Custom(scraper) => scraper.padding_len(),
+            ScraperMode::Custom(scraper) => scraper.padding_len(),
         }
     }
 
     fn names(&self) -> Vec<&'_ str> {
-        match self {
-            Self::Head => vec!["title", "canonical_url"],
-            Self::Urls => vec!["url"],
-            Self::Images => vec!["src"],
-            Self::Article(scraper_opt) => {
+        match &self.mode {
+            ScraperMode::Head => vec!["title", "canonical_url"],
+            ScraperMode::Urls => vec!["url"],
+            ScraperMode::Images => vec!["src"],
+            ScraperMode::Article(scraper_opt) => {
                 let mut names = vec![
                     "canonical_url",
                     "headline",
@@ -392,7 +398,7 @@ impl Scraper {
 
                 names
             }
-            Self::Custom(scraper) => scraper.program.names().collect(),
+            ScraperMode::Custom(scraper) => scraper.program.names().collect(),
         }
     }
 
@@ -640,12 +646,7 @@ impl Scraper {
     }
 
     // TODO: could be lazy iterators sometimes
-    fn scrape(
-        &self,
-        input_dir: &str,
-        row_index: usize,
-        input: &Input,
-    ) -> CliResult<Vec<Vec<DynamicValue>>> {
+    fn scrape(&self, row_index: usize, input: &Input) -> CliResult<Vec<Vec<DynamicValue>>> {
         if input.is_empty() {
             return Ok(if self.is_plural() {
                 vec![]
@@ -654,18 +655,18 @@ impl Scraper {
             });
         }
 
-        let target = input.as_target(input_dir);
+        let target = input.as_target(&self.input_dir);
         let record = input.as_record();
         let context = &input.context;
 
-        match self {
-            Self::Head => Ok(vec![self.scrape_head(&target)?]),
-            Self::Urls => {
+        match &self.mode {
+            ScraperMode::Head => Ok(vec![self.scrape_head(&target)?]),
+            ScraperMode::Urls => {
                 let urls = self.scrape_urls(&target, context)?;
 
                 Ok(urls.into_iter().map(|url| vec![url]).collect())
             }
-            Self::Images => {
+            ScraperMode::Images => {
                 let images = self.scrape_images(&target, context)?;
 
                 Ok(images
@@ -673,7 +674,7 @@ impl Scraper {
                     .map(|src| vec![DynamicValue::from(src)])
                     .collect())
             }
-            Self::Article(scraper_opt) => {
+            ScraperMode::Article(scraper_opt) => {
                 let html = target.read_html()?;
 
                 let mut output = self.scrape_article(&html)?;
@@ -686,17 +687,16 @@ impl Scraper {
 
                 Ok(vec![output])
             }
-            Self::Custom(scraper) => scraper.scrape(row_index, record, &target),
+            ScraperMode::Custom(scraper) => scraper.scrape(row_index, record, &target),
         }
     }
 
     fn scrape_or_report(
         &self,
-        input_dir: &str,
         row_index: usize,
         input: &Input,
     ) -> CliResult<Vec<Vec<DynamicValue>>> {
-        self.scrape(input_dir, row_index, input).map_err(|err| {
+        self.scrape(row_index, input).map_err(|err| {
             CliError::Other(format!(
                 "Row index {}{}\n{}",
                 row_index,
@@ -1099,14 +1099,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let (has_headers, headers, input_mode, inputs) = args.inputs()?;
 
-    let scraper = if args.cmd_head {
-        Scraper::Head
+    let scraper_mode = if args.cmd_head {
+        ScraperMode::Head
     } else if args.cmd_article {
         if args.flag_foreach.is_some() {
             Err("-F/--foreach does not work with `xan scrape article -e`!")?;
         }
 
-        Scraper::Article(
+        ScraperMode::Article(
             args.flag_evaluate
                 .as_ref()
                 .map(|code| -> CliResult<CustomScraper> {
@@ -1118,11 +1118,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 .transpose()?,
         )
     } else if args.cmd_urls {
-        Scraper::Urls
+        ScraperMode::Urls
     } else if args.cmd_images {
-        Scraper::Images
+        ScraperMode::Images
     } else {
-        Scraper::Custom(CustomScraper {
+        ScraperMode::Custom(CustomScraper {
             program: ScrapingProgram::parse(
                 args.flag_evaluate.as_ref().unwrap(),
                 &headers,
@@ -1134,6 +1134,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 .map(|css| Selector::parse(css).map_err(|_| format!("invalid CSS selector: {css}")))
                 .transpose()?,
         })
+    };
+
+    let scraper = Scraper {
+        mode: scraper_mode,
+        input_dir: args.flag_input_dir.clone(),
     };
 
     let mut sel = if let Some(s) = &args.flag_select {
@@ -1169,8 +1174,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         )?;
     }
 
-    let input_dir = args.flag_input_dir.clone();
-
     // TODO: amortize allocations, fast path if sel is empty?
     let mut write_output =
         |output_rows: &[Vec<DynamicValue>], record: &ByteRecord| -> CliResult<()> {
@@ -1198,7 +1201,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 |o| o.threads(t),
                 move |(row_index, result)| -> CliResult<(Input, Vec<Vec<DynamicValue>>)> {
                     let input = result?;
-                    let output_rows = scraper.scrape_or_report(&input_dir, row_index, &input)?;
+                    let output_rows = scraper.scrape_or_report(row_index, &input)?;
 
                     Ok((input, output_rows))
                 },
@@ -1214,7 +1217,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         for (row_index, result) in inputs.enumerate() {
             let input = result?;
 
-            let output_rows = scraper.scrape_or_report(&input_dir, row_index, &input)?;
+            let output_rows = scraper.scrape_or_report(row_index, &input)?;
 
             write_output(&output_rows, input.as_record())?;
         }
