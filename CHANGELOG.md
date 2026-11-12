@@ -22,6 +22,7 @@ The **laminated** update.
 
 *Features*
 
+* Allowing `xan slice -I/--indices` with start and end conditions.
 * Adding easy way to use null-byte delimiters through `-d '\0'`, the same way as `-d '\t'`.
 * `xan count` & `xan headers` parquet integration.
 * Adding `xan count --row-groups`.
@@ -43,6 +44,7 @@ The **laminated** update.
 
 *Fixes*
 
+* Fixing `xan slice` expression row indices after skipped rows and empty slices.
 * Fixing broken pipe issues related to printing help.
 * Fixing command panicking when dealing with badly encoded arguments.
 * Fixing moonblade float truthiness (non-zero floats were considered falsey).
