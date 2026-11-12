@@ -40,6 +40,44 @@ fn scrape() {
 }
 
 #[test]
+fn scrape_urls() {
+    let wrk = Workdir::new("scrape_urls");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["html", "url"],
+            svec!["<a href=\"http://lemonde.fr\">One</a>", "http://lemonde.fr"],
+            svec!["<a href=\"about.html\">Two</a>", "http://lefigaro.fr"],
+        ],
+    );
+    let mut cmd = wrk.command("scrape");
+    cmd.arg("urls")
+        .args(["-s", "!"])
+        .args(["--doc-column", "html"])
+        .args(["--docs", "data.csv"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![["url"], ["http://lemonde.fr"], ["about.html"]];
+    assert_eq!(got, expected);
+
+    // --url-column
+    let mut cmd = wrk.command("scrape");
+    cmd.arg("urls")
+        .args(["-s", "!"])
+        .args(["--url-column", "url"])
+        .args(["--doc-column", "html"])
+        .args(["--docs", "data.csv"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["url"],
+        ["http://lemonde.fr/"],
+        ["http://lefigaro.fr/about.html"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn scrape_xml() {
     let wrk = Workdir::new("scrape_xml");
     wrk.create(

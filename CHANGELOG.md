@@ -55,6 +55,7 @@ The **laminated** update.
 * Fixing case-sensitive `xan search -R/--replace & --replacement-column` with multiple patterns.
 * Fixing parallel `xan search -R/--replace & --replacement-column`.
 * Fixing `xan scrape` not streaming input when using `--paths` & `--docs`.
+* Fixing `xan scrape --url-column`.
 * Fixing performance issues when calling a command with a lot of positional arguments (e.g. 10k paths to `xan scrape`).
 * Fixing `xan explode --evaluate --drop-empty` semantics.
 * Fixing `xan bivar` to abide by correct coordinates and flip y axis to fit intuition.

@@ -113,21 +113,21 @@ enum ScraperTarget<'a> {
 }
 
 impl ScraperTarget<'_> {
-    fn decode<'b>(&self, bytes: &'b [u8]) -> Cow<'b, str> {
-        match self {
-            Self::HtmlCell(_) => Cow::Borrowed(from_utf8(bytes).expect("could not decode")),
+    fn decode<'b>(&self, bytes: &'b [u8]) -> CliResult<Cow<'b, str>> {
+        Ok(match self {
+            Self::HtmlCell(_) => Cow::Borrowed(from_utf8(bytes)?),
             Self::HtmlFile { encoding, .. } => {
                 if let Some(encoding_ref) = encoding {
                     Cow::Owned(
                         encoding_ref
                             .decode(bytes, DecoderTrap::Replace)
-                            .expect("could not decode"),
+                            .map_err(|err| err.to_string())?,
                     )
                 } else {
-                    Cow::Borrowed(from_utf8(bytes).expect("could not decode"))
+                    Cow::Borrowed(from_utf8(bytes)?)
                 }
             }
-        }
+        })
     }
 }
 
@@ -398,7 +398,7 @@ impl Scraper {
 
     fn scrape_head(&self, target: &ScraperTarget) -> CliResult<Vec<DynamicValue>> {
         let bytes = target.prebuffer_up_to_head()?;
-        let html = Html::parse_document(&target.decode(&bytes));
+        let html = Html::parse_document(&target.decode(&bytes)?);
 
         Ok(html
             .select(&HEAD_SELECTOR)
@@ -440,8 +440,10 @@ impl Scraper {
                 &caps[3]
             };
 
+            let url = target.decode(url)?;
+
             if let Some(base_url) = &context.url {
-                if let Ok(joined_url) = base_url.join(&target.decode(&bytes)) {
+                if let Ok(joined_url) = base_url.join(&url) {
                     // TODO: canonicalize
                     urls.push(DynamicValue::from(joined_url.to_string()));
                 }
@@ -533,8 +535,6 @@ impl Scraper {
         fn clean_htmlish(string: &str) -> DynamicValue {
             DynamicValue::from(html_escape::decode_html_entities(string).trim())
         }
-
-        // dbg!(&json_ld);
 
         if let Some(data) = json_ld {
             macro_rules! extract_raw {
