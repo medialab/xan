@@ -1,8 +1,8 @@
 use std::fs;
 
 use bstr::ByteSlice;
-use simd_csv::ByteRecord;
 use combinations::Combinations;
+use simd_csv::ByteRecord;
 
 use crate::CliError;
 use crate::CliResult;
@@ -225,7 +225,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let headers = rdr.byte_headers()?.clone();
     let sel = rconfig.selection(&headers)?;
 
-    if sel.len() > 1 && let Some(_) = args.flag_combinations {
+    if sel.len() > 1
+        && let Some(_) = args.flag_combinations
+    {
         Err("-c/--combinations requires to select only 1 column!")?
     };
 
@@ -275,7 +277,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     new_headers.push_field(&base);
                     base.truncate(size);
                 }
-            } else { new_headers.push_field(new_col_name); }
+            } else {
+                new_headers.push_field(new_col_name);
+            }
         } else {
             new_headers.push_field(name);
         }
@@ -302,8 +306,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 column_index,
                 &record,
                 cell,
-                |sub_cell| { splitted.push(sub_cell.to_owned()); Ok(())},
+                |sub_cell| {
+                    splitted.push(sub_cell.to_owned());
+                    Ok(())
+                },
             )?;
+            while splitted.len() < k {
+                splitted.push(Vec::new());
+            }
             let mut combinations = splitted.combinations(k);
             let mut buf = Vec::new();
 
@@ -324,7 +334,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     }
                     Ok(())
                 })?;
-                }
+            }
         }
 
         return Ok(wtr.flush()?);
