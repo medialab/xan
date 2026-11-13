@@ -1402,6 +1402,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "k-combinations"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d218ef7b4da728e47afc26613ec071e6e0db544a187a2f368ef4c446bf027b8"
+
+[[package]]
 name = "kasuari"
 version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3319,6 +3325,7 @@ dependencies = [
  "itoa",
  "jemallocator",
  "jiff",
+ "k-combinations",
  "lazy_static",
  "levenshtein_automata",
  "md5",
