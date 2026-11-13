@@ -2,6 +2,7 @@ use std::fs;
 
 use bstr::ByteSlice;
 use simd_csv::ByteRecord;
+use combinations::Combinations;
 
 use crate::CliError;
 use crate::CliResult;
@@ -17,8 +18,6 @@ fn singularize(name: &[u8]) -> Vec<u8> {
     if name.ends_with(b"ies") {
         vec.truncate(vec.len() - 3);
         vec.push(b'y');
-    } else if name.ends_with(b"oes") {
-        vec.truncate(vec.len() - 2);
     } else if name.ends_with(b"s") {
         vec.truncate(vec.len() - 1);
     }
@@ -134,23 +133,28 @@ Usage:
     xan explode --help
 
 explode options:
-    --sep <sep>            Separator to split the cells.
-                           [default: |]
-    -e, --evaluate <expr>  Evaluate an expression to split cells instead of using
-                           a simple separator.
+    --sep <sep>             Separator to split the cells.
+                            [default: |]
+    -e, --evaluate <expr>   Evaluate an expression to split cells instead of using
+                            a simple separator.
     -f, --evaluate-file <path>
-                           Read splitting expression from a file instead.
-    -S, --singularize      Singularize (supporting only very simple English-centric cases)
-                           the exploded column names. Does not work with -r, --rename.
-    -r, --rename <name>    New names for the exploded columns. Must be written
-                           in CSV format if exploding multiple columns.
-                           See 'xan rename' help for more details.
-                           Does not work with -S, --singular.
-    -k, --keep             Keep the exploded columns alongside each split.
-    -D, --drop-empty       Drop rows when selected cells are empty, or when the evaluated
-                           expression yields a nullish value.
-    --pad                  When exploding multiple columns at once, pad shorter splits
-                           to align them with the longest one instead of erroring.
+                            Read splitting expression from a file instead.
+    -S, --singularize       Singularize (supporting only very simple English-centric cases)
+                            the exploded column names. Does not work with -r, --rename.
+    -r, --rename <name>     New names for the exploded columns. Must be written
+                            in CSV format if exploding multiple columns.
+                            When used with -c/--combinations only takes a single argument
+                            to rename the single selected column.
+                            See 'xan rename' help for more details.
+                            Does not work with -S, --singular.
+    -c, --combinations <k>  Generate k columns coresponding to the binom(n,k) unordered
+                            combinations (e.g. k-combinations) of the exploded elements.
+                            Doesn't work if the selection contains more than 1 column.
+    -k, --keep              Keep the exploded columns alongside each split.
+    -D, --drop-empty        Drop rows when selected cells are empty, or when the evaluated
+                            expression yields a nullish value.
+    --pad                   When exploding multiple columns at once, pad shorter splits
+                            to align them with the longest one instead of erroring.
 
 Common options:
     -h, --help             Display this message
@@ -168,8 +172,9 @@ struct Args {
     flag_sep: String,
     flag_singularize: bool,
     flag_rename: Option<String>,
-    flag_drop_empty: bool,
+    flag_combinations: Option<usize>,
     flag_keep: bool,
+    flag_drop_empty: bool,
     flag_pad: bool,
     flag_evaluate: Option<String>,
     flag_evaluate_file: Option<String>,
@@ -220,6 +225,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let headers = rdr.byte_headers()?.clone();
     let sel = rconfig.selection(&headers)?;
 
+    if sel.len() > 1 && let Some(_) = args.flag_combinations {
+        Err("-c/--combinations requires to select only 1 column!")?
+    };
+
     if sel.is_empty() {
         return Err(CliError::Other(
             "expecting a non-empty column selection".to_string(),
@@ -251,13 +260,22 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 new_headers.push_field(name);
             }
 
-            if let Some(new_names) = &new_names_opt {
-                new_headers.push_field(&new_names[*i]);
+            let new_col_name = if let Some(new_names) = &new_names_opt {
+                &new_names[*i]
             } else if args.flag_singularize {
-                new_headers.push_field(&singularize(name));
+                &singularize(name)
             } else {
-                new_headers.push_field(name);
-            }
+                name
+            };
+            if let Some(k) = args.flag_combinations {
+                let mut base = new_col_name.to_vec();
+                let size = new_col_name.len();
+                for j in 1..=k {
+                    base.extend(j.to_string().as_bytes());
+                    new_headers.push_field(&base);
+                    base.truncate(size);
+                }
+            } else { new_headers.push_field(new_col_name); }
         } else {
             new_headers.push_field(name);
         }
@@ -269,6 +287,48 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut record = ByteRecord::new();
     let mut row_index: usize = 0;
+
+    if let Some(k) = args.flag_combinations {
+        let column_index = sel[0];
+
+        while rdr.read_byte_record(&mut record)? {
+            let cell = &record[column_index];
+            row_index += 1;
+
+            let mut splitted = Vec::new();
+            exploder.explode(
+                args.flag_drop_empty,
+                row_index - 1,
+                column_index,
+                &record,
+                cell,
+                |sub_cell| { splitted.push(sub_cell.to_owned()); Ok(())},
+            )?;
+            let mut combinations = splitted.combinations(k);
+            let mut buf = Vec::new();
+
+            while combinations.next_into(&mut buf) {
+                wtr.write_fields(|w| {
+                    for (i, cell) in record.iter().enumerate() {
+                        if i == column_index {
+                            if args.flag_keep {
+                                w.write_field(cell)?;
+                            }
+
+                            for &byte in &buf {
+                                w.write_field(byte)?;
+                            }
+                        } else {
+                            w.write_field(cell)?;
+                        }
+                    }
+                    Ok(())
+                })?;
+                }
+        }
+
+        return Ok(wtr.flush()?);
+    }
 
     // Fast path for single column substring explosion, without --keep
     if sel.len() == 1
