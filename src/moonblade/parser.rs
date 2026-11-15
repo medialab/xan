@@ -766,6 +766,7 @@ pub struct ScrapingLeaf {
     pub name: String,
     pub expr: Expr,
     pub processing: Option<Expr>,
+    pub important: bool,
 }
 
 #[derive(Debug, PartialEq)]
@@ -866,6 +867,16 @@ fn parse_scraping_leaf(pair: Pair<Rule>) -> Result<ScrapingLeaf, ParseError> {
 
     let name = parse_generic_string(pairs.next().unwrap().into_inner().next().unwrap());
 
+    let important = if pairs.len() == 2 {
+        assert!(matches!(
+            pairs.next_back().unwrap().as_rule(),
+            Rule::scraping_important
+        ));
+        true
+    } else {
+        false
+    };
+
     let expr = pratt_parse(Pairs::single(pairs.next().unwrap()))?;
     let (expr, processing) = process_scraping_leaf_extractor(expr)?;
 
@@ -873,6 +884,7 @@ fn parse_scraping_leaf(pair: Pair<Rule>) -> Result<ScrapingLeaf, ParseError> {
         name,
         expr,
         processing,
+        important,
     })
 }
 
@@ -1412,6 +1424,8 @@ mod tests {
                 * {
                     text: upper(text());
                 }
+
+                crucial: text() !important;
             }
             all('p') {
                 content: text();
@@ -1426,6 +1440,16 @@ mod tests {
                 name: name.to_string(),
                 expr: getter,
                 processing: None,
+                important: false,
+            })
+        }
+
+        fn leafi(name: &str, getter: Expr) -> ScrapingNode {
+            ScrapingNode::Leaf(ScrapingLeaf {
+                name: name.to_string(),
+                expr: getter,
+                processing: None,
+                important: true,
             })
         }
 
@@ -1434,6 +1458,7 @@ mod tests {
                 name: name.to_string(),
                 expr: getter,
                 processing: Some(processing),
+                important: false,
             })
         }
 
@@ -1470,7 +1495,8 @@ mod tests {
                                 func("text", vec![]),
                                 func("upper", vec![id("__value__")])
                             )]
-                        ))
+                        )),
+                        leafi("crucial", func("text", vec![]))
                     ]
                 ),
                 brackets("all", "p", vec![leaf("content", func("text", vec![]))]),
