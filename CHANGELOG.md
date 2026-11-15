@@ -40,6 +40,7 @@ The **laminated** update.
 * The `fmt` function now accepts a list as substitutions, is more robust to errors and is able to accept more than 8 arguments.
 * Adding `xan search -H/--highlight & --highlight-tag`.
 * Adding `xan scrape -s/--select & -k/--keep-doc`.
+* Adding `!important` rules to `xan scrape` DSL.
 
 *Fixes*
 

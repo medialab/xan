@@ -128,11 +128,13 @@ impl Display for SpecifiedEvaluationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{} {}",
-            if self.function_name.starts_with('<') || self.function_name.starts_with('>') {
-                self.function_name.clone()
+            "{}{}",
+            if self.function_name.is_empty() {
+                "".to_string()
+            } else if self.function_name.starts_with('<') || self.function_name.starts_with('>') {
+                self.function_name.clone() + " "
             } else {
-                format!("{}()", self.function_name)
+                format!("{}() ", self.function_name)
             },
             self.reason
         )
@@ -192,6 +194,13 @@ impl EvaluationError {
     pub fn anonymous(self) -> SpecifiedEvaluationError {
         SpecifiedEvaluationError {
             function_name: "<expr>".to_string(),
+            reason: self,
+        }
+    }
+
+    pub fn unspecified(self) -> SpecifiedEvaluationError {
+        SpecifiedEvaluationError {
+            function_name: "".to_string(),
             reason: self,
         }
     }

@@ -82,6 +82,22 @@ main > p {
 }
 ```
 
+Any selection leading nowhere will result in its extractor expression yielding nothing without triggering an error. Also, any extractor expression accessing invalid information such as an inexisting attribute will still yield an empty value, without
+triggering an error.
+
+While this is often useful, you might also want to indicate that some extracted
+columns are `!important` so that an error is raised whenever the selection leading
+to them is invalid or if their extractor expression returns a nullish value thusly:
+
+```scss
+// This will error if no a tag with the class "main-url" is found.
+// This will also error if such a tag is found but its href attribute
+// does not exist or happens to be empty.
+a.main-url {
+  url: attr("href") !important;
+}
+```
+
 `:scope` or `&` can be used to ease nested selection (see how we are able
 to select direct children of `main > p`):
 
