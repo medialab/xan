@@ -10,10 +10,11 @@ use bstr::ByteSlice;
 use colored::Colorize;
 use encoding::{DecoderTrap, EncodingRef, label::encoding_from_whatwg_label};
 use flate2::read::MultiGzDecoder;
+use html5ever::interface::tree_builder::TreeSink;
 use lazy_static::lazy_static;
 use pariter::IteratorExt;
 use regex::bytes::Regex;
-use scraper::{Html, Selector};
+use scraper::{Html, HtmlTreeSink, Selector};
 use serde_json::{Map, Value};
 use simd_csv::ByteRecord;
 use url::Url;
@@ -24,6 +25,327 @@ use crate::select::{SelectedColumns, Selection};
 use crate::urls::should_follow_href;
 use crate::utils;
 use crate::{CliError, CliResult};
+
+mod gum {
+    //! See [`examples/scraper.rs`] for usage.
+    use std::convert::Infallible;
+
+    use html5gum::emitters::callback::{Callback, CallbackEmitter, CallbackEvent};
+    use html5gum::{Emitter, ForwardingEmitter, Readable, Reader, Span, State, Tokenizer};
+
+    use html5ever::LocalName;
+    use html5ever::ParseOpts;
+    use html5ever::interface::{TreeSink, create_element};
+    use html5ever::tendril::StrTendril;
+    use html5ever::tokenizer::states::State as Html5everState;
+    use html5ever::tokenizer::{
+        Doctype, Tag, TagKind, Token as Html5everToken, TokenSink, TokenSinkResult, states::RawKind,
+    };
+    use html5ever::tree_builder::TreeBuilder;
+    use html5ever::{Attribute, QualName};
+
+    const BOGUS_LINENO: u64 = 1;
+
+    fn to_tendril(bytes: &[u8]) -> StrTendril {
+        StrTendril::from_slice(&String::from_utf8_lossy(bytes))
+    }
+
+    fn to_local_name(bytes: &[u8]) -> LocalName {
+        LocalName::from(&*String::from_utf8_lossy(bytes))
+    }
+
+    #[derive(Debug)]
+    struct OurCallback<'a, S> {
+        sink: &'a mut S,
+        current_start_tag: Option<Tag>,
+        next_state: Option<State>,
+    }
+
+    impl<'a, S: TokenSink> OurCallback<'a, S> {
+        fn handle_sink_result<H>(&mut self, result: TokenSinkResult<H>) {
+            match result {
+                TokenSinkResult::Continue | TokenSinkResult::EncodingIndicator(_) => {}
+                TokenSinkResult::Script(_) => {
+                    self.next_state = Some(State::Data);
+                    // TODO: suspend tokenizer for script
+                }
+                TokenSinkResult::Plaintext => {
+                    self.next_state = Some(State::PlainText);
+                }
+                TokenSinkResult::RawData(RawKind::Rcdata) => {
+                    self.next_state = Some(State::RcData);
+                }
+                TokenSinkResult::RawData(RawKind::Rawtext) => {
+                    self.next_state = Some(State::RawText);
+                }
+                TokenSinkResult::RawData(RawKind::ScriptData) => {
+                    self.next_state = Some(State::ScriptData);
+                }
+                TokenSinkResult::RawData(RawKind::ScriptDataEscaped(_)) => {
+                    todo!()
+                }
+            }
+        }
+
+        fn sink_token(&mut self, token: Html5everToken) {
+            let result = self.sink.process_token(token, BOGUS_LINENO);
+            self.handle_sink_result(result);
+        }
+    }
+
+    impl<'a, S: TokenSink> Callback<Infallible, ()> for OurCallback<'a, S> {
+        fn handle_event(
+            &mut self,
+            event: CallbackEvent<'_>,
+            _span: Span<()>,
+        ) -> Option<Infallible> {
+            match event {
+                CallbackEvent::OpenStartTag { name } => {
+                    self.current_start_tag = Some(Tag {
+                        kind: TagKind::StartTag,
+                        name: to_local_name(name),
+                        self_closing: false,
+                        attrs: Default::default(),
+                        had_duplicate_attributes: false,
+                    });
+                }
+                CallbackEvent::AttributeName { name } => {
+                    if let Some(ref mut tag) = self.current_start_tag {
+                        tag.attrs.push(Attribute {
+                            name: QualName::new(None, Default::default(), to_local_name(name)),
+                            value: Default::default(),
+                        });
+                    }
+                }
+                CallbackEvent::AttributeValue { value } => {
+                    if let Some(ref mut tag) = self.current_start_tag {
+                        if let Some(attr) = tag.attrs.last_mut() {
+                            attr.value.push_slice(&String::from_utf8_lossy(value));
+                        }
+                    }
+                }
+                CallbackEvent::CloseStartTag { self_closing } => {
+                    if let Some(mut tag) = self.current_start_tag.take() {
+                        tag.self_closing = self_closing;
+                        self.sink_token(Html5everToken::TagToken(tag));
+                    }
+                }
+                CallbackEvent::EndTag { name } => {
+                    self.sink_token(Html5everToken::TagToken(Tag {
+                        kind: TagKind::EndTag,
+                        name: to_local_name(name),
+                        self_closing: false,
+                        attrs: Default::default(),
+                        had_duplicate_attributes: false,
+                    }));
+                }
+                CallbackEvent::String { value } => {
+                    let mut first = true;
+                    for part in value.split(|&b| b == 0) {
+                        if !first {
+                            self.sink_token(Html5everToken::NullCharacterToken);
+                        }
+
+                        first = false;
+                        self.sink_token(Html5everToken::CharacterTokens(to_tendril(part)));
+                    }
+                }
+                CallbackEvent::Comment { value } => {
+                    self.sink_token(Html5everToken::CommentToken(to_tendril(value)));
+                }
+                CallbackEvent::Doctype {
+                    name,
+                    public_identifier,
+                    system_identifier,
+                    force_quirks,
+                } => {
+                    self.sink_token(Html5everToken::DoctypeToken(Doctype {
+                        name: Some(name).filter(|x| !x.is_empty()).map(to_tendril),
+                        public_id: public_identifier.map(to_tendril),
+                        system_id: system_identifier.map(to_tendril),
+                        force_quirks,
+                    }));
+                }
+                // CallbackEvent::ProcessingInstruction { target, data } => {
+                //     // html5ever doesn't support processing instructions for now, so interpret them as comments
+                //     let mut comment = Vec::from(b"?");
+                //     comment.extend(target);
+                //     comment.extend(b" ");
+                //     comment.extend(data);
+                //     self.sink_token(Html5everToken::CommentToken(to_tendril(&comment)));
+                // }
+                CallbackEvent::Error(error) => {
+                    self.sink_token(Html5everToken::ParseError(error.as_str().into()));
+                }
+            }
+
+            None
+        }
+    }
+
+    /// A compatibility layer that allows you to plug the TreeBuilder from html5ever into the tokenizer
+    /// from html5gum.
+    ///
+    /// See [`examples/scraper.rs`] for usage.
+    #[derive(Debug)]
+    pub struct Html5everEmitter<'a, S: TokenSink> {
+        emitter_inner: CallbackEmitter<OurCallback<'a, S>>,
+    }
+
+    impl<'a, S: TokenSink> Html5everEmitter<'a, S> {
+        /// Construct the compatibility layer.
+        pub fn new(sink: &'a mut S) -> Self {
+            Html5everEmitter {
+                emitter_inner: CallbackEmitter::new(OurCallback {
+                    sink,
+                    current_start_tag: None,
+                    next_state: None,
+                }),
+            }
+        }
+    }
+
+    impl<'a, S: TokenSink> ForwardingEmitter for Html5everEmitter<'a, S> {
+        type Token = Infallible;
+
+        fn inner(&mut self) -> &mut impl Emitter<Token = Self::Token> {
+            &mut self.emitter_inner
+        }
+
+        fn emit_eof(&mut self) {
+            self.emitter_inner.emit_eof();
+            let sink = &mut self.emitter_inner.callback_mut().sink;
+            let _ignored = sink.process_token(Html5everToken::EOFToken, BOGUS_LINENO);
+            sink.end();
+        }
+
+        fn emit_current_tag(&mut self) -> Option<State> {
+            assert!(self.emitter_inner.emit_current_tag().is_none());
+            self.emitter_inner.callback_mut().next_state.take()
+        }
+
+        fn adjusted_current_node_present_but_not_in_html_namespace(&mut self) -> bool {
+            self.emitter_inner
+                .callback_mut()
+                .sink
+                .adjusted_current_node_present_but_not_in_html_namespace()
+        }
+    }
+
+    fn map_tokenizer_state(input: Html5everState) -> State {
+        match input {
+            Html5everState::Data => State::Data,
+            Html5everState::Plaintext => State::PlainText,
+            Html5everState::RawData(RawKind::Rcdata) => State::RcData,
+            Html5everState::RawData(RawKind::Rawtext) => State::RawText,
+            Html5everState::RawData(RawKind::ScriptData) => State::ScriptData,
+            x => todo!("{:?}", x),
+        }
+    }
+
+    /// Parse an HTML fragment
+    ///
+    /// This is a convenience function for using [Html5everEmitter] together with html5ever. It is
+    /// equivalent to the same functions in [html5ever::driver].
+    ///
+    /// ```
+    /// use html5ever::{local_name, interface::TreeSink, QualName, ns, namespace_url}; // extern crate html5ever;
+    /// use scraper::{HtmlTreeSink, Html}; // extern crate scraper;
+    ///
+    /// let input = "<h1>hello world</h1>";
+    ///
+    /// // equivalent to `Html::parse_fragment`
+    /// let dom = Html::new_fragment();
+    /// let tree_sink = HtmlTreeSink::new(dom);
+    /// let Ok(tree_sink) = html5gum::emitters::html5ever::parse_fragment(
+    ///     input,
+    ///     tree_sink,
+    ///     Default::default(),
+    ///     QualName::new(None, ns!(html), local_name!("body")),
+    ///     Vec::new()
+    /// );
+    /// let dom: Html = tree_sink.finish();
+    /// ```
+    pub fn parse_fragment<'a, R, Sink>(
+        input: R,
+        sink: Sink,
+        opts: ParseOpts,
+        context_name: QualName,
+        context_attrs: Vec<Attribute>,
+    ) -> Result<Sink, <R::Reader as Reader>::Error>
+    where
+        R: Readable<'a>,
+        Sink: TreeSink,
+    {
+        let context_elem = create_element(&sink, context_name, context_attrs);
+        parse_fragment_for_element(input, sink, opts, context_elem, None)
+    }
+
+    /// Like `parse_fragment`, but with an existing context element
+    /// and optionally a form element.
+    ///
+    /// This is a convenience function for using [Html5everEmitter] together with html5ever. It is
+    /// equivalent to the same functions in [html5ever::driver].
+    pub fn parse_fragment_for_element<'a, R, Sink>(
+        input: R,
+        sink: Sink,
+        opts: ParseOpts,
+        context_element: Sink::Handle,
+        form_element: Option<Sink::Handle>,
+    ) -> Result<Sink, <R::Reader as Reader>::Error>
+    where
+        R: Readable<'a>,
+        Sink: TreeSink,
+    {
+        let mut tree_builder =
+            TreeBuilder::new_for_fragment(sink, context_element, form_element, opts.tree_builder);
+
+        let initial_state =
+            map_tokenizer_state(tree_builder.tokenizer_state_for_context_elem(false));
+        let token_emitter = Html5everEmitter::new(&mut tree_builder);
+        let mut tokenizer = Tokenizer::new_with_emitter(input, token_emitter);
+        tokenizer.set_state(initial_state);
+        tokenizer.finish()?;
+        Ok(tree_builder.sink)
+    }
+
+    /// Parse an HTML document.
+    ///
+    /// This is a convenience function for using [Html5everEmitter] together with html5ever. It is
+    /// equivalent to the same functions in [html5ever::driver].
+    ///
+    /// ```rust
+    /// use html5ever::interface::TreeSink; // extern crate html5ever;
+    /// use scraper::{HtmlTreeSink, Html}; // extern crate scraper;
+    ///
+    /// let input = "<h1>hello world</h1>";
+    ///
+    /// // equivalent to `Html::parse_document`
+    /// let dom = Html::new_document();
+    /// let tree_sink = HtmlTreeSink::new(dom);
+    /// let Ok(tree_sink) = html5gum::emitters::html5ever::parse_document(
+    ///     input,
+    ///     tree_sink,
+    ///     Default::default()
+    /// );
+    /// let dom: Html = tree_sink.finish();
+    /// ```
+    pub fn parse_document<'a, R, Sink>(
+        input: R,
+        sink: Sink,
+        opts: ParseOpts,
+    ) -> Result<Sink, <R::Reader as Reader>::Error>
+    where
+        R: Readable<'a>,
+        Sink: TreeSink,
+    {
+        let mut tree_builder = TreeBuilder::new(sink, opts.tree_builder);
+        let token_emitter = Html5everEmitter::new(&mut tree_builder);
+        let tokenizer = Tokenizer::new_with_emitter(input, token_emitter);
+        tokenizer.finish()?;
+        Ok(tree_builder.sink)
+    }
+}
 
 // IO helpers
 fn open(input_dir: &str, filename: &str) -> io::Result<Box<dyn Read>> {
@@ -43,6 +365,13 @@ const PREBUFFER_SIZE: usize = 4096;
 
 fn find_head(bytes: &[u8]) -> Option<usize> {
     bytes.rfind(b"</head>").or_else(|| bytes.rfind(b"</HEAD>"))
+}
+
+fn parse_html_document(html: &str, fast_parser: bool) -> Html {
+    let dom = Html::new_document();
+    let tree_sink = HtmlTreeSink::new(dom);
+    let Ok(tree_sink) = gum::parse_document(html, tree_sink, Default::default());
+    tree_sink.finish()
 }
 
 #[derive(Default)]
@@ -118,10 +447,11 @@ impl IOBuffer {
         &mut self,
         input_dir: &str,
         filename: &str,
+        fast_parser: bool,
         encoding: Option<EncodingRef>,
     ) -> CliResult<Html> {
         self.read_file_as_str(input_dir, filename, encoding)
-            .map(Html::parse_document)
+            .map(|html| parse_html_document(html, fast_parser))
     }
 }
 
@@ -210,13 +540,13 @@ impl ScraperTarget<'_> {
             Self::HtmlCell(cell) => {
                 guard_invalid_html_cell(cell)?;
 
-                Ok(Html::parse_document(from_utf8(cell)?))
+                Ok(parse_html_document(from_utf8(cell)?, false))
             }
             Self::HtmlFile {
                 input_dir,
                 filename,
                 encoding,
-            } => Ok(buffer.read_file_as_html(input_dir, filename, *encoding)?),
+            } => Ok(buffer.read_file_as_html(input_dir, filename, false, *encoding)?),
         }
     }
 }
@@ -435,7 +765,7 @@ impl Scraper {
         buffer: &mut IOBuffer,
     ) -> CliResult<Vec<DynamicValue>> {
         let bytes = target.prebuffer_up_to_head(buffer)?;
-        let html = Html::parse_document(&target.decode(bytes)?);
+        let html = parse_html_document(&target.decode(bytes)?, false);
 
         Ok(html
             .select(&HEAD_SELECTOR)

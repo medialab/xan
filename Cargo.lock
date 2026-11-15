@@ -1049,6 +1049,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "html5gum"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "469fd7ad11d167b79385adccbba0fae87a50a9adb0c081e8ce7b130faa51f3bb"
+
+[[package]]
 name = "hyperloglogplus"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3312,6 +3318,8 @@ dependencies = [
  "glob",
  "heavykeeper",
  "html-escape",
+ "html5ever",
+ "html5gum",
  "hyperloglogplus",
  "idna",
  "indexmap",
