@@ -318,7 +318,7 @@ struct CustomScraper {
 
 impl CustomScraper {
     fn padding_len(&self) -> usize {
-        self.program.capacity
+        self.program.padding_len()
     }
 
     fn is_plural(&self) -> bool {
