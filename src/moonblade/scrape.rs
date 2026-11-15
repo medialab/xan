@@ -776,18 +776,19 @@ fn concretize_scraper(
         .map(ConcreteScraper)
 }
 
-// #[derive(Debug, Clone)]
-// pub enum ScrapingRunMode {
-//     Singular,
-//     PluralWithSelector(Selector),
-//     Plural,
-// }
+#[derive(Debug, Clone)]
+pub enum ScrapingRunMode {
+    Singular,
+    PluralWithSelector(Selector),
+    Plural(ConcreteSelectionExpr),
+}
 
 #[derive(Debug, Clone)]
 pub struct ScrapingProgram {
     scraper: ConcreteScraper,
     headers_index: HeadersIndex,
     capacity: usize,
+    run_mode: ScrapingRunMode,
 }
 
 impl ScrapingProgram {
@@ -807,6 +808,7 @@ impl ScrapingProgram {
             headers_index,
             scraper: concrete_scraper,
             capacity,
+            run_mode: ScrapingRunMode::Singular,
         })
     }
 
