@@ -19,7 +19,7 @@ use simd_csv::ByteRecord;
 use url::Url;
 
 use crate::config::{Config, Delimiter};
-use crate::moonblade::{AmortizedSerializer, DynamicValue, ScrapingProgram};
+use crate::moonblade::{AmortizedSerializer, DynamicValue, ScrapingProgram, ScrapingRunMode};
 use crate::select::{SelectedColumns, Selection};
 use crate::urls::should_follow_href;
 use crate::utils;
@@ -310,58 +310,14 @@ fn looks_like_html(bytes: &[u8]) -> bool {
     HTML_LIKE_REGEX.is_match(bytes)
 }
 
-#[derive(Clone, Debug)]
-struct CustomScraper {
-    program: ScrapingProgram,
-    foreach: Option<Selector>,
-}
-
-impl CustomScraper {
-    fn padding_len(&self) -> usize {
-        self.program.padding_len()
-    }
-
-    fn is_plural(&self) -> bool {
-        self.foreach.is_some()
-    }
-
-    fn run_singular(
-        &self,
-        index: usize,
-        record: &ByteRecord,
-        html: &Html,
-    ) -> CliResult<Vec<DynamicValue>> {
-        Ok(self.program.run_singular(index, record, html)?)
-    }
-
-    fn scrape(
-        &self,
-        index: usize,
-        record: &ByteRecord,
-        target: &ScraperTarget,
-        buffer: &mut IOBuffer,
-    ) -> CliResult<Vec<Vec<DynamicValue>>> {
-        let html = target.read_html(buffer)?;
-
-        if let Some(selector) = &self.foreach {
-            Ok(self
-                .program
-                .run_plural(index, record, &html, selector)
-                .collect::<Result<Vec<_>, _>>()?)
-        } else {
-            Ok(vec![self.program.run_singular(index, record, &html)?])
-        }
-    }
-}
-
 // TODO: Urls & Images could take a future base url if required
 #[derive(Clone, Debug)]
 enum ScraperMode {
     Head,
     Urls,
     Images,
-    Article(Option<CustomScraper>),
-    Custom(CustomScraper),
+    Article(Option<ScrapingProgram>),
+    Custom(ScrapingProgram),
 }
 
 #[derive(Clone, Debug)]
@@ -401,7 +357,7 @@ impl Scraper {
             ScraperMode::Head => vec!["title", "canonical_url"],
             ScraperMode::Urls => vec!["url"],
             ScraperMode::Images => vec!["src"],
-            ScraperMode::Article(scraper_opt) => {
+            ScraperMode::Article(program_opt) => {
                 let mut names = vec![
                     "canonical_url",
                     "headline",
@@ -417,15 +373,15 @@ impl Scraper {
                     "free",
                 ];
 
-                if let Some(scraper) = scraper_opt {
-                    for name in scraper.program.names() {
+                if let Some(program) = program_opt {
+                    for name in program.names() {
                         names.push(name);
                     }
                 }
 
                 names
             }
-            ScraperMode::Custom(scraper) => scraper.program.names().collect(),
+            ScraperMode::Custom(program) => program.names().collect(),
         }
     }
 
@@ -712,20 +668,27 @@ impl Scraper {
                     .map(|src| vec![DynamicValue::from(src)])
                     .collect())
             }
-            ScraperMode::Article(scraper_opt) => {
+            ScraperMode::Article(program_opt) => {
                 let html = target.read_html(buffer)?;
 
                 let mut output = self.scrape_article(&html)?;
 
-                if let Some(scraper) = scraper_opt {
-                    let supplementary_output = scraper.run_singular(row_index, record, &html)?;
+                if let Some(program) = program_opt {
+                    let supplementary_output =
+                        program.run(row_index, record, &html)?.into_single_vec();
 
                     output.extend(supplementary_output);
                 }
 
                 Ok(vec![output])
             }
-            ScraperMode::Custom(scraper) => scraper.scrape(row_index, record, &target, buffer),
+            ScraperMode::Custom(program) => {
+                let html = target.read_html(buffer)?;
+
+                let output = program.run(row_index, record, &html)?;
+
+                Ok(output.into_vec_of_vecs())
+            }
         }
     }
 
@@ -984,6 +947,21 @@ impl Args {
             .transpose()?)
     }
 
+    fn run_mode(&self) -> CliResult<ScrapingRunMode> {
+        Ok(
+            if let Some(selector) = self
+                .flag_foreach
+                .as_ref()
+                .map(|css| Selector::parse(css).map_err(|_| format!("invalid CSS selector: {css}")))
+                .transpose()?
+            {
+                ScrapingRunMode::PluralWithSelector(selector)
+            } else {
+                ScrapingRunMode::Singular
+            },
+        )
+    }
+
     fn inputs(&self) -> CliResult<InputsData<'_>> {
         if !self.arg_inputs.is_empty() {
             // Positionals
@@ -1148,11 +1126,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         ScraperMode::Article(
             args.flag_evaluate
                 .as_ref()
-                .map(|code| -> CliResult<CustomScraper> {
-                    Ok(CustomScraper {
-                        program: ScrapingProgram::parse(code, &headers, !has_headers)?,
-                        foreach: None,
-                    })
+                .map(|code| -> CliResult<_> {
+                    Ok(ScrapingProgram::parse(
+                        code,
+                        &headers,
+                        !has_headers,
+                        ScrapingRunMode::Singular,
+                    )?)
                 })
                 .transpose()?,
         )
@@ -1161,18 +1141,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     } else if args.cmd_images {
         ScraperMode::Images
     } else {
-        ScraperMode::Custom(CustomScraper {
-            program: ScrapingProgram::parse(
-                args.flag_evaluate.as_ref().unwrap(),
-                &headers,
-                !has_headers,
-            )?,
-            foreach: args
-                .flag_foreach
-                .as_ref()
-                .map(|css| Selector::parse(css).map_err(|_| format!("invalid CSS selector: {css}")))
-                .transpose()?,
-        })
+        ScraperMode::Custom(ScrapingProgram::parse(
+            args.flag_evaluate.as_ref().unwrap(),
+            &headers,
+            !has_headers,
+            args.run_mode()?,
+        )?)
     };
 
     let scraper = Scraper {

@@ -776,19 +776,50 @@ fn concretize_scraper(
         .map(ConcreteScraper)
 }
 
-// #[derive(Debug, Clone)]
-// pub enum ScrapingRunMode {
-//     Singular,
-//     PluralWithSelector(Selector),
-//     Plural(ConcreteSelectionExpr),
-// }
+pub struct ScrapedRecords {
+    data: Vec<DynamicValue>,
+    alignement: usize,
+}
+
+impl ScrapedRecords {
+    pub fn singular(data: Vec<DynamicValue>) -> Self {
+        Self {
+            alignement: data.len(),
+            data,
+        }
+    }
+
+    #[inline]
+    pub fn into_single_vec(self) -> Vec<DynamicValue> {
+        debug_assert!(self.data.len() == self.alignement);
+        self.data
+    }
+
+    // TODO: must disappear
+    pub fn into_vec_of_vecs(self) -> Vec<Vec<DynamicValue>> {
+        self.iter()
+            .map(|record| -> Vec<_> { record.into_iter().cloned().collect() })
+            .collect()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &[DynamicValue]> {
+        self.data.chunks_exact(self.alignement)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum ScrapingRunMode {
+    Singular,
+    PluralWithSelector(Selector),
+    Plural(ConcreteSelectionExpr),
+}
 
 #[derive(Debug, Clone)]
 pub struct ScrapingProgram {
     scraper: ConcreteScraper,
     headers_index: HeadersIndex,
     capacity: usize,
-    // run_mode: ScrapingRunMode,
+    run_mode: ScrapingRunMode,
 }
 
 impl ScrapingProgram {
@@ -796,6 +827,7 @@ impl ScrapingProgram {
         code: &str,
         headers: &ByteRecord,
         headless: bool,
+        run_mode: ScrapingRunMode,
     ) -> Result<Self, ConcretizationError> {
         let headers_index = HeadersIndex::new(headers, headless);
         let scraper = parse_scraper(code).map_err(ConcretizationError::ParseError)?;
@@ -808,8 +840,15 @@ impl ScrapingProgram {
             headers_index,
             scraper: concrete_scraper,
             capacity,
-            // run_mode: ScrapingRunMode::Singular,
+            run_mode,
         })
+    }
+
+    pub fn is_plural(&self) -> bool {
+        matches!(
+            &self.run_mode,
+            ScrapingRunMode::Plural(_) | ScrapingRunMode::PluralWithSelector(_)
+        )
     }
 
     pub fn names(&self) -> impl Iterator<Item = &str> {
@@ -820,40 +859,40 @@ impl ScrapingProgram {
         self.capacity
     }
 
-    pub fn run_singular(
+    pub fn run(
         &self,
         index: usize,
         record: &ByteRecord,
         html: &Html,
-    ) -> Result<Vec<DynamicValue>, SpecifiedEvaluationError> {
-        let selection = Selection::Singular(html.root_element().id());
-        let mut scratch = Vec::with_capacity(self.capacity);
+    ) -> Result<ScrapedRecords, SpecifiedEvaluationError> {
+        let mut scratch = Vec::new();
 
-        let context = EvaluationContext::new(Some(index), record, &self.headers_index);
+        match &self.run_mode {
+            ScrapingRunMode::Singular => {
+                scratch.reserve_exact(self.capacity);
 
-        self.scraper
-            .evaluate(&mut scratch, &context, html, &selection)?;
+                let selection = Selection::Singular(html.root_element().id());
 
-        Ok(scratch)
-    }
+                let context = EvaluationContext::new(Some(index), record, &self.headers_index);
 
-    pub fn run_plural<'a>(
-        &'a self,
-        index: usize,
-        record: &'a ByteRecord,
-        html: &'a Html,
-        selector: &'a Selector,
-    ) -> impl Iterator<Item = Result<Vec<DynamicValue>, SpecifiedEvaluationError>> + 'a {
-        html.select(selector).map(move |element| {
-            let selection = Selection::Singular(element.id());
-            let mut scratch = Vec::with_capacity(self.capacity);
+                self.scraper
+                    .evaluate(&mut scratch, &context, html, &selection)?;
+            }
+            ScrapingRunMode::PluralWithSelector(selector) => {
+                for element in html.select(selector) {
+                    let selection = Selection::Singular(element.id());
+                    let context = EvaluationContext::new(Some(index), record, &self.headers_index);
 
-            let context = EvaluationContext::new(Some(index), record, &self.headers_index);
+                    self.scraper
+                        .evaluate(&mut scratch, &context, html, &selection)?;
+                }
+            }
+            _ => todo!(),
+        }
 
-            self.scraper
-                .evaluate(&mut scratch, &context, html, &selection)?;
-
-            Ok(scratch)
+        Ok(ScrapedRecords {
+            data: scratch,
+            alignement: self.capacity,
         })
     }
 }
@@ -864,8 +903,12 @@ mod tests {
 
     fn eval(html: &str, code: &str) -> Result<Vec<DynamicValue>, SpecifiedEvaluationError> {
         let html = Html::parse_document(html);
-        let program = ScrapingProgram::parse(code, &ByteRecord::new(), true).unwrap();
-        program.run_singular(0, &ByteRecord::new(), &html)
+        let program =
+            ScrapingProgram::parse(code, &ByteRecord::new(), true, ScrapingRunMode::Singular)
+                .unwrap();
+        program
+            .run(0, &ByteRecord::new(), &html)
+            .map(|records| records.into_single_vec())
     }
 
     #[test]
