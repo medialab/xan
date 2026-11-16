@@ -1,4 +1,5 @@
 use std::fs;
+use std::num::NonZeroUsize;
 
 use bstr::ByteSlice;
 use combinations::Combinations;
@@ -172,7 +173,7 @@ struct Args {
     flag_sep: String,
     flag_singularize: bool,
     flag_rename: Option<String>,
-    flag_combinations: Option<usize>,
+    flag_combinations: Option<NonZeroUsize>,
     flag_keep: bool,
     flag_drop_empty: bool,
     flag_pad: bool,
@@ -272,7 +273,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             if let Some(k) = args.flag_combinations {
                 let mut base = new_col_name.to_vec();
                 let size = new_col_name.len();
-                for j in 1..=k {
+                for j in 1..=k.get() {
                     base.extend(j.to_string().as_bytes());
                     new_headers.push_field(&base);
                     base.truncate(size);
@@ -294,13 +295,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if let Some(k) = args.flag_combinations {
         let column_index = sel[0];
+        let k = k.get();
+        let mut splitted = ByteRecord::new();
+        let mut indices = Vec::<usize>::new();
 
         while rdr.read_byte_record(&mut record)? {
             let cell = &record[column_index];
             row_index += 1;
 
-            let mut splitted = ByteRecord::new();
-            exploder.explode(
+            splitted.clear();
+
+            if exploder.explode(
                 args.flag_drop_empty,
                 row_index - 1,
                 column_index,
@@ -310,15 +315,25 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     splitted.push_field(sub_cell);
                     Ok(())
                 },
-            )?;
-            if !splitted.is_empty() { while splitted.len() < k {
-                splitted.push_field(b"");
-            }}
-            let splitted_idx = (0..splitted.len()).collect::<Vec<_>>();
-            let mut combinations = splitted_idx.combinations(k);
-            let mut buf = Vec::new();
+            )? {
+                continue;
+            }
 
-            while combinations.next_into(&mut buf) {
+            // Padding
+            while splitted.len() < k {
+                splitted.push_field(b"");
+            }
+
+            indices.clear();
+
+            for i in 0..splitted.len() {
+                indices.push(i);
+            }
+
+            let mut combinations = indices.combinations(k);
+            let mut combinations_buffer = Vec::with_capacity(k);
+
+            while combinations.next_into(&mut combinations_buffer) {
                 wtr.write_fields(|w| {
                     for (i, cell) in record.iter().enumerate() {
                         if i == column_index {
@@ -326,8 +341,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                                 w.write_field(cell)?;
                             }
 
-                            for &idx in &buf {
-                                w.write_field(splitted.get(*idx).unwrap())?;
+                            for &idx in &combinations_buffer {
+                                w.write_field(&splitted[*idx])?;
                             }
                         } else {
                             w.write_field(cell)?;

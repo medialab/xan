@@ -178,7 +178,7 @@ fn explode_singularize() {
 
 #[test]
 fn explode_combinations() {
-    let wrk = Workdir::new("explode_singularize");
+    let wrk = Workdir::new("explode_combinations");
     wrk.create(
         "data.csv",
         vec![
@@ -190,7 +190,10 @@ fn explode_combinations() {
         ],
     );
     let mut cmd = wrk.command("explode");
-    cmd.arg("colors").arg("-D").args(["--combinations", "3"]).arg("data.csv");
+    cmd.arg("colors")
+        .arg("-D")
+        .args(["--combinations", "3"])
+        .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
