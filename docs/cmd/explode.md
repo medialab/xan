@@ -53,14 +53,16 @@ explode options:
                             to rename the single selected column.
                             See 'xan rename' help for more details.
                             Does not work with -S, --singular.
-    -C, --combinations <k>  Generate k columns coresponding to the binom(n,k) unordered
-                            combinations (e.g. k-combinations) of the exploded elements.
-                            Doesn't work if the selection contains more than 1 column.
     -k, --keep              Keep the exploded columns alongside each split.
     -D, --drop-empty        Drop rows when selected cells are empty, or when the evaluated
                             expression yields a nullish value.
     --pad                   When exploding multiple columns at once, pad shorter splits
                             to align them with the longest one instead of erroring.
+    -C, --combinations <k>  Generate k columns coresponding to the binom(n,k) unordered
+                            combinations (e.g. k-combinations) of the exploded elements.
+                            Doesn't work if the selection contains more than 1 column.
+    -I, --drop-incomplete   When used with -C/--combinations, drop rows splitted into too
+                            few pieces to create at least a full combination.
 
 Common options:
     -h, --help             Display this message

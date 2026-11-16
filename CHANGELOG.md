@@ -41,7 +41,7 @@ The **laminated** update.
 * Adding `xan search -H/--highlight & --highlight-tag`.
 * Adding `xan scrape -s/--select & -k/--keep-doc`.
 * Adding `!important` rules to `xan scrape` DSL.
-* Adding `xan explode -C/--combinations <k>`.
+* Adding `xan explode -C/--combinations <k> & -I/--drop-incomplete`.
 
 *Fixes*
 

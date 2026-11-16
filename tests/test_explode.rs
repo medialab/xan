@@ -189,6 +189,26 @@ fn explode_combinations() {
             svec!["Jack", ""],
         ],
     );
+
+    let mut cmd = wrk.command("explode");
+    cmd.arg("colors")
+        .args(["--combinations", "3"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["name", "colors1", "colors2", "colors3"],
+        ["Mary", "yellow", "", ""],
+        ["Carmen", "red", "", ""],
+        ["John", "blue", "orange", "red"],
+        ["John", "blue", "orange", "yellow"],
+        ["John", "blue", "red", "yellow"],
+        ["John", "orange", "red", "yellow"],
+        ["Jack", "", "", ""],
+    ];
+    assert_eq!(got, expected);
+
+    // --drop-empty
     let mut cmd = wrk.command("explode");
     cmd.arg("colors")
         .arg("-D")
@@ -197,13 +217,30 @@ fn explode_combinations() {
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
-        svec!["name", "colors1", "colors2", "colors3"],
-        svec!["Mary", "yellow", "", ""],
-        svec!["Carmen", "red", "", ""],
-        svec!["John", "blue", "orange", "red"],
-        svec!["John", "blue", "orange", "yellow"],
-        svec!["John", "blue", "red", "yellow"],
-        svec!["John", "orange", "red", "yellow"],
+        ["name", "colors1", "colors2", "colors3"],
+        ["Mary", "yellow", "", ""],
+        ["Carmen", "red", "", ""],
+        ["John", "blue", "orange", "red"],
+        ["John", "blue", "orange", "yellow"],
+        ["John", "blue", "red", "yellow"],
+        ["John", "orange", "red", "yellow"],
+    ];
+    assert_eq!(got, expected);
+
+    // --drop-incomplete
+    let mut cmd = wrk.command("explode");
+    cmd.arg("colors")
+        .arg("-I")
+        .args(["--combinations", "3"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["name", "colors1", "colors2", "colors3"],
+        ["John", "blue", "orange", "red"],
+        ["John", "blue", "orange", "yellow"],
+        ["John", "blue", "red", "yellow"],
+        ["John", "orange", "red", "yellow"],
     ];
     assert_eq!(got, expected);
 }

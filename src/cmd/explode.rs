@@ -200,14 +200,16 @@ explode options:
                             to rename the single selected column.
                             See 'xan rename' help for more details.
                             Does not work with -S, --singular.
-    -C, --combinations <k>  Generate k columns coresponding to the binom(n,k) unordered
-                            combinations (e.g. k-combinations) of the exploded elements.
-                            Doesn't work if the selection contains more than 1 column.
     -k, --keep              Keep the exploded columns alongside each split.
     -D, --drop-empty        Drop rows when selected cells are empty, or when the evaluated
                             expression yields a nullish value.
     --pad                   When exploding multiple columns at once, pad shorter splits
                             to align them with the longest one instead of erroring.
+    -C, --combinations <k>  Generate k columns coresponding to the binom(n,k) unordered
+                            combinations (e.g. k-combinations) of the exploded elements.
+                            Doesn't work if the selection contains more than 1 column.
+    -I, --drop-incomplete   When used with -C/--combinations, drop rows splitted into too
+                            few pieces to create at least a full combination.
 
 Common options:
     -h, --help             Display this message
@@ -228,6 +230,7 @@ struct Args {
     flag_combinations: Option<NonZeroUsize>,
     flag_keep: bool,
     flag_drop_empty: bool,
+    flag_drop_incomplete: bool,
     flag_pad: bool,
     flag_evaluate: Option<String>,
     flag_evaluate_file: Option<String>,
@@ -283,6 +286,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     {
         Err("-C/--combinations only works with a single selected column!")?
     };
+
+    if args.flag_drop_incomplete && args.flag_combinations.is_none() {
+        Err("-I/--drop-incomplete only makes sense with -C/--combinations!")?;
+    }
 
     if sel.is_empty() {
         return Err(CliError::Other(
@@ -345,6 +352,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut record = ByteRecord::new();
     let mut row_index: usize = 0;
 
+    // Combinations path
     if let Some(k) = args.flag_combinations {
         let column_index = sel[0];
         let k = k.get();
@@ -368,6 +376,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     Ok(())
                 },
             )? {
+                continue;
+            }
+
+            if args.flag_drop_incomplete && splitted.len() < k {
                 continue;
             }
 
