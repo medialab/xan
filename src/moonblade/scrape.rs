@@ -10,7 +10,7 @@ use simd_csv::ByteRecord;
 
 use crate::collections::HashMap;
 
-use super::error::{ConcretizationError, SpecifiedEvaluationError};
+use super::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
 use super::interpreter::{
     ConcreteExpr, EvaluationContext, GlobalNames, GlobalVariables, concretize_expression,
 };
@@ -446,6 +446,7 @@ struct ConcreteScrapingLeaf {
     name: String,
     extractor: Extractor,
     processing: Option<ConcreteExpr>,
+    important: bool,
 }
 
 impl ConcreteScrapingLeaf {
@@ -455,24 +456,34 @@ impl ConcreteScrapingLeaf {
         html: &Html,
         selection: &Selection,
     ) -> Result<DynamicValue, SpecifiedEvaluationError> {
-        if selection.is_none() {
-            return Ok(DynamicValue::None);
-        }
+        let value = if selection.is_none() {
+            DynamicValue::None
+        } else {
+            let value = self
+                .extractor
+                .run(html, selection)
+                .unwrap_or(DynamicValue::None);
 
-        let value = self
-            .extractor
-            .run(html, selection)
-            .unwrap_or(DynamicValue::None);
+            match &self.processing {
+                None => value,
+                Some(expr) => {
+                    // NOTE: the `GlobalVariables` lives on the stack, for now
+                    let mut globals = GlobalVariables::default();
+                    globals.set_value(0, value);
 
-        match &self.processing {
-            None => Ok(value),
-            Some(expr) => {
-                // NOTE: the `GlobalVariables` lives on the stack, for now
-                let mut globals = GlobalVariables::default();
-                globals.set_value(0, value);
-
-                expr.evaluate(&context.with_globals(&globals))
+                    expr.evaluate(&context.with_globals(&globals))?
+                }
             }
+        };
+
+        if self.important && value.is_nullish() {
+            Err(EvaluationError::Custom(format!(
+                "!important column \"{}\" yielded a null value!",
+                &self.name
+            ))
+            .unspecified())
+        } else {
+            Ok(value)
         }
     }
 }
@@ -735,6 +746,7 @@ fn concretize_brackets(
                                 concretize_expression(processing, headers_index, globals)
                             })
                             .transpose()?,
+                        important: leaf.important,
                     };
 
                     ConcreteScrapingNode::Leaf(concrete_leaf)
@@ -765,10 +777,18 @@ fn concretize_scraper(
 }
 
 #[derive(Debug, Clone)]
+pub enum ScrapingRunMode {
+    Singular,
+    PluralWithSelector(Selector),
+    Plural(ConcreteSelectionExpr),
+}
+
+#[derive(Debug, Clone)]
 pub struct ScrapingProgram {
     scraper: ConcreteScraper,
     headers_index: HeadersIndex,
-    pub capacity: usize,
+    capacity: usize,
+    run_mode: ScrapingRunMode,
 }
 
 impl ScrapingProgram {
@@ -788,11 +808,16 @@ impl ScrapingProgram {
             headers_index,
             scraper: concrete_scraper,
             capacity,
+            run_mode: ScrapingRunMode::Singular,
         })
     }
 
     pub fn names(&self) -> impl Iterator<Item = &str> {
         self.scraper.names()
+    }
+
+    pub fn padding_len(&self) -> usize {
+        self.capacity
     }
 
     pub fn run_singular(

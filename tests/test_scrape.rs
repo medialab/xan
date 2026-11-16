@@ -40,6 +40,25 @@ fn scrape() {
 }
 
 #[test]
+fn scrape_important() {
+    let wrk = Workdir::new("scrape_important");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["html"],
+            svec!["<title>One</title>"],
+            svec!["<title>Two</title>"],
+        ],
+    );
+    let mut cmd = wrk.command("scrape");
+    cmd.args(["-e", "span {title: text() !important;}"])
+        .args(["--doc-column", "html"])
+        .args(["--docs", "data.csv"]);
+
+    wrk.assert_err(&mut cmd);
+}
+
+#[test]
 fn scrape_urls() {
     let wrk = Workdir::new("scrape_urls");
     wrk.create(

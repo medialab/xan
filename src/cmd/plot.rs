@@ -8,7 +8,7 @@ use std::io::{Write, stderr, stdout};
 use std::num::NonZeroUsize;
 
 use bstr::BStr;
-use jiff::{Timestamp, Unit, Zoned, tz::TimeZone};
+use jiff::{Timestamp, Unit, ZonedDateTime as Zoned, tz::TimeZone};
 use unicode_width::UnicodeWidthStr;
 
 use ratatui::buffer::Buffer;
@@ -1139,7 +1139,7 @@ fn parse_as_float(cell: &[u8]) -> Result<f64, CliError> {
 fn seconds_to_zoned(seconds: f64, timezone: TimeZone) -> Zoned {
     Timestamp::from_secs_f64(seconds)
         .unwrap()
-        .to_zoned(timezone)
+        .to_zoned_datetime(timezone)
 }
 
 fn floor_timestamp_wrt_timezone(seconds: f64, unit: Unit, timezone: TimeZone) -> i64 {
