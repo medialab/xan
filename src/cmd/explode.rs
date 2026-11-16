@@ -2,7 +2,6 @@ use std::fs;
 use std::num::NonZeroUsize;
 
 use bstr::ByteSlice;
-use combinations::Combinations;
 use simd_csv::ByteRecord;
 
 use crate::CliError;
@@ -24,6 +23,59 @@ fn singularize(name: &[u8]) -> Vec<u8> {
     }
 
     vec
+}
+
+struct Combinations {
+    indices: Vec<usize>,
+    n: usize,
+    k: usize,
+    first: bool,
+}
+
+impl Combinations {
+    fn new(k: usize) -> Self {
+        Self {
+            indices: Vec::new(),
+            n: 0,
+            k,
+            first: true,
+        }
+    }
+
+    fn clear(&mut self, n: usize) {
+        assert!(self.k <= n);
+        self.indices.clear();
+
+        for i in 0..self.k {
+            self.indices.push(i);
+        }
+
+        self.first = true;
+        self.n = n;
+    }
+
+    pub fn next(&mut self) -> Option<&[usize]> {
+        if self.first {
+            self.first = false;
+            return Some(&self.indices);
+        }
+
+        let k = self.k;
+
+        for i in (0..k).rev() {
+            if self.indices[i] < self.n - k + i {
+                self.indices[i] += 1;
+
+                for j in (i + 1)..k {
+                    self.indices[j] = self.indices[j - 1] + 1;
+                }
+
+                return Some(&self.indices);
+            }
+        }
+
+        None
+    }
 }
 
 // NOTE: bstr::ByteSlice::split_str uses a memmem::Finder that uses two different
@@ -297,7 +349,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let column_index = sel[0];
         let k = k.get();
         let mut splitted = ByteRecord::new();
-        let mut indices = Vec::<usize>::new();
+        let mut combinations = Combinations::new(k);
 
         while rdr.read_byte_record(&mut record)? {
             let cell = &record[column_index];
@@ -324,16 +376,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 splitted.push_field(b"");
             }
 
-            indices.clear();
+            combinations.clear(splitted.len());
 
-            for i in 0..splitted.len() {
-                indices.push(i);
-            }
-
-            let mut combinations = indices.combinations(k);
-            let mut combinations_buffer = Vec::with_capacity(k);
-
-            while combinations.next_into(&mut combinations_buffer) {
+            while let Some(indices) = combinations.next() {
                 wtr.write_fields(|w| {
                     for (i, cell) in record.iter().enumerate() {
                         if i == column_index {
@@ -341,7 +386,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                                 w.write_field(cell)?;
                             }
 
-                            for &idx in &combinations_buffer {
+                            for idx in indices {
                                 w.write_field(&splitted[*idx])?;
                             }
                         } else {
