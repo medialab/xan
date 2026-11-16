@@ -19,6 +19,7 @@ The **laminated** update.
 * `argtop`, `distinct_values`, `most_common`, `most_common_counts`, `top` & `values` aggregation functions no longer join values by `|` and instead serialize to JSON.
 * `xan scrape -k/--keep` becomes a combination of `-s/--select` & `-k/--keep-doc`.
 * Better integration of value post-processing in `xan scrape -e` DSL.
+* `xan scrape -F/--foreach` becomes `-S/--foreach-selector`.
 
 *Features*
 
@@ -39,7 +40,7 @@ The **laminated** update.
 * Adding `xan flatten --hide-headers, -r/--highlight-regex, --highlight-tag`.
 * The `fmt` function now accepts a list as substitutions, is more robust to errors and is able to accept more than 8 arguments.
 * Adding `xan search -H/--highlight & --highlight-tag`.
-* Adding `xan scrape -s/--select & -k/--keep-doc`.
+* Adding `xan scrape -F/--foreach-selector, -s/--select & -k/--keep-doc`.
 * Adding `!important` rules to `xan scrape` DSL.
 * Adding `xan explode -C/--combinations <k> & -I/--drop-incomplete`.
 

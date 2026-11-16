@@ -787,7 +787,8 @@ leverage a custom CSS-like language to describe exactly what you want to
 scrape.
 
 Given scraper will either run once per HTML document or one time per
-element matching the CSS selector given to -F/--foreach.
+element matching the root CSS selector when given -F/--foreach or any CSS
+selector given to -S/--foreach-selector.
 
 Example scraping the first h2 title from a HTML document:
 
@@ -795,7 +796,13 @@ Example scraping the first h2 title from a HTML document:
 
 Example scraping all the h2 titles from a HTML document:
 
-    $ xan scrape --foreach 'h2 > a' -e '& {title: text(); url: attr(\"href\");}' page.html
+    $ xan scrape --foreach -e 'h2 > a {title: text(); url: attr(\"href\");}' page.html
+
+Same example but using -S/--foreach-selector:
+
+    $ xan scrape --foreach-selector 'h2 > a' -e '& {title: text(); url: attr(\"href\");}' page.html
+
+Note that -F/--foreach only works when evaluated scraper has a single CSS root selector.
 
 A full reference of this language can be found using `xan help scraping`.
 
@@ -805,10 +812,10 @@ Scrapers can either output exactly one row per input row or 0 to n output rows
 per input row.
 
 Scrapers outputting exactly one row per input row: \"head\", \"article\", any
-scraper given to -e/-f WITHOUT -F/--foreach.
+scraper given to -e/-f WITHOUT -F/--foreach/-S or --foreach-selector.
 
 Scrapers outputting 0 to n rows per input row: \"urls\", \"images\", any scraper
-given to -e/-f WITH -F/--foreach.
+given to -e/-f WITH -F/--foreach or -S/--foreach-selector.
 
 # Columns kept in the output
 
@@ -872,9 +879,13 @@ scrape url, links, images options:
     -u, --url-column <column>  Column containing the base url for given HTML.
 
 scrape -e/--evaluate & -f/--evaluate-file options:
-    -F, --foreach <css>  If given, will return one row per element matching
-                         the CSS selector in target document, instead of returning
-                         a single row per document.
+    -F, --foreach                 If given, will return one row per element matching
+                                  the root selector of evaluated scraper. Can only
+                                  work when evaluated scraper as a single root
+                                  selector.
+    -S, --foreach-selector <css>  If given, will return one row per element matching
+                                  the CSS selector in target document, instead of
+                                  returning a single row per document.
 
 Common options:
     -h, --help             Display this message
@@ -903,7 +914,8 @@ struct Args {
     flag_no_headers: bool,
     flag_evaluate: Option<String>,
     flag_evaluate_file: Option<String>,
-    flag_foreach: Option<String>,
+    flag_foreach: bool,
+    flag_foreach_selector: Option<String>,
     flag_encoding: Option<String>,
     flag_url_column: Option<SelectedColumns>,
     flag_input_dir: String,
@@ -946,12 +958,14 @@ impl Args {
     fn run_mode(&self) -> CliResult<ScrapingRunMode> {
         Ok(
             if let Some(selector) = self
-                .flag_foreach
+                .flag_foreach_selector
                 .as_ref()
                 .map(|css| Selector::parse(css).map_err(|_| format!("invalid CSS selector: {css}")))
                 .transpose()?
             {
                 ScrapingRunMode::PluralWithSelector(selector)
+            } else if self.flag_foreach {
+                ScrapingRunMode::Plural
             } else {
                 ScrapingRunMode::Singular
             },
@@ -1106,8 +1120,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let threads = utils::parallelization(args.flag_parallel, args.flag_threads);
 
-    if args.flag_evaluate.is_none() && args.flag_foreach.is_some() {
-        Err("--foreach only works with -e/--evaluate!")?;
+    if args.flag_evaluate.is_none() && (args.flag_foreach_selector.is_some() || args.flag_foreach) {
+        Err("-F/--foreach & -S/--foreach-selector only works with -e/--evaluate!")?;
     }
 
     let (has_headers, headers, input_mode, inputs) = args.inputs()?;
@@ -1115,8 +1129,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let scraper_mode = if args.cmd_head {
         ScraperMode::Head
     } else if args.cmd_article {
-        if args.flag_foreach.is_some() {
-            Err("-F/--foreach does not work with `xan scrape article -e`!")?;
+        if args.flag_foreach || args.flag_foreach_selector.is_some() {
+            Err("-F/--foreach & -S/--foreach-selector do not work with `xan scrape article -e`!")?;
         }
 
         ScraperMode::Article(

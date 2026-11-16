@@ -1,4 +1,4 @@
-& {
+tr.athing {
   id: id();
 
   .rank {
@@ -25,7 +25,7 @@
     }
 
     last("a") {
-      comments: text() | if(_ eq "discuss", 0, _.split(" comments")[0]);
+      comments: text() | if(_ eq "discuss", 0, _.split(" comment")[0]);
     }
   }
 }

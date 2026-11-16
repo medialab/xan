@@ -428,6 +428,13 @@ enum ConcreteSelectionExpr {
 }
 
 impl ConcreteSelectionExpr {
+    fn unwrap_selector(&self) -> &Selector {
+        match self {
+            Self::Call(SelectionRoutine::First(selector, _), _) => selector,
+            _ => unreachable!(),
+        }
+    }
+
     fn evaluate(&self, html: &Html, selection: &Selection) -> Selection {
         match self {
             Self::Call(routine, args) => {
@@ -815,7 +822,7 @@ impl ScrapedRecords {
 pub enum ScrapingRunMode {
     Singular,
     PluralWithSelector(Selector),
-    Plural(ConcreteSelectionExpr),
+    Plural,
 }
 
 #[derive(Debug, Clone)]
@@ -838,6 +845,23 @@ impl ScrapingProgram {
 
         let concrete_scraper = concretize_scraper(scraper, &headers_index, Some(&["__value__"]))?;
 
+        if matches!(&run_mode, ScrapingRunMode::Plural) {
+            if concrete_scraper.0.len() > 1 {
+                return Err(ConcretizationError::Custom(
+                    "-F/--foreach can only work with a single root selector!".to_string(),
+                ));
+            }
+
+            if !matches!(
+                &concrete_scraper.0[0].selection_expr,
+                ConcreteSelectionExpr::Call(SelectionRoutine::First(_, None), _)
+            ) {
+                return Err(ConcretizationError::Custom(
+                    "-F/--foreach can only work when the root selector is plain CSS!".to_string(),
+                ));
+            }
+        }
+
         let capacity = concrete_scraper.names().count();
 
         Ok(Self {
@@ -851,7 +875,7 @@ impl ScrapingProgram {
     pub fn is_plural(&self) -> bool {
         matches!(
             &self.run_mode,
-            ScrapingRunMode::Plural(_) | ScrapingRunMode::PluralWithSelector(_)
+            ScrapingRunMode::Plural | ScrapingRunMode::PluralWithSelector(_)
         )
     }
 
@@ -870,6 +894,7 @@ impl ScrapingProgram {
         html: &Html,
     ) -> Result<ScrapedRecords, SpecifiedEvaluationError> {
         let mut scratch = Vec::new();
+        let context = EvaluationContext::new(Some(index), record, &self.headers_index);
 
         match &self.run_mode {
             ScrapingRunMode::Singular => {
@@ -877,21 +902,29 @@ impl ScrapingProgram {
 
                 let selection = Selection::Singular(html.root_element().id());
 
-                let context = EvaluationContext::new(Some(index), record, &self.headers_index);
-
                 self.scraper
                     .evaluate(&mut scratch, &context, html, &selection)?;
             }
             ScrapingRunMode::PluralWithSelector(selector) => {
                 for element in html.select(selector) {
                     let selection = Selection::Singular(element.id());
-                    let context = EvaluationContext::new(Some(index), record, &self.headers_index);
 
                     self.scraper
                         .evaluate(&mut scratch, &context, html, &selection)?;
                 }
             }
-            _ => todo!(),
+            ScrapingRunMode::Plural => {
+                let root_bracket = &self.scraper.0[0];
+                let selector = root_bracket.selection_expr.unwrap_selector();
+
+                for element in html.select(selector) {
+                    let selection = Selection::Singular(element.id());
+
+                    for node in root_bracket.nodes.iter() {
+                        node.evaluate(&mut scratch, &context, html, &selection)?;
+                    }
+                }
+            }
         }
 
         Ok(ScrapedRecords {

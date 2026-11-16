@@ -78,7 +78,8 @@ leverage a custom CSS-like language to describe exactly what you want to
 scrape.
 
 Given scraper will either run once per HTML document or one time per
-element matching the CSS selector given to -F/--foreach.
+element matching the root CSS selector when given -F/--foreach or any CSS
+selector given to -S/--foreach-selector.
 
 Example scraping the first h2 title from a HTML document:
 
@@ -86,7 +87,13 @@ Example scraping the first h2 title from a HTML document:
 
 Example scraping all the h2 titles from a HTML document:
 
-    $ xan scrape --foreach 'h2 > a' -e '& {title: text(); url: attr("href");}' page.html
+    $ xan scrape --foreach -e 'h2 > a {title: text(); url: attr("href");}' page.html
+
+Same example but using -S/--foreach-selector:
+
+    $ xan scrape --foreach-selector 'h2 > a' -e '& {title: text(); url: attr("href");}' page.html
+
+Note that -F/--foreach only works when evaluated scraper has a single CSS root selector.
 
 A full reference of this language can be found using `xan help scraping`.
 
@@ -96,10 +103,10 @@ Scrapers can either output exactly one row per input row or 0 to n output rows
 per input row.
 
 Scrapers outputting exactly one row per input row: "head", "article", any
-scraper given to -e/-f WITHOUT -F/--foreach.
+scraper given to -e/-f WITHOUT -F/--foreach/-S or --foreach-selector.
 
 Scrapers outputting 0 to n rows per input row: "urls", "images", any scraper
-given to -e/-f WITH -F/--foreach.
+given to -e/-f WITH -F/--foreach or -S/--foreach-selector.
 
 # Columns kept in the output
 
@@ -163,9 +170,13 @@ scrape url, links, images options:
     -u, --url-column <column>  Column containing the base url for given HTML.
 
 scrape -e/--evaluate & -f/--evaluate-file options:
-    -F, --foreach <css>  If given, will return one row per element matching
-                         the CSS selector in target document, instead of returning
-                         a single row per document.
+    -F, --foreach                 If given, will return one row per element matching
+                                  the root selector of evaluated scraper. Can only
+                                  work when evaluated scraper as a single root
+                                  selector.
+    -S, --foreach-selector <css>  If given, will return one row per element matching
+                                  the CSS selector in target document, instead of
+                                  returning a single row per document.
 
 Common options:
     -h, --help             Display this message

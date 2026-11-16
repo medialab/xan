@@ -109,11 +109,11 @@ main > p {
 }
 ```
 
-`:scope` and `&` are also useful when using `xan scrape --foreach`
+`:scope` and `&` are also useful when using `xan scrape -F/--foreach-selector`
 because we sometimes need a way to select from the scope of an already
 selected element.
 
-The following example assumes we gave --foreach "h2 > a" to `xan scrape`:
+The following example assumes we gave --foreach-selector "h2 > a" to `xan scrape`:
 
 ```scss
 & {

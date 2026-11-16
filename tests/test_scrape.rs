@@ -234,8 +234,27 @@ fn scrape_evaluate_foreach() {
     );
     let mut cmd = wrk.command("scrape");
 
+    cmd.args(["-e", "li {item: text();}"])
+        .arg("--foreach")
+        .args(["--doc-column", "html"])
+        .args(["--docs", "data.csv"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["item"], svec!["one"], svec!["two"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn scrape_evaluate_foreach_selector() {
+    let wrk = Workdir::new("scrape_evaluate_foreach_selector");
+    wrk.create(
+        "data.csv",
+        vec![svec!["html"], svec!["<ul><li>one</li><li>two</li></ul>"]],
+    );
+    let mut cmd = wrk.command("scrape");
+
     cmd.args(["-e", "& {item: text();}"])
-        .args(["--foreach", "li"])
+        .args(["--foreach-selector", "li"])
         .args(["--doc-column", "html"])
         .args(["--docs", "data.csv"]);
 
