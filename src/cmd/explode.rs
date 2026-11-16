@@ -228,7 +228,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if sel.len() > 1
         && let Some(_) = args.flag_combinations
     {
-        Err("-c/--combinations requires to select only 1 column!")?
+        Err("-c/--combinations only works with a single selected column!")?
     };
 
     if sel.is_empty() {
@@ -299,7 +299,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let cell = &record[column_index];
             row_index += 1;
 
-            let mut splitted = Vec::new();
+            let mut splitted = ByteRecord::new();
             exploder.explode(
                 args.flag_drop_empty,
                 row_index - 1,
@@ -307,14 +307,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 &record,
                 cell,
                 |sub_cell| {
-                    splitted.push(sub_cell.to_owned());
+                    splitted.push_field(sub_cell);
                     Ok(())
                 },
             )?;
-            while splitted.len() < k {
-                splitted.push(Vec::new());
-            }
-            let mut combinations = splitted.combinations(k);
+            if !splitted.is_empty() { while splitted.len() < k {
+                splitted.push_field(b"");
+            }}
+            let splitted_idx = (0..splitted.len()).collect::<Vec<_>>();
+            let mut combinations = splitted_idx.combinations(k);
             let mut buf = Vec::new();
 
             while combinations.next_into(&mut buf) {
@@ -325,8 +326,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                                 w.write_field(cell)?;
                             }
 
-                            for &byte in &buf {
-                                w.write_field(byte)?;
+                            for &idx in &buf {
+                                w.write_field(splitted.get(*idx).unwrap())?;
                             }
                         } else {
                             w.write_field(cell)?;

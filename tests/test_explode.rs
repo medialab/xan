@@ -190,7 +190,7 @@ fn explode_combinations() {
         ],
     );
     let mut cmd = wrk.command("explode");
-    cmd.arg("colors").args(["--combinations", "3"]).arg("data.csv");
+    cmd.arg("colors").arg("-D").args(["--combinations", "3"]).arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
@@ -201,7 +201,6 @@ fn explode_combinations() {
         svec!["John", "blue", "orange", "yellow"],
         svec!["John", "blue", "red", "yellow"],
         svec!["John", "orange", "red", "yellow"],
-        svec!["Jack", "", "", ""],
     ];
     assert_eq!(got, expected);
 }
