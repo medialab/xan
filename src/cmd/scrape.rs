@@ -19,7 +19,9 @@ use simd_csv::ByteRecord;
 use url::Url;
 
 use crate::config::{Config, Delimiter};
-use crate::moonblade::{AmortizedSerializer, DynamicValue, ScrapingProgram, ScrapingRunMode};
+use crate::moonblade::{
+    AmortizedSerializer, DynamicValue, ScrapedRecords, ScrapingProgram, ScrapingRunMode,
+};
 use crate::select::{SelectedColumns, Selection};
 use crate::urls::should_follow_href;
 use crate::utils;
@@ -454,7 +456,7 @@ impl Scraper {
         target: &ScraperTarget,
         context: &ScraperContext,
         buffer: &mut IOBuffer,
-    ) -> CliResult<Vec<String>> {
+    ) -> CliResult<Vec<DynamicValue>> {
         let html = target.read_html(buffer)?;
         let mut images = Vec::new();
 
@@ -466,11 +468,11 @@ impl Scraper {
                     Some(base_url) => {
                         if let Ok(joined_src) = base_url.join(src) {
                             // TODO: canonicalize
-                            images.push(joined_src.to_string());
+                            images.push(joined_src.to_string().into());
                         }
                     }
                     None => {
-                        images.push(src.to_string());
+                        images.push(src.to_string().into());
                     }
                 };
             }
@@ -634,18 +636,17 @@ impl Scraper {
         Ok(output)
     }
 
-    // TODO: could be lazy iterators sometimes
     fn scrape(
         &self,
         row_index: usize,
         input: &Input,
         buffer: &mut IOBuffer,
-    ) -> CliResult<Vec<Vec<DynamicValue>>> {
+    ) -> CliResult<ScrapedRecords> {
         if input.is_empty() {
             return Ok(if self.is_plural() {
-                vec![]
+                ScrapedRecords::empty()
             } else {
-                vec![vec![DynamicValue::None; self.padding_len()]]
+                ScrapedRecords::singular(vec![DynamicValue::None; self.padding_len()])
             });
         }
 
@@ -654,19 +655,16 @@ impl Scraper {
         let context = &input.context;
 
         match &self.mode {
-            ScraperMode::Head => Ok(vec![self.scrape_head(&target, buffer)?]),
+            ScraperMode::Head => Ok(ScrapedRecords::singular(self.scrape_head(&target, buffer)?)),
             ScraperMode::Urls => {
                 let urls = self.scrape_urls(&target, context, buffer)?;
 
-                Ok(urls.into_iter().map(|url| vec![url]).collect())
+                Ok(ScrapedRecords::new(urls, 1))
             }
             ScraperMode::Images => {
                 let images = self.scrape_images(&target, context, buffer)?;
 
-                Ok(images
-                    .into_iter()
-                    .map(|src| vec![DynamicValue::from(src)])
-                    .collect())
+                Ok(ScrapedRecords::new(images, 1))
             }
             ScraperMode::Article(program_opt) => {
                 let html = target.read_html(buffer)?;
@@ -680,14 +678,12 @@ impl Scraper {
                     output.extend(supplementary_output);
                 }
 
-                Ok(vec![output])
+                Ok(ScrapedRecords::singular(output))
             }
             ScraperMode::Custom(program) => {
                 let html = target.read_html(buffer)?;
 
-                let output = program.run(row_index, record, &html)?;
-
-                Ok(output.into_vec_of_vecs())
+                Ok(program.run(row_index, record, &html)?)
             }
         }
     }
@@ -697,7 +693,7 @@ impl Scraper {
         row_index: usize,
         input: &Input,
         buffer: &mut IOBuffer,
-    ) -> CliResult<Vec<Vec<DynamicValue>>> {
+    ) -> CliResult<ScrapedRecords> {
         self.scrape(row_index, input, buffer).map_err(|err| {
             CliError::Other(format!(
                 "Row index {}{}\n{}",
@@ -1187,16 +1183,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         )?;
     }
 
-    // TODO: amortize allocations, fast path if sel is empty?
     let mut write_output =
-        |output_rows: &[Vec<DynamicValue>], record: &ByteRecord| -> CliResult<()> {
-            for output_row in output_rows {
+        |scraped_records: &ScrapedRecords, record: &ByteRecord| -> CliResult<()> {
+            for scraped_record in scraped_records.iter() {
                 writer.write_fields(|w| {
                     for cell in sel.select(record) {
                         w.write_field(cell)?;
                     }
 
-                    for value in output_row {
+                    for value in scraped_record {
                         w.write_field(serializer.serialize(value))?;
                     }
 
@@ -1216,7 +1211,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .enumerate()
             .parallel_map_custom(
                 |o| o.threads(t),
-                move |(row_index, result)| -> CliResult<(Input, Vec<Vec<DynamicValue>>)> {
+                move |(row_index, result)| -> CliResult<(Input, ScrapedRecords)> {
                     let input = result?;
                     let output_rows = BUFFER.with_borrow_mut(|buffer| {
                         scraper.scrape_or_report(row_index, &input, buffer)
@@ -1238,9 +1233,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         for (row_index, result) in inputs.enumerate() {
             let input = result?;
 
-            let output_rows = scraper.scrape_or_report(row_index, &input, &mut buffer)?;
+            let scraped_records = scraper.scrape_or_report(row_index, &input, &mut buffer)?;
 
-            write_output(&output_rows, input.as_record())?;
+            write_output(&scraped_records, input.as_record())?;
         }
     }
 

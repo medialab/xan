@@ -778,32 +778,36 @@ fn concretize_scraper(
 
 pub struct ScrapedRecords {
     data: Vec<DynamicValue>,
-    alignement: usize,
+    alignment: usize,
 }
 
 impl ScrapedRecords {
+    pub fn empty() -> Self {
+        Self {
+            alignment: 0,
+            data: Vec::new(),
+        }
+    }
+
     pub fn singular(data: Vec<DynamicValue>) -> Self {
         Self {
-            alignement: data.len(),
+            alignment: data.len(),
             data,
         }
     }
 
+    pub fn new(data: Vec<DynamicValue>, alignment: usize) -> Self {
+        Self { alignment, data }
+    }
+
     #[inline]
     pub fn into_single_vec(self) -> Vec<DynamicValue> {
-        debug_assert!(self.data.len() == self.alignement);
+        debug_assert!(self.data.len() == self.alignment);
         self.data
     }
 
-    // TODO: must disappear
-    pub fn into_vec_of_vecs(self) -> Vec<Vec<DynamicValue>> {
-        self.iter()
-            .map(|record| -> Vec<_> { record.into_iter().cloned().collect() })
-            .collect()
-    }
-
     pub fn iter(&self) -> impl Iterator<Item = &[DynamicValue]> {
-        self.data.chunks_exact(self.alignement)
+        self.data.chunks_exact(self.alignment)
     }
 }
 
@@ -892,7 +896,7 @@ impl ScrapingProgram {
 
         Ok(ScrapedRecords {
             data: scratch,
-            alignement: self.capacity,
+            alignment: self.capacity,
         })
     }
 }
