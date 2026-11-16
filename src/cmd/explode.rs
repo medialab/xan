@@ -148,7 +148,7 @@ explode options:
                             to rename the single selected column.
                             See 'xan rename' help for more details.
                             Does not work with -S, --singular.
-    -c, --combinations <k>  Generate k columns coresponding to the binom(n,k) unordered
+    -C, --combinations <k>  Generate k columns coresponding to the binom(n,k) unordered
                             combinations (e.g. k-combinations) of the exploded elements.
                             Doesn't work if the selection contains more than 1 column.
     -k, --keep              Keep the exploded columns alongside each split.
@@ -229,7 +229,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if sel.len() > 1
         && let Some(_) = args.flag_combinations
     {
-        Err("-c/--combinations only works with a single selected column!")?
+        Err("-C/--combinations only works with a single selected column!")?
     };
 
     if sel.is_empty() {

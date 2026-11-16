@@ -39,23 +39,28 @@ Usage:
     xan explode --help
 
 explode options:
-    --sep <sep>            Separator to split the cells.
-                           [default: |]
-    -e, --evaluate <expr>  Evaluate an expression to split cells instead of using
-                           a simple separator.
+    --sep <sep>             Separator to split the cells.
+                            [default: |]
+    -e, --evaluate <expr>   Evaluate an expression to split cells instead of using
+                            a simple separator.
     -f, --evaluate-file <path>
-                           Read splitting expression from a file instead.
-    -S, --singularize      Singularize (supporting only very simple English-centric cases)
-                           the exploded column names. Does not work with -r, --rename.
-    -r, --rename <name>    New names for the exploded columns. Must be written
-                           in CSV format if exploding multiple columns.
-                           See 'xan rename' help for more details.
-                           Does not work with -S, --singular.
-    -k, --keep             Keep the exploded columns alongside each split.
-    -D, --drop-empty       Drop rows when selected cells are empty, or when the evaluated
-                           expression yields a nullish value.
-    --pad                  When exploding multiple columns at once, pad shorter splits
-                           to align them with the longest one instead of erroring.
+                            Read splitting expression from a file instead.
+    -S, --singularize       Singularize (supporting only very simple English-centric cases)
+                            the exploded column names. Does not work with -r, --rename.
+    -r, --rename <name>     New names for the exploded columns. Must be written
+                            in CSV format if exploding multiple columns.
+                            When used with -c/--combinations only takes a single argument
+                            to rename the single selected column.
+                            See 'xan rename' help for more details.
+                            Does not work with -S, --singular.
+    -C, --combinations <k>  Generate k columns coresponding to the binom(n,k) unordered
+                            combinations (e.g. k-combinations) of the exploded elements.
+                            Doesn't work if the selection contains more than 1 column.
+    -k, --keep              Keep the exploded columns alongside each split.
+    -D, --drop-empty        Drop rows when selected cells are empty, or when the evaluated
+                            expression yields a nullish value.
+    --pad                   When exploding multiple columns at once, pad shorter splits
+                            to align them with the longest one instead of erroring.
 
 Common options:
     -h, --help             Display this message
