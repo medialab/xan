@@ -48,7 +48,7 @@ fn build_seconds_extent(extent: &TemporalExtent, unit: Unit) -> CliResult<Extent
 
     let earliest_seconds = earliest
         .to_lower_bound_timestamp(TimeZone::system())?
-        .to_zoned(TimeZone::system())
+        .to_zoned_datetime(TimeZone::system())
         .floor(unit)?
         .timestamp()
         .as_duration()
@@ -56,7 +56,7 @@ fn build_seconds_extent(extent: &TemporalExtent, unit: Unit) -> CliResult<Extent
 
     let latest_seconds = latest
         .to_lower_bound_timestamp(TimeZone::system())?
-        .to_zoned(TimeZone::system())
+        .to_zoned_datetime(TimeZone::system())
         .floor(unit)?
         .timestamp()
         .as_duration()
@@ -775,7 +775,7 @@ impl Series {
 
         for (original_index, original_seconds) in self.times.iter().copied().enumerate() {
             let new_seconds = Timestamp::from_secs_f64(original_seconds)?
-                .to_zoned(TimeZone::system())
+                .to_zoned_datetime(TimeZone::system())
                 .floor(unit)?
                 .timestamp()
                 .as_duration()
@@ -1470,14 +1470,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .earliest()
             .unwrap()
             .to_lower_bound_timestamp(TimeZone::system())?
-            .to_zoned(TimeZone::system())
+            .to_zoned_datetime(TimeZone::system())
             .to_string_wrt_unit(granularity);
 
         let max_label = extent
             .latest()
             .unwrap()
             .to_lower_bound_timestamp(TimeZone::system())?
-            .to_zoned(TimeZone::system())
+            .to_zoned_datetime(TimeZone::system())
             .to_string_wrt_unit(granularity);
 
         let budget_cols = discretized_series_len
@@ -1506,7 +1506,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     let i = lerp(0.0, discretized_series_len as f64, t) as usize;
                     let seconds = lerp(seconds_extent.min(), seconds_extent.max(), t);
                     let tick = Timestamp::from_secs_f64(seconds)?
-                        .to_zoned(TimeZone::system())
+                        .to_zoned_datetime(TimeZone::system())
                         .to_string_wrt_unit(granularity);
 
                     ticks.push((i, tick));

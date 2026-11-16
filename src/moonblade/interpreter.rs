@@ -849,7 +849,7 @@ mod tests {
     use super::super::error::RunError;
     use super::*;
     use jiff::{
-        Timestamp, Zoned,
+        Timestamp, ZonedDateTime as Zoned,
         civil::{Date, DateTime, Time},
         tz::TimeZone,
     };
@@ -1564,7 +1564,9 @@ mod tests {
 
         assert_eq!(
             eval_code("'2024-07-11T01:14:00Z'.datetime()"),
-            Ok(DynamicValue::from(timestamp.to_zoned(TimeZone::UTC)))
+            Ok(DynamicValue::from(
+                timestamp.to_zoned_datetime(TimeZone::UTC)
+            ))
         );
 
         assert_eq!(

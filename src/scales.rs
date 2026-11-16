@@ -833,7 +833,7 @@ fn format_timestamp(microseconds: i64, unit: Unit, timezone: TimeZone) -> String
     // I will keep it, I am a superstitious.
     let zoned = Timestamp::from_microsecond(microseconds)
         .unwrap()
-        .to_zoned(timezone)
+        .to_zoned_datetime(timezone)
         .floor(unit)
         .unwrap();
 

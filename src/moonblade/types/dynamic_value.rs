@@ -6,7 +6,7 @@ use std::sync::Arc;
 use bstr::{BString, ByteSlice};
 use btoi::btoi;
 use jiff::{
-    Span, Zoned,
+    Span, ZonedDateTime as Zoned,
     civil::{Date, DateTime, Time},
     tz::TimeZone,
 };
