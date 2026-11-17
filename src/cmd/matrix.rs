@@ -7,8 +7,30 @@ use crate::CliResult;
 use crate::collections::{HashMap, IndexSet, new_index_set};
 use crate::config::{Config, Delimiter};
 use crate::moonblade::agg::CovarianceWelford;
+use crate::scales::{ExtentBuilder, LinearScale};
 use crate::select::SelectedColumns;
 use crate::utils;
+
+#[derive(Debug, Deserialize, Clone, Copy)]
+#[serde(try_from = "String")]
+enum Normalization {
+    Full,
+    Row,
+    Column,
+}
+
+impl TryFrom<String> for Normalization {
+    type Error = String;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Ok(match value.as_str() {
+            "all" | "full" => Self::Full,
+            "col" | "cols" | "column" | "columns" => Self::Column,
+            "row" | "rows" => Self::Row,
+            _ => return Err(format!("unsupported normalization \"{}\"", &value)),
+        })
+    }
+}
 
 struct LabeledMatrix<T> {
     columns: ByteRecord,
@@ -36,21 +58,11 @@ impl<T: Default> LabeledMatrix<T> {
 
 impl<T> LabeledMatrix<T> {
     #[inline(always)]
-    fn columns(&self) -> usize {
-        self.columns.len()
-    }
-
-    #[inline(always)]
-    fn rows(&self) -> usize {
-        self.rows.len()
-    }
-
-    #[inline(always)]
     fn flat_index(&self, x: usize, y: usize) -> usize {
-        debug_assert!(x < self.columns());
-        debug_assert!(y < self.rows());
+        debug_assert!(x < self.columns.len());
+        debug_assert!(y < self.rows.len());
 
-        y * self.columns() + x
+        y * self.columns.len() + x
     }
 
     fn x_labels(&self) -> impl Iterator<Item = &[u8]> {
@@ -58,7 +70,32 @@ impl<T> LabeledMatrix<T> {
     }
 
     fn labeled_rows(&self) -> impl Iterator<Item = (&[u8], &[T])> {
-        self.rows.iter().zip(self.data.chunks_exact(self.columns()))
+        self.rows
+            .iter()
+            .zip(self.data.chunks_exact(self.columns.len()))
+    }
+
+    fn rows_mut(&mut self) -> impl Iterator<Item = &mut [T]> {
+        let width = self.columns.len();
+        self.data.chunks_exact_mut(width)
+    }
+
+    fn column(&self, x: usize) -> impl Iterator<Item = &T> {
+        debug_assert!(x < self.columns.len());
+
+        let width = self.columns.len();
+
+        self.data.chunks_exact(width).map(move |row| &row[x])
+    }
+
+    fn column_mut(&mut self, x: usize) -> impl Iterator<Item = &mut T> {
+        debug_assert!(x < self.columns.len());
+
+        let width = self.columns.len();
+
+        self.data
+            .chunks_exact_mut(width)
+            .map(move |row| &mut row[x])
     }
 }
 
@@ -69,10 +106,66 @@ impl<T: Copy> LabeledMatrix<Option<T>> {
     }
 
     fn fill_diagonal(&mut self, v: T) {
-        for x in 0..self.columns() {
+        for x in 0..self.columns.len() {
             let i = self.flat_index(x, x);
             self.data[i] = Some(v);
         }
+    }
+}
+
+impl LabeledMatrix<Option<f64>> {
+    fn normalize(&mut self, normalization: Normalization) -> Result<(), String> {
+        match normalization {
+            Normalization::Full => {
+                let mut extent_builder = ExtentBuilder::new();
+
+                for v in self.data.iter().flatten() {
+                    extent_builder.process(*v);
+                }
+
+                if let Some(scale) = extent_builder.build().map(LinearScale::from) {
+                    for v in self.data.iter_mut().flatten() {
+                        *v = scale.map(*v);
+                    }
+                }
+            }
+            Normalization::Column => {
+                let mut extent_builder = ExtentBuilder::new();
+
+                for x in 0..self.columns.len() {
+                    extent_builder.clear();
+
+                    for v in self.column(x).flatten() {
+                        extent_builder.process(*v);
+                    }
+
+                    if let Some(scale) = extent_builder.build().map(LinearScale::from) {
+                        for v in self.column_mut(x).flatten() {
+                            *v = scale.map(*v);
+                        }
+                    }
+                }
+            }
+            Normalization::Row => {
+                let mut extent_builder = ExtentBuilder::new();
+
+                for row in self.rows_mut() {
+                    extent_builder.clear();
+
+                    for v in row.iter().flatten() {
+                        extent_builder.process(*v);
+                    }
+
+                    if let Some(scale) = extent_builder.build().map(LinearScale::from) {
+                        for v in row.iter_mut().flatten() {
+                            *v = scale.map(*v);
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -164,6 +257,13 @@ Usage:
     xan matrix bivar [options] <x> <y> [<input>]
     xan matrix --help
 
+matrix options:
+    --normalize <mode>  Normalize matrix cells using the given method. Can be
+                        one of the following:
+                            - \"full\": full normalization over all matrix cells
+                            - \"column\": column-wise normalization
+                            - \"row\": row-wise normalization
+
 matrix adj/count/bivar options:
     -w, --weight <column>  Optional column containing numbers that will be used
                            as matrix cell weights, instead of just counting
@@ -248,6 +348,7 @@ struct Args {
     flag_bins: usize,
     flag_x_bins: Option<usize>,
     flag_y_bins: Option<usize>,
+    flag_normalize: Option<Normalization>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_output: Option<String>,
@@ -551,7 +652,7 @@ impl Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = utils::get_args(USAGE, argv)?;
 
-    let matrix = if args.cmd_adj || args.cmd_count {
+    let mut matrix = if args.cmd_adj || args.cmd_count {
         args.adj_or_count()?
     } else if args.cmd_corr {
         args.correlation()?
@@ -560,6 +661,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     } else {
         unreachable!()
     };
+
+    if let Some(normalization) = args.flag_normalize {
+        matrix.normalize(normalization)?;
+    }
 
     let mut buffer = zmij::Buffer::new();
 

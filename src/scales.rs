@@ -827,6 +827,12 @@ impl LinearScale {
     }
 }
 
+impl From<Extent<f64>> for LinearScale {
+    fn from(extent: Extent<f64>) -> Self {
+        Self::new(extent.into_inner(), (0.0, 1.0))
+    }
+}
+
 fn format_timestamp(microseconds: i64, unit: Unit, timezone: TimeZone) -> String {
     // NOTE: I don't think rounding is necessary here because the formatting
     // will naturally hide the irrelevant part, right?

@@ -26,6 +26,13 @@ Usage:
     xan matrix bivar [options] <x> <y> [<input>]
     xan matrix --help
 
+matrix options:
+    --normalize <mode>  Normalize matrix cells using the given method. Can be
+                        one of the following:
+                            - "full": full normalization over all matrix cells
+                            - "column": column-wise normalization
+                            - "row": row-wise normalization
+
 matrix adj/count/bivar options:
     -w, --weight <column>  Optional column containing numbers that will be used
                            as matrix cell weights, instead of just counting
