@@ -19,10 +19,9 @@ use simd_csv::ByteRecord;
 use url::Url;
 
 use crate::config::{Config, Delimiter};
-use crate::moonblade::{
-    AmortizedSerializer, DynamicValue, ScrapedRecords, ScrapingProgram, ScrapingRunMode,
-};
+use crate::moonblade::{DynamicValue, ScrapedRecords, ScrapingProgram, ScrapingRunMode};
 use crate::select::{SelectedColumns, Selection};
+use crate::serialize::AmortizedSerializer;
 use crate::urls::should_follow_href;
 use crate::utils;
 use crate::{CliError, CliResult};
@@ -1206,7 +1205,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     }
 
                     for value in scraped_record {
-                        w.write_field(serializer.serialize(value))?;
+                        w.write_field(serializer.serialize_value(value))?;
                     }
 
                     Ok(())

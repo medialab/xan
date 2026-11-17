@@ -8,9 +8,10 @@ use crate::CliError;
 use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
+use crate::serialize::AmortizedSerializer;
 use crate::utils;
 
-use crate::moonblade::{AmortizedSerializer, Program};
+use crate::moonblade::Program;
 
 fn singularize(name: &[u8]) -> Vec<u8> {
     let mut vec = name.to_vec();
@@ -136,7 +137,7 @@ impl Exploder {
                             callback(cell)?;
                         } else {
                             for item in list {
-                                callback(serializer.serialize(&item))?;
+                                callback(serializer.serialize_value(&item))?;
                             }
                         }
                     }

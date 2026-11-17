@@ -22,6 +22,7 @@ mod processing;
 mod read;
 mod scales;
 mod select;
+mod serialize;
 mod temporal;
 mod tui;
 mod urls;

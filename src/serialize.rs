@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use super::DynamicValue;
+use crate::moonblade::DynamicValue;
 
 #[derive(Default)]
 pub struct AmortizedSerializer {
@@ -14,7 +14,7 @@ impl AmortizedSerializer {
         Self::default()
     }
 
-    pub fn serialize<'s, 'v>(&'s mut self, value: &'v DynamicValue) -> &'s [u8]
+    pub fn serialize_value<'s, 'v>(&'s mut self, value: &'v DynamicValue) -> &'s [u8]
     where
         'v: 's,
     {

@@ -1,11 +1,9 @@
-mod amortized_serializer;
 mod arguments;
 mod bound_arguments;
 mod dynamic_number;
 mod dynamic_value;
 mod headers;
 
-pub use amortized_serializer::AmortizedSerializer;
 pub use arguments::{Argument, Arity, FunctionArguments};
 pub use bound_arguments::{
     BOUND_ARGUMENTS_CAPACITY, BoundArgument, BoundArguments, BoundContainer, BoundStringLike,
