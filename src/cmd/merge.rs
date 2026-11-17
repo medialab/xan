@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use binary_heap_plus::BinaryHeap;
+use binary_heap_plus::{BinaryHeap, PeekMut};
 use colored::Colorize;
 use compare::Compare;
 use simd_csv::ByteRecord;
@@ -87,6 +87,11 @@ impl<'s> MergeHeap<'s> {
         self.inner.pop()
     }
 
+    #[inline(always)]
+    fn peek_mut(&mut self) -> Option<PeekMut<'_, MergeHeapEntry, MergeHeapComparator<'s>>> {
+        self.inner.peek_mut()
+    }
+
     pub fn into_iter<I>(self, iterators: Vec<I>) -> simd_csv::Result<MergeHeapIntoIter<'s, I>>
     where
         I: Iterator<Item = simd_csv::Result<ByteRecord>>,
@@ -125,22 +130,28 @@ where
     type Item = simd_csv::Result<(usize, ByteRecord)>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(entry) = self.heap.pop() {
-            let (record, i) = entry;
+        // if self.heap.len() == 1 : cat remaining file
+        // fast-forwarding: regarder le 2e élément de la heap, s'il est plus grand que le prochain,
+        // le garder (en attribut) pour le flushout tout de suite après
+        if let Some(mut peek) = self.heap.peek_mut() {
+            let file_idx = peek.1;
 
-            match self.iterators[i].next() {
-                None => (),
+            match self.iterators[file_idx].next() {
+                None => {
+                    let (record, _) = binary_heap_plus::PeekMut::pop(peek);
+                    Some(Ok((file_idx, record)))
+                },
                 Some(result) => match result {
                     Ok(record) => {
-                        self.heap.push((record, i));
+                        let removed = std::mem::replace(&mut peek.0, record);
+                        drop(peek);
+                        Some(Ok((file_idx, removed)))
                     }
                     Err(err) => {
-                        return Some(Err(err));
+                        Some(Err(err))
                     }
                 },
             }
-
-            Some(Ok((i, record)))
         } else {
             None
         }
