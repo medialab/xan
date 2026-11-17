@@ -19,6 +19,7 @@ use crate::config::{Config, Delimiter};
 use crate::json::{GetPathOwned, JSONTabularizer, fill_record_from_tape_value};
 use crate::moonblade::Path as JSONPath;
 use crate::select::SelectedColumns;
+use crate::serialize::AmortizedSerializer;
 use crate::utils::{self, ChunksIteratorExt};
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -787,7 +788,7 @@ impl Args {
 
         let reader = reader.into_inner();
 
-        let mut output_record = ByteRecord::new();
+        let mut serializer = AmortizedSerializer::new();
         let row_group_opt: Option<Box<dyn RowGroupReader>>;
 
         let iter = if let Some(row_group_index) = self.flag_row_group_index {
@@ -798,15 +799,14 @@ impl Args {
         };
 
         for result in iter {
-            output_record.clear();
-
             let row = result?;
 
-            for (_, field) in row.get_column_iter() {
-                crate::parquet::push_parquet_field(&mut output_record, field)?;
-            }
-
-            wtr.write_byte_record(&output_record)?;
+            wtr.write_fields(|w| {
+                for (_, field) in row.get_column_iter() {
+                    w.write_field(serializer.serialize_parquet_field(field))?;
+                }
+                Ok(())
+            })?;
         }
 
         Ok(wtr.flush()?)
