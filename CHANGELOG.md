@@ -20,6 +20,7 @@ The **laminated** update.
 * `xan scrape -k/--keep` becomes a combination of `-s/--select` & `-k/--keep-doc`.
 * Better integration of value post-processing in `xan scrape -e` DSL.
 * `xan scrape -F/--foreach` becomes `-S/--foreach-selector`.
+* Moonblade `//` becomes infix `idiv` and `//` can now be used as well as `#` to write comments.
 
 *Features*
 
