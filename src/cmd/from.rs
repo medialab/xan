@@ -595,6 +595,10 @@ impl Args {
 
         wtr.write_record_no_quoting((0..columns).map(|i| format!("dim_{i}")))?;
 
+        let mut fields_writer = wtr.fields_writer();
+
+        let mut buffer = zmij::Buffer::new();
+
         macro_rules! process {
             ($type: ty) => {
                 for row in rdr
@@ -602,10 +606,14 @@ impl Args {
                     .unwrap()
                     .chunks(NonZeroUsize::new(columns as usize).unwrap())
                 {
-                    // NOTE: this is safe because the output delimiter is guaranteed to be a comma
-                    wtr.write_record_no_quoting(
-                        row.into_iter().map(|cell| cell.unwrap().to_string()),
-                    )?;
+                    for result in row {
+                        let x = result?;
+
+                        // NOTE: this is safe because the output delimiter is guaranteed to be a comma
+                        fields_writer.write_field_no_quoting(buffer.format(x).as_bytes())?;
+                    }
+
+                    fields_writer.finalize_record()?;
                 }
             };
         }

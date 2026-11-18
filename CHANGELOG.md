@@ -68,13 +68,14 @@ The **laminated** update.
 *Performance*
 
 * Improving performance related to pretty-printing numbers.
-* Faster JSON parsing.
+* Faster JSON parsing overall.
 * Only collecting/allocating command line arguments once.
 * Improving performance of `xan view`.
 * Improving performance of the `fmt` & trimming moonblade function.
 * Improving performance of `xan rename`.
 * Improving performance of `xan explode -e`.
 * Improving performance of `xan matrix`.
+* Improving performance of `xan from -f=(parquet|ndjson|npy)`.
 
 ## 0.61.0
 
