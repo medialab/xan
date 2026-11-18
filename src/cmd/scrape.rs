@@ -114,16 +114,6 @@ impl IOBuffer {
 
         Ok(&self.string)
     }
-
-    fn read_file_as_html(
-        &mut self,
-        input_dir: &str,
-        filename: &str,
-        encoding: Option<EncodingRef>,
-    ) -> CliResult<Html> {
-        self.read_file_as_str(input_dir, filename, encoding)
-            .map(Html::parse_document)
-    }
 }
 
 enum ScraperTarget<'a> {
@@ -207,18 +197,19 @@ impl ScraperTarget<'_> {
     }
 
     fn read_html(&self, buffer: &mut IOBuffer) -> CliResult<Html> {
-        match self {
+        let html_str = match self {
             Self::HtmlCell(cell) => {
                 guard_invalid_html_cell(cell)?;
-
-                Ok(Html::parse_document(from_utf8(cell)?))
+                from_utf8(cell)?
             }
             Self::HtmlFile {
                 input_dir,
                 filename,
                 encoding,
-            } => Ok(buffer.read_file_as_html(input_dir, filename, *encoding)?),
-        }
+            } => buffer.read_file_as_str(input_dir, filename, *encoding)?,
+        };
+
+        Ok(Html::parse_document(html_str))
     }
 }
 
