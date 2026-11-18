@@ -32,6 +32,9 @@ matrix options:
                             - "full": full normalization over all matrix cells
                             - "column": column-wise normalization
                             - "row": row-wise normalization
+                            - "phi": phi coefficient normalization that can be
+                                       used to highligh unexpected cells. only
+                                       works with `adj`.
 
 matrix adj/count/bivar options:
     -w, --weight <column>  Optional column containing numbers that will be used

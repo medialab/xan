@@ -17,6 +17,7 @@ enum Normalization {
     Full,
     Row,
     Column,
+    Phi,
 }
 
 impl TryFrom<String> for Normalization {
@@ -27,6 +28,7 @@ impl TryFrom<String> for Normalization {
             "all" | "full" => Self::Full,
             "col" | "cols" | "column" | "columns" => Self::Column,
             "row" | "rows" => Self::Row,
+            "phi" => Self::Phi,
             _ => return Err(format!("unsupported normalization \"{}\"", &value)),
         })
     }
@@ -65,6 +67,15 @@ impl<T> LabeledMatrix<T> {
         y * self.columns.len() + x
     }
 
+    #[inline(always)]
+    fn cell_index(&self, i: usize) -> (usize, usize) {
+        debug_assert!(i < self.data.len());
+
+        let width = self.columns.len();
+
+        (i % width, i / width)
+    }
+
     fn x_labels(&self) -> impl Iterator<Item = &[u8]> {
         self.columns.iter()
     }
@@ -73,6 +84,22 @@ impl<T> LabeledMatrix<T> {
         self.rows
             .iter()
             .zip(self.data.chunks_exact(self.columns.len()))
+    }
+
+    fn cells(&self) -> impl Iterator<Item = (usize, usize, &T)> {
+        self.data.iter().enumerate().map(|(i, v)| {
+            let (x, y) = self.cell_index(i);
+            (x, y, v)
+        })
+    }
+
+    fn cells_mut(&mut self) -> impl Iterator<Item = (usize, usize, &mut T)> {
+        let width = self.columns.len();
+
+        self.data
+            .iter_mut()
+            .enumerate()
+            .map(move |(i, v)| (i % width, i / width, v))
     }
 
     fn rows_mut(&mut self) -> impl Iterator<Item = &mut [T]> {
@@ -160,6 +187,44 @@ impl LabeledMatrix<Option<f64>> {
                         for v in row.iter_mut().flatten() {
                             *v = scale.map(*v);
                         }
+                    }
+                }
+            }
+            Normalization::Phi => {
+                let mut total_sum = 0.0;
+                let mut col_total = vec![0.0; self.columns.len()];
+                let mut row_total = vec![0.0; self.rows.len()];
+
+                // TODO: decide whether to ignore self-loops in the adj case
+                for (x, y, cell_opt) in self.cells() {
+                    if let Some(cell) = cell_opt {
+                        if *cell < 0.0 {
+                            return Err(
+                                "cannot compute --normalize phi when cells have negative values. Check your -w/--weight!".to_string(),
+                            );
+                        }
+
+                        total_sum += cell;
+                        col_total[x] += cell;
+                        row_total[y] += cell;
+                    }
+                }
+
+                for (x, y, cell_opt) in self.cells_mut() {
+                    if let Some(cell) = cell_opt {
+                        let c = col_total[x];
+                        let r = row_total[y];
+
+                        let denominator_squared = r * (total_sum - r) * c * (total_sum - c);
+
+                        if total_sum == 0.0 || denominator_squared == 0.0 {
+                            *cell_opt = None;
+                            continue;
+                        }
+
+                        let numerator = total_sum * *cell - r * c;
+
+                        *cell = numerator / denominator_squared.sqrt();
                     }
                 }
             }
@@ -263,6 +328,9 @@ matrix options:
                             - \"full\": full normalization over all matrix cells
                             - \"column\": column-wise normalization
                             - \"row\": row-wise normalization
+                            - \"phi\": phi coefficient normalization that can be
+                                       used to highligh unexpected cells. only
+                                       works with `adj`.
 
 matrix adj/count/bivar options:
     -w, --weight <column>  Optional column containing numbers that will be used
@@ -651,6 +719,10 @@ impl Args {
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = utils::get_args(USAGE, argv)?;
+
+    if matches!(args.flag_normalize, Some(Normalization::Phi)) && !args.cmd_adj {
+        Err("--normalize phi is only relevant when using xan matrix adj!")?;
+    }
 
     let mut matrix = if args.cmd_adj || args.cmd_count {
         args.adj_or_count()?
