@@ -68,13 +68,14 @@ impl Compare<MergeHeapEntry> for MergeHeapComparator<'_> {
 
 pub struct MergeHeap<'s> {
     inner: BinaryHeap<MergeHeapEntry, MergeHeapComparator<'s>>,
+    comparator: MergeHeapComparator<'s>,
 }
 
 impl<'s> MergeHeap<'s> {
     pub fn with_comparator(comparator: MergeHeapComparator<'s>) -> Self {
+        let cmp = comparator.clone();
         let inner = BinaryHeap::from_vec_cmp(Vec::with_capacity(comparator.sel.len()), comparator);
-
-        Self { inner }
+        Self { inner, comparator: cmp }
     }
 
     #[inline(always)]
@@ -85,6 +86,11 @@ impl<'s> MergeHeap<'s> {
     #[inline(always)]
     fn pop(&mut self) -> Option<MergeHeapEntry> {
         self.inner.pop()
+    }
+
+    #[inline(always)]
+    fn peek(&self) -> Option<&MergeHeapEntry> {
+        self.inner.peek()
     }
 
     pub fn into_iter<I>(self, iterators: Vec<I>) -> simd_csv::Result<MergeHeapIntoIter<'s, I>>
@@ -98,6 +104,7 @@ impl<'s> MergeHeap<'s> {
 pub struct MergeHeapIntoIter<'s, I> {
     heap: MergeHeap<'s>,
     iterators: Vec<I>,
+    to_throw_next: Option<MergeHeapEntry>,
 }
 
 impl<'s, I> MergeHeapIntoIter<'s, I>
@@ -114,7 +121,7 @@ where
             }
         }
 
-        Ok(Self { heap, iterators })
+        Ok(Self { heap, iterators, to_throw_next: None })
     }
 }
 
@@ -125,8 +132,7 @@ where
     type Item = simd_csv::Result<(usize, ByteRecord)>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(entry) = self.heap.pop() {
-            let (record, i) = entry;
+        if let Some((throw_record, i)) = self.to_throw_next.take() {
 
             match self.iterators[i].next() {
                 None => (),
@@ -139,10 +145,48 @@ where
                     }
                 },
             }
+            Some(Ok((i, throw_record)))
 
-            Some(Ok((i, record)))
         } else {
-            None
+            if let Some((throw_record, i)) = self.heap.pop() {
+                if let Some((next_out, _)) = self.heap.peek() {
+                    match self.iterators[i].next() {
+                        None => (),
+                        Some(result) => match result {
+                            Ok(record) => {
+                                if self.heap.comparator.cmp_record(&record, next_out) == Ordering::Less {
+                                    self.to_throw_next = Some((record, i));
+                                } else {
+                                    self.to_throw_next = self.heap.pop();
+                                    self.heap.push((record, i));
+                                }
+                            }
+                            Err(err) => {
+                                return Some(Err(err));
+                            }
+                        },
+                    }
+
+                    Some(Ok((i, throw_record)))
+                }
+                else {
+                    // one file left
+                    self.to_throw_next = match self.iterators[i].next() {
+                        None => None,
+                        Some(result) => match result {
+                            Ok(record) => {
+                                Some((record, i))
+                            }
+                            Err(err) => {
+                                return Some(Err(err));
+                            }
+                        },
+                    };
+                    Some(Ok((i, throw_record)))
+                }
+            } else {
+                None
+            }
         }
     }
 }
