@@ -48,11 +48,16 @@ impl<'s> MergeHeapComparator<'s> {
     }
 
     #[inline]
-    fn cmp(&self, a: &MergeHeapEntry, b: &MergeHeapEntry) -> Ordering {
-        let ordering = self.cmp_record(&a.0, &b.0);
+    fn cmp_entry(&self, a: &MergeHeapEntry, b: &MergeHeapEntry) -> Ordering {
+        self.cmp(a, &b.0, b.1)
+    }
+
+    #[inline]
+    fn cmp(&self, a: &MergeHeapEntry, b_record: &ByteRecord, b_fidx: usize) -> Ordering {
+        let ordering = self.cmp_record(&a.0, &b_record);
 
         if ordering.is_eq() {
-            b.1.cmp(&a.1)
+            b_fidx.cmp(&a.1)
         } else {
             ordering
         }
@@ -62,7 +67,7 @@ impl<'s> MergeHeapComparator<'s> {
 impl Compare<MergeHeapEntry> for MergeHeapComparator<'_> {
     #[inline(always)]
     fn compare(&self, l: &MergeHeapEntry, r: &MergeHeapEntry) -> Ordering {
-        self.cmp(l, r)
+        self.cmp_entry(l, r)
     }
 }
 
@@ -149,12 +154,12 @@ where
 
         } else {
             if let Some((throw_record, i)) = self.heap.pop() {
-                if let Some((next_out, _)) = self.heap.peek() {
+                if let Some(next_out) = self.heap.peek() {
                     match self.iterators[i].next() {
                         None => (),
                         Some(result) => match result {
                             Ok(record) => {
-                                if self.heap.comparator.cmp_record(&record, next_out) == Ordering::Less {
+                                if self.heap.comparator.cmp(next_out, &record, i) == Ordering::Less {
                                     self.to_throw_next = Some((record, i));
                                 } else {
                                     self.to_throw_next = self.heap.pop();
