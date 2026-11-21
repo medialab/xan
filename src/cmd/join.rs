@@ -167,17 +167,19 @@ impl Index {
         sel: &Selection,
         record: &ByteRecord,
         mut callback: F,
-    ) -> Result<(), E>
+    ) -> Result<bool, E>
     where
         F: FnMut(&mut IndexNode) -> Result<(), E>,
     {
+        let mut is_match = false;
         let key = get_row_key(sel, record, self.case_insensitive);
 
         if !self.nulls && key.iter().all(|c| c.is_empty()) {
-            return Ok(());
+            return Ok(is_match);
         }
 
         if let Some((i, _)) = self.map.get(&key) {
+            is_match = true;
             let mut current_node = &mut self.nodes[i - 1];
 
             callback(current_node)?;
@@ -188,7 +190,7 @@ impl Index {
             }
         }
 
-        Ok(())
+        Ok(is_match)
     }
 
     fn for_each_record<F, E>(
@@ -196,7 +198,7 @@ impl Index {
         sel: &Selection,
         record: &ByteRecord,
         mut callback: F,
-    ) -> Result<(), E>
+    ) -> Result<bool, E>
     where
         F: FnMut(&ByteRecord) -> Result<(), E>,
     {
@@ -690,10 +692,7 @@ impl Args {
 
         while right_reader.read_byte_record(&mut right_record)? {
             if self.flag_strict {
-                let mut is_match = false;
-
-                index.for_each_node_mut(&right_sel, &right_record, |left_node| {
-                    is_match = true;
+                let is_match = index.for_each_node_mut(&right_sel, &right_record, |left_node| {
                     left_node.written = true;
 
                     writer.write_record(
@@ -805,16 +804,14 @@ impl Args {
         let mut left_record = simd_csv::ByteRecord::new();
 
         while left_reader.read_byte_record(&mut left_record)? {
-            let mut something_was_written: bool = false;
-
-            index.for_each_record(&left_sel, &left_record, |right_record| {
-                something_was_written = true;
-                writer.write_record(
-                    inverted_left_sel
-                        .select(&left_record)
-                        .chain(inverted_right_sel.select(right_record)),
-                )
-            })?;
+            let something_was_written =
+                index.for_each_record(&left_sel, &left_record, |right_record| {
+                    writer.write_record(
+                        inverted_left_sel
+                            .select(&left_record)
+                            .chain(inverted_right_sel.select(right_record)),
+                    )
+                })?;
 
             if !something_was_written {
                 writer.write_record(
@@ -852,16 +849,14 @@ impl Args {
         let mut right_record = simd_csv::ByteRecord::new();
 
         while right_reader.read_byte_record(&mut right_record)? {
-            let mut something_was_written: bool = false;
-
-            index.for_each_record(&right_sel, &right_record, |left_record| {
-                something_was_written = true;
-                writer.write_record(
-                    inverted_left_sel
-                        .select(left_record)
-                        .chain(inverted_right_sel.select(&right_record)),
-                )
-            })?;
+            let something_was_written =
+                index.for_each_record(&right_sel, &right_record, |left_record| {
+                    writer.write_record(
+                        inverted_left_sel
+                            .select(left_record)
+                            .chain(inverted_right_sel.select(&right_record)),
+                    )
+                })?;
 
             if !something_was_written {
                 writer.write_record(
