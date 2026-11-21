@@ -20,7 +20,7 @@ the -e/--expand and --color=always flags before piping like so:
 Finally, it is possible to customize the default behavior of this command through
 the "XAN_VIEW_ARGS" environment variable. This variable takes a series of
 supported flags: -t/--theme, -p/--pager, -l/--limit, -R/--rainbow, -E/--sanitize-emojis,
-and -S/--significance, -I/--hide-index, --color, --repeat-headers, --reveal-whitespace
+and -S/--significance, -I/--hide-index, --color, --repeat-headers, --reveal-whitespace, --plain
 & -M/--hide-info. Other flags are ignored.
 
 To use the `borderless` theme, hide the index column and restrict the number of
@@ -70,6 +70,8 @@ view options:
     -E, --sanitize-emojis       Replace emojis by their shortcode to avoid formatting issues.
     -S, --significance <n>      Maximum floating point significance used to format numbers.
     -k, --thousands-sep <sep>   Thousands separator to use when formatting values detected as numbers.
+    --plain                     Print space-aligned rows without index, info, color, rulers,
+                                or repeated headers.
     -I, --hide-index            Hide the row index on the left.
     -M, --hide-info             Hide information about number of displayed columns, rows etc.
     --hide-headers              Hide the headers. Implied when -n, --no-headers is given.

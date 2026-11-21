@@ -24,6 +24,7 @@ The **laminated** update.
 
 *Features*
 
+* Adding `xan view --plain`.
 * Adding easy way to use null-byte delimiters through `-d '\0'`, the same way as `-d '\t'`.
 * `xan count` & `xan headers` parquet integration.
 * Adding `xan count --row-groups`.

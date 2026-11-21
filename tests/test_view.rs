@@ -126,3 +126,31 @@ fn view_ignore_env() {
         wrk.assert_success(&mut cmd);
     }
 }
+
+#[test]
+fn view_plain_aligned() {
+    let wrk = Workdir::new("view_plain_aligned");
+    let filename = "Nomino (2020) S1.E1.1080p.mkv";
+    wrk.create(
+        "data.csv",
+        vec![svec!["key", "value"], svec![filename, "0101.mkv"]],
+    );
+
+    let mut cmd = wrk.command("view");
+    cmd.args(["--plain", "--cols", "80", "data.csv"])
+        .env_remove("XAN_VIEW_ARGS");
+    let stdout = String::from_utf8(wrk.output(&mut cmd).stdout).unwrap();
+
+    assert!(!stdout.starts_with('\n'));
+    assert!(!stdout.ends_with("\n\n"));
+    assert!(!stdout.contains('\x1b'));
+    let lines: Vec<_> = stdout.lines().collect();
+    assert!(lines.iter().all(|line| !line.trim().is_empty()));
+    assert_eq!(lines.len(), 2);
+    assert!(lines[0].contains("key") && lines[0].contains("value"));
+    assert!(lines[1].contains(filename) && lines[1].contains("0101.mkv"));
+    assert_eq!(
+        lines[0].find("value").unwrap(),
+        lines[1].find("0101.mkv").unwrap()
+    );
+}

@@ -222,7 +222,7 @@ the -e/--expand and --color=always flags before piping like so:
 Finally, it is possible to customize the default behavior of this command through
 the \"XAN_VIEW_ARGS\" environment variable. This variable takes a series of
 supported flags: -t/--theme, -p/--pager, -l/--limit, -R/--rainbow, -E/--sanitize-emojis,
-and -S/--significance, -I/--hide-index, --color, --repeat-headers, --reveal-whitespace
+and -S/--significance, -I/--hide-index, --color, --repeat-headers, --reveal-whitespace, --plain
 & -M/--hide-info. Other flags are ignored.
 
 To use the `borderless` theme, hide the index column and restrict the number of
@@ -272,6 +272,8 @@ view options:
     -E, --sanitize-emojis       Replace emojis by their shortcode to avoid formatting issues.
     -S, --significance <n>      Maximum floating point significance used to format numbers.
     -k, --thousands-sep <sep>   Thousands separator to use when formatting values detected as numbers.
+    --plain                     Print space-aligned rows without index, info, color, rulers,
+                                or repeated headers.
     -I, --hide-index            Hide the row index on the left.
     -M, --hide-info             Hide information about number of displayed columns, rows etc.
     --hide-headers              Hide the headers. Implied when -n, --no-headers is given.
@@ -321,6 +323,7 @@ struct Args {
     flag_rainbow: bool,
     flag_expand: bool,
     flag_sanitize_emojis: bool,
+    flag_plain: bool,
     flag_hide_index: bool,
     flag_hide_headers: bool,
     flag_hide_info: bool,
@@ -355,6 +358,14 @@ impl Args {
             self.flag_color = ColorMode::Always;
         }
 
+        if self.flag_plain {
+            self.flag_hide_index = true;
+            self.flag_hide_info = true;
+            self.flag_color = ColorMode::Never;
+            self.flag_repeat_headers = ComplexToggle::Never;
+            self.flag_theme = "borderless".to_string();
+        }
+
         if self.flag_limit.is_none() {
             self.flag_limit = Some(if self.flag_tee { 5 } else { 100 });
         }
@@ -368,6 +379,8 @@ impl Args {
         if from_argv.flag_theme == "table" && from_env.flag_theme != "table" {
             from_argv.flag_theme = from_env.flag_theme;
         }
+
+        from_argv.flag_plain |= from_env.flag_plain;
 
         if !from_argv.flag_hide_index && from_env.flag_hide_index {
             from_argv.flag_hide_index = true;
@@ -779,6 +792,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let write_horizontal_ruler =
         |out: &mut Box<dyn Write>, pos: HRPosition| -> Result<(), io::Error> {
+            if args.flag_plain {
+                return Ok(());
+            }
+
             let mut s = String::new();
 
             if theme.external_borders {
@@ -935,7 +952,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Ok(())
     };
 
-    writeln!(&mut output)?;
+    if !args.flag_plain {
+        writeln!(&mut output)?;
+    }
     write_info(&mut output)?;
 
     // NOTE: we stop if there is nothing to show
@@ -1037,9 +1056,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             write_headers(&mut output, false)?;
         }
         write_info(&mut output)?;
-        writeln!(&mut output)?;
     } else {
         write_horizontal_ruler(&mut output, HRPosition::Top)?;
+    }
+    if !args.flag_plain {
         writeln!(&mut output)?;
     }
 
