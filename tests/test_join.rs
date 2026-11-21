@@ -420,6 +420,64 @@ fn join_drop_key() {
 }
 
 #[test]
+fn join_strict() {
+    let wrk = Workdir::new("join_strict");
+    wrk.create(
+        "people.csv",
+        vec![
+            svec!["name", "age"],
+            svec!["john", "43"],
+            svec!["lucy", "54"],
+        ],
+    );
+    wrk.create(
+        "colors.csv",
+        vec![
+            svec!["person", "color"],
+            svec!["john", "red"],
+            svec!["john", "yellow"],
+            svec!["lucy", "orange"],
+        ],
+    );
+    wrk.create(
+        "error.csv",
+        vec![
+            svec!["person", "color"],
+            svec!["john", "red"],
+            svec!["john", "yellow"],
+        ],
+    );
+
+    let mut cmd = wrk.command("join");
+    cmd.arg("--strict").args(["--drop-key", "right"]).args([
+        "name",
+        "people.csv",
+        "person",
+        "colors.csv",
+    ]);
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["name", "age", "color"],
+        ["john", "43", "red"],
+        ["john", "43", "yellow"],
+        ["lucy", "54", "orange"],
+    ];
+    assert_eq!(got, expected);
+
+    // Now with error
+    let mut cmd = wrk.command("join");
+    cmd.arg("--strict")
+        .args(["name", "people.csv", "person", "error.csv"]);
+    wrk.assert_err(&mut cmd);
+
+    // Order should not matter for error
+    let mut cmd = wrk.command("join");
+    cmd.arg("--strict")
+        .args(["person", "error.csv", "name", "people.csv"]);
+    wrk.assert_err(&mut cmd);
+}
+
+#[test]
 fn fuzzy_join() {
     let wrk = Workdir::new("fuzzy_join_regex");
     wrk.create(

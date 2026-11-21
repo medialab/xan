@@ -45,6 +45,7 @@ The **laminated** update.
 * Adding `!important` rules to `xan scrape` DSL.
 * Adding `xan explode -C/--combinations <k> & -I/--drop-incomplete`.
 * Adding `xan matrix --normalize`.
+* Adding `xan join --strict`.
 
 *Fixes*
 
