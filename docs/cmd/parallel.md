@@ -83,6 +83,7 @@ Usage:
     xan parallel agg [options] <expr> [<inputs>...]
     xan parallel groupby [options] <group> <expr> [<inputs>...]
     xan parallel top [options] <column> [<inputs>...]
+    xan parallel map --inplace [options] [<inputs>...]
     xan parallel map [options] <template> [<inputs>...]
     xan parallel --help
     xan p count [options] [<inputs>...]
@@ -92,6 +93,7 @@ Usage:
     xan p agg [options] <expr> [<inputs>...]
     xan p groupby [options] <group> <expr> [<inputs>...]
     xan p top [options] <column> [<inputs>...]
+    xan p map --inplace [options] [<inputs>...]
     xan p map [options] <template> [<inputs>...]
     xan p --help
 
@@ -171,6 +173,20 @@ parallel top options:
                           consume O(k + t) memory, t being the number of ties.
 
 parallel map options:
+    --inplace              Replace target files, without changing their names, instead
+                           of adding new ones beside them.
+    --replace              Replace target files instead of adding new ones beside them.
+    --atomicity <mode>     When using --inplace, use to select when finished files are
+                           replaced. Must be one of the following:
+                                - "all":  the command will wait for every file to be
+                                            fully processed before replacing original ones.
+                                            The overall process remains safe in case of an
+                                            error but requires more temporary disk resources.
+                                - "file": the command will replace a file as soon as it is
+                                            fully processed. This requires less temporary disk
+                                            resources but is riskier in case of an error because
+                                            only some files will have been replaced.
+                           [default: all]
     -z, --compress <kind>  Compress created files using either "gz|gzip" or "zst|zstd"
                            compression.
 

@@ -129,10 +129,7 @@ impl Compression {
         }
     }
 
-    pub fn wrap_writer<W: Write + 'static>(
-        &self,
-        writer: W,
-    ) -> io::Result<Box<dyn Write + 'static>> {
+    pub fn wrap_writer<'s, W: Write + 's>(&self, writer: W) -> io::Result<Box<dyn Write + 's>> {
         match self {
             Self::Gzip => Ok(Box::new(flate2::write::GzEncoder::new(
                 writer,

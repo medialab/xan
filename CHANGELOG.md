@@ -46,6 +46,7 @@ The **laminated** update.
 * Adding `xan explode -C/--combinations <k> & -I/--drop-incomplete`.
 * Adding `xan matrix --normalize`.
 * Adding `xan join --strict`.
+* Adding `xan parallel map --inplace & --replace & --atomicity`.
 
 *Fixes*
 
