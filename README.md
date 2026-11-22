@@ -18,7 +18,7 @@ Beyond CSV data, `xan` is able to process a large variety of CSV-adjacent data f
 
 Then, even though `xan` is fundamentally geared towards streams of row-oriented tabular data, it can sometimes leverage the benefits of the popular `parquet` file format to offer better performance. See [this](#regarding-parquet-files) section for more detail.
 
-Finally, `xan` can be used to display CSV files in the terminal, for easy exploration, and can even be used to draw basic data visualisations:
+Finally, `xan` can be used to display CSV files in the terminal, for easy exploration, and can even be used to draw basic data visualisations. See the [dataviz cookbook](./docs/cookbook/dataviz.md) for examples:
 
 |*view command*|*flatten command*|
 |:---:|:---:|
@@ -568,7 +568,6 @@ If you speak French, [here](https://ceres.sorbonne-universite.fr/test_outil_xan/
 
 *Documented use-cases*
 
-* [Dataviz from the comfort of your terminal](./docs/cookbook/dataviz.md)
 * [Merging frequency tables, three ways](./docs/cookbook/frequency_tables.md)
 * [Parsing and visualizing dates with xan](./docs/cookbook/dates.md)
 * [Joining files by URL prefixes](./docs/cookbook/urls.md)

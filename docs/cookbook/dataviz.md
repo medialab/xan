@@ -144,6 +144,7 @@ I say "comfort" and I mean it ;). `xan` will have processed and rendered your da
     - [Custom 2D plots & density gradients](#custom-2d-plots--density-gradients)
 - [`xan heatmap` for heatmaps and conditional formatting](#xan-heatmap-for-heatmaps-and-conditional-formatting)
     - [Correlation matrices](#correlation-matrices)
+    - [Bivariate distributions](#bivariate-distributions)
     - [Count & adjacency matrices](#count--adjacency-matrices)
     - [Arbitrary matrices](#arbitrary-matrices)
     - [Conditional formatting](#conditional-formatting)
@@ -424,14 +425,14 @@ By default, the command will split multivalued cells by `|` but you can always p
 
 ### Highlighting
 
-Sometimes, it can be nice to highlight substrings matching some pattern. `xan flatten` lets you do so through a regex given to the `-H/--highlight` flag. Matches can also be case-insensitive if you give the `-i/--ignore-case` flag.
+Sometimes, it can be nice to highlight substrings matching some pattern. `xan flatten` lets you do so through a regex given to the `-r/--highlight-regex` flag. Matches can also be case-insensitive if you give the `-i/--ignore-case` flag. The separate `-H/--highlight` flag highlights text enclosed in markup tags instead.
 
 Let's search for sentences containing the "conspicuous" word in our speeches:
 
 ```bash
 xan tokenize sentences transcript sotu.csv | \
 xan search -s sentence -i conspicuous | \
-xan flatten -F -iH conspicuous
+xan flatten -F -ir conspicuous
 ```
 
 <p align="center">
@@ -1038,6 +1039,36 @@ petal_width  ██████▒▒▒▒▒▒██████
              ██████▒▒▒▒▒▒██████
              ██████▒▒▒▒▒▒██████
 ```
+
+### Bivariate distributions
+
+A bivariate distribution groups pairs of numeric values into bins on both axes.
+For example, to see how sepal length and petal width occur together in the Iris
+data, use `xan matrix bivar` to count flowers in each cell and pipe the matrix
+to `xan heatmap`:
+
+```bash
+xan matrix bivar sepal_length petal_width --bins 3 iris.csv | \
+xan heatmap --ascii
+```
+
+The first column passed to `bivar` is the horizontal axis; the second is the
+vertical axis, with larger values at the top. `--bins 3` uses three equal-width
+bins on each axis over the observed range (the default is 10). Each cell counts
+rows in that pair of ranges, rather than calculating a correlation. Empty cells
+mean no rows fell in that pair. `--ascii` makes the result easy to copy:
+
+```txt
+                   1: >= 4.3 < 5.5 2: >= 5.5 < 6.7 3: >= 6.7 <= 7.9
+
+                   1 2 3
+>= 1.6999 <= 2.5   ░░▓▓▒▒
+>= 0.8999 < 1.6999 ░░██░░
+>= 0.1 < 0.8999    ██░░
+```
+
+Omit `--ascii` to use the color gradient in a truecolor terminal, or use
+`--show-numbers --size 3` with `xan heatmap` to see the counts in each cell.
 
 ### Count & adjacency matrices
 

@@ -83,7 +83,7 @@ save_with_width "flatten-sotu-flatter" 1432
 
 xan tokenize sentences transcript "$SOTU" | \
 xan search -s sentence -i conspicuous | \
-xan f -F -l 2 --cols 59 -i -H conspicuous | \
+xan f -F -l 2 --cols 59 -i -r conspicuous | \
 save_with_width "flatten-sotu-highlight" 1432
 
 xan tail -l 2 "$MEDIAS" | \
