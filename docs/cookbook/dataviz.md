@@ -427,6 +427,8 @@ By default, the command will split multivalued cells by `|` but you can always p
 
 Sometimes, it can be nice to highlight substrings matching some pattern. `xan flatten` lets you do so through a regex given to the `-r/--highlight-regex` flag. Matches can also be case-insensitive if you give the `-i/--ignore-case` flag. The separate `-H/--highlight` flag highlights text enclosed in markup tags instead.
 
+This syntax follows current master. In `0.61.0` and `0.62.0-rc.2`, use `-H` instead of `-r` for regex highlighting.
+
 Let's search for sentences containing the "conspicuous" word in our speeches:
 
 ```bash
@@ -1045,7 +1047,7 @@ petal_width  ██████▒▒▒▒▒▒██████
 A bivariate distribution groups pairs of numeric values into bins on both axes.
 For example, to see how sepal length and petal width occur together in the Iris
 data, use `xan matrix bivar` to count flowers in each cell and pipe the matrix
-to `xan heatmap`:
+to `xan heatmap` (available in `0.62.0-rc.2` and current master; not in `0.61.0`):
 
 ```bash
 xan matrix bivar sepal_length petal_width --bins 3 iris.csv | \
