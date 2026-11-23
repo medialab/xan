@@ -176,6 +176,8 @@ parallel map options:
     --inplace              Replace target files, without changing their names, instead
                            of adding new ones beside them.
     --replace              Replace target files instead of adding new ones beside them.
+    --tmp-dir <dir>        Where to write temporary files.
+                           Will default to "/tmp" or equivalent.
     --atomicity <mode>     When using --inplace, use to select when finished files are
                            replaced. Must be one of the following:
                                 - "all":  the command will wait for every file to be

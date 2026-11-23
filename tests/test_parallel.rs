@@ -394,6 +394,7 @@ fn parallel_map_inplace() {
     let mut cmd = wrk.command("parallel");
     cmd.arg("map")
         .arg("--inplace")
+        .args(["--tmp-dir", wrk.dir_as_str()])
         .args(["-P", "slice -l 1"])
         .arg("data1.csv")
         .arg("data2.csv");
@@ -431,6 +432,7 @@ fn parallel_map_replace() {
     let mut cmd = wrk.command("parallel");
     cmd.arg("map")
         .arg("--replace")
+        .args(["--tmp-dir", wrk.dir_as_str()])
         .arg("{}_slice.csv")
         .args(["-P", "slice -l 1"])
         .arg("data1.csv")
@@ -469,6 +471,7 @@ fn parallel_map_inplace_file_atomicity() {
     let mut cmd = wrk.command("parallel");
     cmd.arg("map")
         .arg("--inplace")
+        .args(["--tmp-dir", wrk.dir_as_str()])
         .args(["--atomicity", "file"])
         .args(["-P", "slice -l 1"])
         .arg("data1.csv")
@@ -507,6 +510,7 @@ fn parallel_map_replace_file_atomicity() {
     let mut cmd = wrk.command("parallel");
     cmd.arg("map")
         .arg("--replace")
+        .args(["--tmp-dir", wrk.dir_as_str()])
         .args(["--atomicity", "file"])
         .arg("{}_slice.csv")
         .args(["-P", "slice -l 1"])

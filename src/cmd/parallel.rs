@@ -682,6 +682,8 @@ parallel map options:
     --inplace              Replace target files, without changing their names, instead
                            of adding new ones beside them.
     --replace              Replace target files instead of adding new ones beside them.
+    --tmp-dir <dir>        Where to write temporary files.
+                           Will default to \"/tmp\" or equivalent.
     --atomicity <mode>     When using --inplace, use to select when finished files are
                            replaced. Must be one of the following:
                                 - \"all\":  the command will wait for every file to be
@@ -751,6 +753,7 @@ pub struct Args {
     pub flag_ties: bool,
     flag_inplace: bool,
     flag_replace: bool,
+    flag_tmp_dir: Option<String>,
     flag_atomicity: Atomicity,
 }
 
@@ -1684,7 +1687,13 @@ impl Args {
         }
 
         let tmp_dir_opt = (self.flag_inplace || self.flag_replace)
-            .then(TempDir::new)
+            .then(|| {
+                if let Some(dir) = &self.flag_tmp_dir {
+                    TempDir::new_in(dir)
+                } else {
+                    TempDir::new()
+                }
+            })
             .transpose()?;
 
         let tmp_files_mutex_opt: Option<Mutex<Vec<(PersistMode, NamedTempFile)>>> =

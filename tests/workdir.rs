@@ -48,6 +48,10 @@ impl Workdir {
         }
     }
 
+    pub fn dir_as_str(&self) -> &str {
+        self.dir.to_str().unwrap()
+    }
+
     pub fn ls(&self) -> Vec<String> {
         let mut paths: Vec<_> = fs::read_dir(&self.dir)
             .unwrap()
