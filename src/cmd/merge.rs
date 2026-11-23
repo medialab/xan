@@ -13,7 +13,7 @@ use crate::{CliError, CliResult};
 
 type MergeHeapEntry = (ByteRecord, usize);
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct MergeHeapComparator<'s> {
     sel: &'s Selection,
     numeric: bool,
@@ -70,7 +70,7 @@ impl Compare<MergeHeapEntry> for MergeHeapComparator<'_> {
         self.cmp_entry(l, r)
     }
 }
-
+#[derive(Debug)]
 pub struct MergeHeap<'s> {
     inner: BinaryHeap<MergeHeapEntry, MergeHeapComparator<'s>>,
     comparator: MergeHeapComparator<'s>,
@@ -106,10 +106,13 @@ impl<'s> MergeHeap<'s> {
     }
 }
 
+#[derive(Debug)]
 pub struct MergeHeapIntoIter<'s, I> {
     heap: MergeHeap<'s>,
     iterators: Vec<I>,
     to_throw_next: Option<MergeHeapEntry>,
+    file_to_cat: Option<usize>,
+
 }
 
 impl<'s, I> MergeHeapIntoIter<'s, I>
@@ -126,7 +129,7 @@ where
             }
         }
 
-        Ok(Self { heap, iterators, to_throw_next: None })
+        Ok(Self { heap, iterators, to_throw_next: None , file_to_cat: None})
     }
 }
 
@@ -137,61 +140,48 @@ where
     type Item = simd_csv::Result<(usize, ByteRecord)>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some((throw_record, i)) = self.to_throw_next.take() {
-
-            match self.iterators[i].next() {
-                None => (),
-                Some(result) => match result {
-                    Ok(record) => {
-                        self.heap.push((record, i));
-                    }
-                    Err(err) => {
-                        return Some(Err(err));
-                    }
-                },
-            }
-            Some(Ok((i, throw_record)))
-
-        } else {
-            if let Some((throw_record, i)) = self.heap.pop() {
-                if let Some(next_out) = self.heap.peek() {
-                    match self.iterators[i].next() {
-                        None => (),
-                        Some(result) => match result {
-                            Ok(record) => {
-                                if self.heap.comparator.cmp(next_out, &record, i) == Ordering::Less {
-                                    self.to_throw_next = Some((record, i));
-                                } else {
-                                    self.to_throw_next = self.heap.pop();
-                                    self.heap.push((record, i));
-                                }
+        // or_else() is just used when entrying and when at the end of a file
+        if let Some((throw_record, i)) = self.to_throw_next.take().or_else(|| self.heap.pop()) {
+            if let Some(next_out) = self.heap.peek() {
+                match self.iterators[i].next() {
+                    None => (),
+                    Some(result) => match result {
+                        Ok(record) => {
+                            if self.heap.comparator.cmp(next_out, &record, i) == Ordering::Less {
+                                self.to_throw_next = Some((record, i));
+                                // don't put file i in heap
+                            } else {
+                                self.to_throw_next = self.heap.pop();
+                                self.heap.push((record, i));
                             }
-                            Err(err) => {
-                                return Some(Err(err));
-                            }
-                        },
-                    }
-
-                    Some(Ok((i, throw_record)))
+                        }
+                        Err(err) => {
+                            return Some(Err(err));
+                        }
+                    },
                 }
-                else {
-                    // one file left
-                    self.to_throw_next = match self.iterators[i].next() {
-                        None => None,
-                        Some(result) => match result {
-                            Ok(record) => {
-                                Some((record, i))
-                            }
-                            Err(err) => {
-                                return Some(Err(err));
-                            }
-                        },
-                    };
-                    Some(Ok((i, throw_record)))
+                Some(Ok((i, throw_record)))
+            } else { // first entry : to_throw_next == None && (one file left)
+                self.file_to_cat = Some(i);
+                Some(Ok((i, throw_record)))
+                }
+        } else {
+            if let Some(i) = self.file_to_cat {
+                match self.iterators[i].next() {
+                    None => None,
+                    Some(result) => match result {
+                        Ok(record) => {
+                            Some(Ok((i, record)))
+                        }
+                        Err(err) => {
+                            return Some(Err(err));
+                        }
+                    },
                 }
             } else {
-                None
+                panic!("Unexpected - file_to_cat is supposed to be Some at this point");
             }
+
         }
     }
 }
