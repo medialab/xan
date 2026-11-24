@@ -66,6 +66,7 @@ The **laminated** update.
 * Fixing performance issues when calling a command with a lot of positional arguments (e.g. 10k paths to `xan scrape`).
 * Fixing `xan explode --evaluate --drop-empty` semantics.
 * Fixing `xan bivar` to abide by correct coordinates and flip y axis to fit intuition.
+* Fixing moonblade negative string indexing (e.g. `name[-1]`) with non-ASCII characters.
 
 *Performance*
 

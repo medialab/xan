@@ -7,46 +7,25 @@ use crate::moonblade::types::{BoundArgument, BoundArguments, BoundContainer, Dyn
 
 use super::FunctionResult;
 
+fn nth_char(string: &str, index: i64) -> Option<DynamicValue> {
+    if index < 0 {
+        string.chars().nth_back((index.unsigned_abs() - 1) as usize)
+    } else {
+        string.chars().nth(index as usize)
+    }
+    .map(DynamicValue::from)
+}
+
 fn get_subroutine<'v>(
     target: BoundContainer<'v>,
     key: BoundArgument,
 ) -> Result<Option<Cow<'v, DynamicValue>>, EvaluationError> {
     Ok(match target {
-        BoundContainer::String(value) => {
-            let mut index = key.try_as_i64()?;
-
-            if index < 0 {
-                index += value.len() as i64;
-            }
-
-            if index < 0 {
-                None
-            } else {
-                value
-                    .chars()
-                    .nth(index as usize)
-                    .map(DynamicValue::from)
-                    .map(Cow::Owned)
-            }
-        }
+        BoundContainer::String(value) => nth_char(value, key.try_as_i64()?).map(Cow::Owned),
         BoundContainer::Bytes(value) => {
-            let mut index = key.try_as_i64()?;
+            let index = key.try_as_i64()?;
 
-            if index < 0 {
-                index += value.len() as i64;
-            }
-
-            if index < 0 {
-                None
-            } else {
-                let value = std::str::from_utf8(value)?;
-
-                value
-                    .chars()
-                    .nth(index as usize)
-                    .map(DynamicValue::from)
-                    .map(Cow::Owned)
-            }
+            nth_char(std::str::from_utf8(value)?, index).map(Cow::Owned)
         }
         BoundContainer::List(list) => {
             let mut index = key.try_as_i64()?;

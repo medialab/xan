@@ -1087,6 +1087,17 @@ mod tests {
         assert_eq!(eval_code("get('test', 0)"), Ok(DynamicValue::from("t")));
         assert_eq!(eval_code("get('test', 7, 4)"), Ok(DynamicValue::from(4)));
         assert_eq!(eval_code("'test'[1]"), Ok(DynamicValue::from("e")));
+        assert_eq!(eval_code("'test'[-1]"), Ok(DynamicValue::from("t")));
+        assert_eq!(eval_code("'héllo'[-1]"), Ok(DynamicValue::from("o")));
+        assert_eq!(eval_code("'héllo'[-4]"), Ok(DynamicValue::from("é")));
+        assert_eq!(eval_code("'héllo'[-5]"), Ok(DynamicValue::from("h")));
+        assert_eq!(
+            eval_code("get('héllo', -6, 'none')"),
+            Ok(DynamicValue::from("none"))
+        );
+        assert_eq!(eval_code("get('é', -1)"), Ok(DynamicValue::from("é")));
+        assert_eq!(eval_code("get('é', -2, 'd')"), Ok(DynamicValue::from("d")));
+        assert_eq!(eval_code("get('', -1, 'd')"), Ok(DynamicValue::from("d")));
 
         assert_eq!(
             eval_code("get({'one': {'two': [1, 2, 3]}}, ['one', 'two', 1])"),

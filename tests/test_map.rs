@@ -237,3 +237,16 @@ fn map_along_columns_overwrite() {
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     assert_eq!(got, expected);
 }
+
+#[test]
+fn map_negative_index_multibyte() {
+    let wrk = Workdir::new("map_negative_index_multibyte");
+    wrk.create("data.csv", vec![svec!["name"], svec!["héllo"]]);
+    let mut cmd = wrk.command("map");
+    cmd.arg("name[-1] as last, get(name, -4) as second")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["name", "last", "second"], svec!["héllo", "o", "é"]];
+    assert_eq!(got, expected);
+}
