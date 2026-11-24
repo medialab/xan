@@ -166,22 +166,18 @@ where
                 Some(Ok((i, throw_record)))
                 }
         } else {
-            if let Some(i) = self.file_to_cat {
-                match self.iterators[i].next() {
-                    None => None,
-                    Some(result) => match result {
-                        Ok(record) => {
-                            Some(Ok((i, record)))
-                        }
-                        Err(err) => {
-                            return Some(Err(err));
-                        }
-                    },
-                }
-            } else {
-                panic!("Unexpected - file_to_cat is supposed to be Some at this point");
+            let i = self.file_to_cat.unwrap();
+            match self.iterators[i].next() {
+                None => None,
+                Some(result) => match result {
+                    Ok(record) => {
+                        Some(Ok((i, record)))
+                    }
+                    Err(err) => {
+                        return Some(Err(err));
+                    }
+                },
             }
-
         }
     }
 }
