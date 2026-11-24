@@ -71,11 +71,10 @@ impl ScrollTable {
         self.frozen
     }
 
-    pub fn frozen_name(&self) -> String {
+    pub fn frozen_name(&self) -> &str {
         self.frozen
-            .and_then(|f| self.header(f))
+            .and_then(|f| self.headers.get(f))
             .unwrap_or("-")
-            .to_string()
     }
 
     pub fn n_cols(&self) -> usize {
@@ -90,13 +89,13 @@ impl ScrollTable {
         self.rows.len()
     }
 
-    pub fn no_rows(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.rows.is_empty()
     }
 
-    pub fn header(&self, i: usize) -> Option<&str> {
-        self.headers.get(i)
-    }
+    // pub fn header(&self, i: usize) -> Option<&str> {
+    //     self.headers.get(i)
+    // }
 
     pub fn body_size(&self) -> Size {
         self.body_size

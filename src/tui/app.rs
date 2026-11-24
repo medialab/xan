@@ -1,9 +1,5 @@
-use crate::CliResult;
-use crate::cmd::view::DisplayedColumn;
-use crate::utils::DataType;
-use crate::tui::{ViewStyle, CLASSIC_VIEWSTYLE, view_debug::ViewInfo, scroll_table, scroll_table::ScrollTable};
-
 use std::time::Duration;
+
 use simd_csv::StringRecord;
 use ratatui::{
     Frame,
@@ -14,6 +10,12 @@ use ratatui::{
     DefaultTerminal,
 };
 
+use crate::CliResult;
+use crate::cmd::view::DisplayedColumn;
+use crate::utils::DataType;
+use crate::tui::{ViewStyle, CLASSIC_VIEWSTYLE, view_debug::ViewInfo, scroll_table, scroll_table::ScrollTable};
+
+
 fn list_to_string<I>(list: I) -> String
 where I: Iterator, I::Item: ToString,
 {
@@ -23,7 +25,7 @@ where I: Iterator, I::Item: ToString,
 }
 
 #[derive(Debug)]
-pub struct App {
+pub struct ViewApp {
     name: String,
     scroll_table: ScrollTable,
     show_info: bool,
@@ -31,20 +33,20 @@ pub struct App {
     infos: Vec<(&'static str, String)>,
 }
 
-impl App {
+impl ViewApp {
     pub fn new(name: String, headers: StringRecord, rows: Vec<(StringRecord, Vec<DataType>)>, cols: Vec<DisplayedColumn>, style: Option<&'static ViewStyle>) -> Self {
         let viewstyle = style.unwrap_or(&CLASSIC_VIEWSTYLE);
         let scroll_table = ScrollTable::new(headers, rows, cols, &viewstyle.scroll_table);
         let infos = vec![
-            ("Lignes", "".to_string()),
-            ("Colonnes", "".to_string()),
-            ("Largeur colonne", "".to_string()),
-            ("Colonne figée", "".to_string()),
+            ("Lines", "".to_string()),
+            ("Columns", "".to_string()),
+            ("column width ", "".to_string()),
+            ("Frozen column", "".to_string()),
         ];
         Self { name, scroll_table, show_info: false, quit: false, infos}
     }
 
-    pub fn get_infos(&self) -> &Vec<(&'static str, String)> {
+    pub fn get_infos(&self) -> &[(&'static str, String)] {
         &self.infos
     }
 
@@ -142,7 +144,7 @@ impl App {
                 self.scroll_table.n_rows().to_string(),
                 self.scroll_table.n_cols().to_string(),
                 list_to_string(self.scroll_table.col_widths()),
-                self.scroll_table.frozen_name(),
+                self.scroll_table.frozen_name().to_string(),
             ];
             self.update_infos(infos);
 
@@ -150,8 +152,8 @@ impl App {
         }
     }
 
-    pub fn no_rows(&self) -> bool {
-        self.scroll_table.no_rows()
+    pub fn is_empty(&self) -> bool {
+        self.scroll_table.is_empty()
     }
 
     pub fn scrollable_columns(&self) -> Vec<usize> {

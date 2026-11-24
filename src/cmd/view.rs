@@ -14,7 +14,7 @@ use crate::read::LeakySponge;
 use crate::select::SelectedColumns;
 use crate::utils::{self, ColorMode, DataType};
 
-use crate::tui::{App, theme_by_name, CLASSIC_VIEWSTYLE, sanitize_emoji};
+use crate::tui::{ViewApp, theme_by_name, CLASSIC_VIEWSTYLE};
 
 #[derive(Debug, Clone, Copy, Default, Deserialize)]
 pub enum ComplexToggle {
@@ -40,7 +40,7 @@ fn prepend(record: &StringRecord, cell_value: &str) -> StringRecord {
 
 const HEADERS_ROWS: usize = 8;
 const MAX_RATIO_EXTEND: f64 = 0.75;
-const MAX_RATIO_TUI: f64 = 0.5;
+const MAX_RATIO_TUI: f64 = 0.4;
 
 type BoxCharsArray = [char; 11];
 
@@ -343,10 +343,6 @@ struct Args {
 
 impl Args {
     fn resolve(&mut self) {
-        if self.flag_tui && self.flag_limit.is_none() {
-            self.flag_all = true;
-        }
-
         if self.flag_all {
             self.flag_limit = Some(0);
         }
@@ -368,9 +364,13 @@ impl Args {
         if self.flag_limit.is_none() {
             self.flag_limit = Some(if self.flag_tee { 5 } else { 100 });
         }
+
+        if self.flag_tui {
+            self.flag_sanitize_emojis = true;
+        }
     }
 
-    fn infer_expand_max_ration(&self) -> Option<f64> {
+    fn infer_expand_max_ratio(&self) -> Option<f64> {
         if self.flag_pager || self.flag_expand {
             Some(MAX_RATIO_EXTEND)
         } else if self.flag_tui {
@@ -395,7 +395,7 @@ impl Args {
 
         // NOTE: -T/--tee is incompatible with the pager and the tui and should
         // take precedence over a default
-        if !from_argv.flag_pager  && !from_argv.flag_tui && !from_argv.flag_tee {
+        if !from_argv.flag_pager && !from_argv.flag_tui && !from_argv.flag_tee {
             if from_env.flag_pager {
                 from_argv.flag_pager = true;
             }
@@ -739,7 +739,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let displayed_columns = infer_best_column_display(
         cols,
         &max_column_widths,
-        args.infer_expand_max_ration(),
+        args.infer_expand_max_ratio(),
         if args.flag_hide_index { 0 } else { 1 },
         padding,
     );
@@ -767,13 +767,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     };
 
     if args.flag_tui {
-        let rows = records
-            .into_iter()
-            .map(|(record, types)| (sanitize_emoji(&record), types))
-            .collect();
+        // let rows = records
+        //     .into_iter()
+        //     .map(|(record, types)| (sanitize_emoji(&record), types))
+        //     .collect();
         let mut terminal = ratatui::init();
-        let theme = theme_by_name("dracula");
-        let result = App::new(name.to_string(), headers, rows, displayed_columns.left, theme).run(&mut terminal);
+        // let theme = theme_by_name("dracula");
+        let result = ViewApp::new(name.to_string(), headers, records, displayed_columns.left, None).run(&mut terminal);
         ratatui::restore();
         return Ok(result?);
     }

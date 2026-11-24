@@ -6,7 +6,7 @@ use ratatui::{
     Frame,
 };
 
-use crate::tui::app::App;
+use crate::tui::app::ViewApp;
 
 pub struct ViewInfo {
     /// Taille du contenu virtuel du body.
@@ -35,7 +35,7 @@ fn kv(label: &str, value: impl std::fmt::Display) -> Line<'static> {
 }
 
 impl ViewInfo {
-    fn get_all_infos(&self, app: &App) -> Vec<Line<'static>> {
+    fn get_all_infos(&self, app: &ViewApp) -> Vec<Line<'static>> {
         let scrollable = app.scrollable_columns();
 
         let (x, y) = (self.offset.x, self.offset.y);
@@ -43,7 +43,7 @@ impl ViewInfo {
         let max_x = self.canvas.width.saturating_sub(self.viewport.width);
         let max_y = self.canvas.height.saturating_sub(self.viewport.height);
 
-        let visible_rows = if app.no_rows() {
+        let visible_rows = if app.is_empty() {
             "-".to_string()
         } else {
             //format!("{}-{} / {}", y + 1, (y + vh).min(app.n_rows()), app.n_rows())
@@ -74,7 +74,7 @@ impl ViewInfo {
             ]
     }
 
-    pub fn draw_info(&self, frame: &mut Frame, app: &App) {
+    pub fn draw_info(&self, frame: &mut Frame, app: &ViewApp) {
 
         let lines = app.get_infos().into_iter()
                  .map(|(label, info)| kv(label, info))

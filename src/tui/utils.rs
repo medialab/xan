@@ -1,6 +1,6 @@
 use colored::{ColoredString, Colorize};
-use simd_csv::StringRecord;
-use unicode_segmentation::UnicodeSegmentation;
+// use simd_csv::StringRecord;
+// use unicode_segmentation::UnicodeSegmentation;
 
 use ratatui::backend::TestBackend;
 use ratatui::buffer::{Buffer, Cell};
@@ -92,33 +92,34 @@ where
     print_buffer_to_stdout(buffer, cols);
 }
 
-/// Remplace chaque grapheme contenant un ZWJ (U+200D) par un symbole de largeur fiable.
-pub fn sanitize_emoji(record: &StringRecord) -> StringRecord {
-    record
-        .iter()
-        .map(|input| {
-            input
-                .graphemes(true)
-                .map(|g| {
-                    if g.contains('\u{200D}') {
-                        if g.contains("🏴") {
-                            "🏴"
-                        } else if g.contains("🏳") {
-                            "🏳"
-                        } else {
-                            "▪"
-                        }
-                    } else if g.chars().any(is_regional_indicator) {
-                        "▪"
-                    } else {
-                        g
-                    }
-                })
-                .collect::<String>()
-        })
-        .collect()
-}
+// Remplace chaque grapheme contenant un ZWJ (U+200D) par un symbole de largeur fiable.
+// pub fn sanitize_emoji(record: &StringRecord) -> StringRecord {
+//     record
+//         .iter()
+//         .map(|input| {
+//             input
+//                 .graphemes(true)
+//                 .map(|g| {
+//                     if g.contains('\u{200D}') {
+//                         if g.contains("🏴") {
+//                             "🏴"
+//                         } else if g.contains("🏳") {
+//                             "🏳"
+//                         } else {
+//                             "▪"
+//                         }
+//                     } else if g.chars().any(is_regional_indicator) {
+//                         "▪"
+//                     } else {
+//                         g
+//                     }
+//                 })
+//                 .collect::<String>()
+//         })
+//         .collect()
+// }
 
-fn is_regional_indicator(c: char) -> bool {
-    ('\u{1F1E6}'..='\u{1F1FF}').contains(&c)
-}
+// fn is_regional_indicator(c: char) -> bool {
+//     ('\u{1F1E6}'..='\u{1F1FF}').contains(&c)
+// }
+
