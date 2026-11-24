@@ -618,13 +618,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         }
                     }
                     _ => {
-                        let mut cell = utils::sanitize_text_for_single_line_printing(cell);
+                        let cell = utils::sanitize_text_for_single_line_printing(cell);
 
                         if let Some(sanitizer) = &emoji_sanitizer_opt {
-                            cell = sanitizer.sanitize(&cell);
+                            processed_record.push_field(&sanitizer.sanitize(&cell));
+                        } else {
+                            processed_record.push_field(&cell);
                         }
-
-                        processed_record.push_field(&cell);
                     }
                 };
             }
