@@ -4,6 +4,7 @@
 
 - Historical outline wrt simd-json etc.
 - Why hasn't it happened already? (IO-bound, streaming, branching not invalidated, very good existing scalar designs)
+- copy must not happen per cell in larger swathes, see new byterecord design. check full design notes
 - Shuffling, PCMESTRI, LUTs and PCLMULQDQ seems globally bad in the case of CSV. simd-json searches for many more characters than what is needed in CSV
 - You cannot expect x16 or x32, that is just not realistic.
 - Branching is data-dependent and cannot be avoided.
