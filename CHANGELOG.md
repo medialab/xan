@@ -47,6 +47,7 @@ The **laminated** update.
 * Adding `xan matrix --normalize`.
 * Adding `xan join --strict`.
 * Adding `xan parallel map --inplace, --replace, --atomicity & --tmp-dir`.
+* Adding support for Zstandard seekable format.
 
 *Fixes*
 

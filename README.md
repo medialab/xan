@@ -773,7 +773,7 @@ Then, some `xan` commands offer better `parquet` integration when they can lever
 
 `xan` is able to read gzipped files (having a `.gz` extension). It is also able to leverage `.gzi` indices (usually created through [`bgzip`](https://www.htslib.org/doc/bgzip.html)) when seeking is necessary (constant time reversing, parallelization etc.).
 
-`xan` is also able to read files compressed with [`Zstdandard`](https://github.com/facebook/zstd) (having a `.zst` extension).
+`xan` is also able to read files compressed with [`Zstdandard`](https://github.com/facebook/zstd) (having a `.zst` extension). It is also able to leverage [Zstandard seekable format](https://github.com/meta/zstd/tree/b2c5bc16d90e15735b0dad051c6d7cd654b97cc6/contrib/seekable_format) when seeking is necessary (constant time reversing, parallelization etc.). However, note that all `.zst` files are not seekable out of the box and must have been compressed using a dedicated tool such as [`zeekstd`](https://crates.io/crates/zeekstd_cli), for instance.
 
 ### Regarding color
 

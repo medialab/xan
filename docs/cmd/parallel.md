@@ -5,9 +5,9 @@
 Parallel processing of CSV data.
 
 This command usually parallelizes computation over multiple files, but is also
-able to automatically chunk CSV files and bgzipped CSV files (when a `.gzi` index
-can be found) when the number of available threads is greater than the number
-of files to read.
+able to automatically chunk CSV files, bgzipped CSV files (when a `.gzi` index
+can be found) and ZST files compressed with Zstandard seekable format, when the
+number of available threads is greater than the number of files to read.
 
 This means this command is quite capable of parallelizing over a single CSV file.
 
