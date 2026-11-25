@@ -74,7 +74,7 @@ Here is the result:
 | meta.com      | 11    |
 | zorba.net     | 16    |
 
-Note how this is reminiscent of SQL. The `groupby` command is able to perform a lot of different aggregations on the grouped rows. Run `xan groupby --aggs` to read the full list of what is available.
+Note how this is reminiscent of SQL. The `groupby` command is able to perform a lot of different aggregations on the grouped rows. Run `xan help aggs` to read the full list of what is available.
 
 And now, if we want the top 3 entries (in a real life scenario we would of course have millions of domains, not just 6), we can use the `xan top` command like so:
 
