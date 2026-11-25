@@ -176,6 +176,40 @@ pub fn errif_greater_one_stdin(inps: &[Config]) -> Result<(), String> {
     Ok(())
 }
 
+pub fn glob_but_for<E>(
+    pattern: &str,
+    excluded_path_opt: Option<&str>,
+) -> Result<impl Iterator<Item = Result<String, E>>, E>
+where
+    E: From<io::Error> + From<glob::PatternError>,
+{
+    let excluded_path_opt = excluded_path_opt
+        .map(|path| Path::new(path).canonicalize())
+        .transpose()?;
+
+    Ok(
+        glob::glob(pattern)?.filter_map(move |result| -> Option<Result<String, E>> {
+            if let Ok(path) = result {
+                let string_path = path.to_string_lossy().into_owned();
+
+                if let (Ok(canonicalized_path), Some(output)) =
+                    (path.canonicalize(), &excluded_path_opt)
+                {
+                    if output != &canonicalized_path {
+                        Some(Ok(string_path))
+                    } else {
+                        None
+                    }
+                } else {
+                    Some(Ok(string_path))
+                }
+            } else {
+                None
+            }
+        }),
+    )
+}
+
 pub type Idx = Option<usize>;
 
 pub fn range(start: Idx, end: Idx, len: Idx, index: Idx) -> Result<(usize, usize), String> {

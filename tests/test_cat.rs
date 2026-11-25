@@ -190,3 +190,39 @@ fn cat_rows_union() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn cat_rows_glob() {
+    let wrk = Workdir::new("cat_rows_glob");
+    wrk.create(
+        "a.csv",
+        vec![
+            svec!["name", "surname"],
+            svec!["john", "landis"],
+            svec!["lucy", "sue"],
+        ],
+    );
+    wrk.create(
+        "b.csv",
+        vec![svec!["name", "surname"], svec!["beatrice", "babka"]],
+    );
+
+    let mut cmd = wrk.command("cat");
+    cmd.arg("rows")
+        .args(["--glob", "*.csv"])
+        .args(["-o", "c.csv"]);
+
+    wrk.assert_success(&mut cmd);
+
+    let mut cmd = wrk.command("slice");
+    cmd.arg("c.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["name", "surname"],
+        ["john", "landis"],
+        ["lucy", "sue"],
+        ["beatrice", "babka"],
+    ];
+    assert_eq!(got, expected);
+}

@@ -1062,14 +1062,16 @@ impl Args {
                 true,
                 ByteRecord::from(["path"]),
                 InputMode::Path,
-                Box::new(glob::glob(pattern)?.map(|result| match result {
-                    Ok(p) => {
-                        let p = p.to_string_lossy().into_owned();
-                        let dummy_record = ByteRecord::from([&p]);
-                        Ok(InputPayload::Path(p, dummy_record).into())
-                    }
-                    Err(e) => Err(CliError::from(e)),
-                })),
+                Box::new(
+                    utils::glob_but_for::<CliError>(pattern, self.flag_output.as_deref())?.map(
+                        |result| {
+                            result.map(|p| {
+                                let dummy_record = ByteRecord::from([&p]);
+                                InputPayload::Path(p, dummy_record).into()
+                            })
+                        },
+                    ),
+                ),
             ))
         } else if self.flag_stdin_doc {
             // Stdin doc

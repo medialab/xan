@@ -359,13 +359,14 @@ impl Args {
         }
 
         if let Some(pattern) = &self.flag_glob {
-            return glob::glob(pattern)?
-                .map(|result| match result {
-                    Ok(p) => Ok(Config::new(&Some(p.to_string_lossy().into_owned()))
-                        .delimiter(self.flag_delimiter)
-                        .no_headers(self.flag_no_headers)
-                        .select(self.flag_select.clone())),
-                    Err(err) => Err(CliError::from(err)),
+            return utils::glob_but_for::<CliError>(pattern, self.flag_output.as_deref())?
+                .map(|result| {
+                    result.map(|p| {
+                        Config::new(&Some(p))
+                            .delimiter(self.flag_delimiter)
+                            .no_headers(self.flag_no_headers)
+                            .select(self.flag_select.clone())
+                    })
                 })
                 .collect::<Result<Vec<_>, _>>();
         }

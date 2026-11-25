@@ -826,11 +826,7 @@ impl Args {
 
     fn inputs(&self) -> CliResult<(Vec<Input>, usize)> {
         let mut inputs = if let Some(pattern) = &self.flag_glob {
-            glob::glob(pattern)?
-                .map(|result| match result {
-                    Ok(p) => Ok(p.to_string_lossy().into_owned()),
-                    Err(err) => Err(CliError::from(err)),
-                })
+            utils::glob_but_for::<CliError>(pattern, self.flag_output.as_deref())?
                 .collect::<Result<Vec<_>, _>>()?
         } else if !self.arg_inputs.is_empty() {
             self.arg_inputs.clone()

@@ -180,7 +180,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 }
 
 impl Args {
-    fn paths(&self) -> CliResult<Box<dyn Iterator<Item = CliResult<String>>>> {
+    fn paths(&self) -> CliResult<Box<dyn Iterator<Item = CliResult<String>> + '_>> {
         let modes = self.flag_paths.is_some() as u8
             + !self.arg_inputs.is_empty() as u8
             + self.flag_glob.is_some() as u8;
@@ -194,9 +194,10 @@ impl Args {
         if let Some(paths_path) = self.flag_paths.as_ref() {
             Config::new(&Some(paths_path.clone())).lines(&self.flag_path_column)
         } else if let Some(pattern) = self.flag_glob.as_ref() {
-            Ok(Box::new(glob::glob(pattern)?.map(|result| {
-                Ok(result.unwrap().to_string_lossy().into_owned())
-            })))
+            Ok(Box::new(utils::glob_but_for(
+                pattern,
+                self.flag_output.as_deref(),
+            )?))
         } else {
             Ok(Box::new(self.arg_inputs.clone().into_iter().map(Ok)))
         }
