@@ -10,7 +10,7 @@ use simd_csv::ByteRecord;
 
 use crate::collections::HashMap;
 
-use super::error::{ConcretizationError, SpecifiedEvaluationError};
+use super::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
 use super::interpreter::{
     ConcreteExpr, EvaluationContext, GlobalNames, GlobalVariables, concretize_expression,
 };
@@ -428,6 +428,13 @@ enum ConcreteSelectionExpr {
 }
 
 impl ConcreteSelectionExpr {
+    fn unwrap_selector(&self) -> &Selector {
+        match self {
+            Self::Call(SelectionRoutine::First(selector, _), _) => selector,
+            _ => unreachable!(),
+        }
+    }
+
     fn evaluate(&self, html: &Html, selection: &Selection) -> Selection {
         match self {
             Self::Call(routine, args) => {
@@ -446,6 +453,7 @@ struct ConcreteScrapingLeaf {
     name: String,
     extractor: Extractor,
     processing: Option<ConcreteExpr>,
+    important: bool,
 }
 
 impl ConcreteScrapingLeaf {
@@ -455,24 +463,34 @@ impl ConcreteScrapingLeaf {
         html: &Html,
         selection: &Selection,
     ) -> Result<DynamicValue, SpecifiedEvaluationError> {
-        if selection.is_none() {
-            return Ok(DynamicValue::None);
-        }
+        let value = if selection.is_none() {
+            DynamicValue::None
+        } else {
+            let value = self
+                .extractor
+                .run(html, selection)
+                .unwrap_or(DynamicValue::None);
 
-        let value = self
-            .extractor
-            .run(html, selection)
-            .unwrap_or(DynamicValue::None);
+            match &self.processing {
+                None => value,
+                Some(expr) => {
+                    // NOTE: the `GlobalVariables` lives on the stack, for now
+                    let mut globals = GlobalVariables::default();
+                    globals.set_value(0, value);
 
-        match &self.processing {
-            None => Ok(value),
-            Some(expr) => {
-                // NOTE: the `GlobalVariables` lives on the stack, for now
-                let mut globals = GlobalVariables::default();
-                globals.set_value(0, value);
-
-                expr.evaluate(&context.with_globals(&globals))
+                    expr.evaluate(&context.with_globals(&globals))?
+                }
             }
+        };
+
+        if self.important && value.is_nullish() {
+            Err(EvaluationError::Custom(format!(
+                "!important column \"{}\" yielded a null value!",
+                &self.name
+            ))
+            .unspecified())
+        } else {
+            Ok(value)
         }
     }
 }
@@ -735,6 +753,7 @@ fn concretize_brackets(
                                 concretize_expression(processing, headers_index, globals)
                             })
                             .transpose()?,
+                        important: leaf.important,
                     };
 
                     ConcreteScrapingNode::Leaf(concrete_leaf)
@@ -764,11 +783,54 @@ fn concretize_scraper(
         .map(ConcreteScraper)
 }
 
+pub struct ScrapedRecords {
+    data: Vec<DynamicValue>,
+    alignment: usize,
+}
+
+impl ScrapedRecords {
+    pub fn empty() -> Self {
+        Self {
+            alignment: 0,
+            data: Vec::new(),
+        }
+    }
+
+    pub fn singular(data: Vec<DynamicValue>) -> Self {
+        Self {
+            alignment: data.len(),
+            data,
+        }
+    }
+
+    pub fn new(data: Vec<DynamicValue>, alignment: usize) -> Self {
+        Self { alignment, data }
+    }
+
+    #[inline]
+    pub fn into_single_vec(self) -> Vec<DynamicValue> {
+        debug_assert!(self.data.len() == self.alignment);
+        self.data
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &[DynamicValue]> {
+        self.data.chunks_exact(self.alignment)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum ScrapingRunMode {
+    Singular,
+    PluralWithSelector(Selector),
+    Plural,
+}
+
 #[derive(Debug, Clone)]
 pub struct ScrapingProgram {
     scraper: ConcreteScraper,
     headers_index: HeadersIndex,
-    pub capacity: usize,
+    capacity: usize,
+    run_mode: ScrapingRunMode,
 }
 
 impl ScrapingProgram {
@@ -776,11 +838,29 @@ impl ScrapingProgram {
         code: &str,
         headers: &ByteRecord,
         headless: bool,
+        run_mode: ScrapingRunMode,
     ) -> Result<Self, ConcretizationError> {
         let headers_index = HeadersIndex::new(headers, headless);
         let scraper = parse_scraper(code).map_err(ConcretizationError::ParseError)?;
 
-        let concrete_scraper = concretize_scraper(scraper, &headers_index, Some(&["value"]))?;
+        let concrete_scraper = concretize_scraper(scraper, &headers_index, Some(&["__value__"]))?;
+
+        if matches!(&run_mode, ScrapingRunMode::Plural) {
+            if concrete_scraper.0.len() > 1 {
+                return Err(ConcretizationError::Custom(
+                    "-F/--foreach can only work with a single root selector!".to_string(),
+                ));
+            }
+
+            if !matches!(
+                &concrete_scraper.0[0].selection_expr,
+                ConcreteSelectionExpr::Call(SelectionRoutine::First(_, None), _)
+            ) {
+                return Err(ConcretizationError::Custom(
+                    "-F/--foreach can only work when the root selector is plain CSS!".to_string(),
+                ));
+            }
+        }
 
         let capacity = concrete_scraper.names().count();
 
@@ -788,47 +868,68 @@ impl ScrapingProgram {
             headers_index,
             scraper: concrete_scraper,
             capacity,
+            run_mode,
         })
+    }
+
+    pub fn is_plural(&self) -> bool {
+        matches!(
+            &self.run_mode,
+            ScrapingRunMode::Plural | ScrapingRunMode::PluralWithSelector(_)
+        )
     }
 
     pub fn names(&self) -> impl Iterator<Item = &str> {
         self.scraper.names()
     }
 
-    pub fn run_singular(
+    pub fn padding_len(&self) -> usize {
+        self.capacity
+    }
+
+    pub fn run(
         &self,
         index: usize,
         record: &ByteRecord,
         html: &Html,
-    ) -> Result<Vec<DynamicValue>, SpecifiedEvaluationError> {
-        let selection = Selection::Singular(html.root_element().id());
-        let mut scratch = Vec::with_capacity(self.capacity);
-
+    ) -> Result<ScrapedRecords, SpecifiedEvaluationError> {
+        let mut scratch = Vec::new();
         let context = EvaluationContext::new(Some(index), record, &self.headers_index);
 
-        self.scraper
-            .evaluate(&mut scratch, &context, html, &selection)?;
+        match &self.run_mode {
+            ScrapingRunMode::Singular => {
+                scratch.reserve_exact(self.capacity);
 
-        Ok(scratch)
-    }
+                let selection = Selection::Singular(html.root_element().id());
 
-    pub fn run_plural<'a>(
-        &'a self,
-        index: usize,
-        record: &'a ByteRecord,
-        html: &'a Html,
-        selector: &'a Selector,
-    ) -> impl Iterator<Item = Result<Vec<DynamicValue>, SpecifiedEvaluationError>> + 'a {
-        html.select(selector).map(move |element| {
-            let selection = Selection::Singular(element.id());
-            let mut scratch = Vec::with_capacity(self.capacity);
+                self.scraper
+                    .evaluate(&mut scratch, &context, html, &selection)?;
+            }
+            ScrapingRunMode::PluralWithSelector(selector) => {
+                for element in html.select(selector) {
+                    let selection = Selection::Singular(element.id());
 
-            let context = EvaluationContext::new(Some(index), record, &self.headers_index);
+                    self.scraper
+                        .evaluate(&mut scratch, &context, html, &selection)?;
+                }
+            }
+            ScrapingRunMode::Plural => {
+                let root_bracket = &self.scraper.0[0];
+                let selector = root_bracket.selection_expr.unwrap_selector();
 
-            self.scraper
-                .evaluate(&mut scratch, &context, html, &selection)?;
+                for element in html.select(selector) {
+                    let selection = Selection::Singular(element.id());
 
-            Ok(scratch)
+                    for node in root_bracket.nodes.iter() {
+                        node.evaluate(&mut scratch, &context, html, &selection)?;
+                    }
+                }
+            }
+        }
+
+        Ok(ScrapedRecords {
+            data: scratch,
+            alignment: self.capacity,
         })
     }
 }
@@ -839,8 +940,12 @@ mod tests {
 
     fn eval(html: &str, code: &str) -> Result<Vec<DynamicValue>, SpecifiedEvaluationError> {
         let html = Html::parse_document(html);
-        let program = ScrapingProgram::parse(code, &ByteRecord::new(), true).unwrap();
-        program.run_singular(0, &ByteRecord::new(), &html)
+        let program =
+            ScrapingProgram::parse(code, &ByteRecord::new(), true, ScrapingRunMode::Singular)
+                .unwrap();
+        program
+            .run(0, &ByteRecord::new(), &html)
+            .map(|records| records.into_single_vec())
     }
 
     #[test]
@@ -865,14 +970,14 @@ mod tests {
         let concrete_scraper = concretize_scraper(
             parse_scraper(
                 "h2 > a {
-                    title: text;
+                    title: text();
 
                     first('.main').all('p') {
                         a {
                             url: attr('href');
                         }
 
-                        content: text;
+                        content: text();
                     }
                 }",
             )
@@ -895,7 +1000,7 @@ mod tests {
         assert_eq!(
             eval(
                 "<ul><li>one</li><li>two</li><li>three</li></ul>",
-                "li {content: text; upper_content: text, upper; first: text(), value[0];}"
+                "li {content: text(); upper_content: text().upper(); first: text()[0];}"
             ),
             Ok(vec![
                 DynamicValue::from("one"),
@@ -910,7 +1015,7 @@ mod tests {
         assert_eq!(
             eval(
                 "<ul><li>one</li><li>two</li><li>three</li></ul>",
-                "all('li') {text: text}"
+                "all('li') {text: text()}"
             ),
             Ok(vec![DynamicValue::from(vec![
                 DynamicValue::from("one"),

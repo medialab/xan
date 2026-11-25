@@ -1,5 +1,5 @@
 use jiff::{
-    Span, Timestamp, Unit, Zoned,
+    Span, Timestamp, Unit, ZonedDateTime as Zoned,
     civil::{Date, Time},
     tz::TimeZone,
 };
@@ -220,7 +220,7 @@ pub fn with_timezone(mut args: BoundArguments) -> FunctionResult {
             let tz = tz_arg.try_as_timezone()?;
 
             datetime
-                .to_zoned(tz)
+                .to_zoned_datetime(tz)
                 .map_err(|_| {
                     EvaluationError::TimeRelated("could not solve timezone ambiguity".to_string())
                 })
@@ -238,7 +238,7 @@ pub fn with_local_timezone(mut args: BoundArguments) -> FunctionResult {
             "can only add a timezone to a datetime that does not have one already: {zoned:?}. To convert a date to another timezone use `to_timezone` or `to_local_timezone` instead."
         ))),
         Ok(MaybeZoned::Civil(datetime)) => datetime
-            .to_zoned(TimeZone::system())
+            .to_zoned_datetime(TimeZone::system())
             .map_err(|_| {
                 EvaluationError::TimeRelated("could not solve timezone ambiguity".to_string())
             })
@@ -312,14 +312,18 @@ pub fn from_timestamp(mut args: BoundArguments) -> FunctionResult {
             Err(_) => Err(EvaluationError::TimeRelated(format!(
                 "invalid timestamp {seconds}"
             ))),
-            Ok(timestamp) => Ok(DynamicValue::from(timestamp.to_zoned(TimeZone::UTC))),
+            Ok(timestamp) => Ok(DynamicValue::from(
+                timestamp.to_zoned_datetime(TimeZone::UTC),
+            )),
         },
         DynamicNumber::Float(fractional_seconds) => {
             match Timestamp::from_secs_f64(fractional_seconds) {
                 Err(_) => Err(EvaluationError::TimeRelated(format!(
                     "invalid timestamp {fractional_seconds}"
                 ))),
-                Ok(timestamp) => Ok(DynamicValue::from(timestamp.to_zoned(TimeZone::UTC))),
+                Ok(timestamp) => Ok(DynamicValue::from(
+                    timestamp.to_zoned_datetime(TimeZone::UTC),
+                )),
             }
         }
     }
@@ -332,7 +336,9 @@ pub fn from_timestamp_ms(mut args: BoundArguments) -> FunctionResult {
         Err(_) => Err(EvaluationError::TimeRelated(format!(
             "invalid timestamp {milliseconds}"
         ))),
-        Ok(timestamp) => Ok(DynamicValue::from(timestamp.to_zoned(TimeZone::UTC))),
+        Ok(timestamp) => Ok(DynamicValue::from(
+            timestamp.to_zoned_datetime(TimeZone::UTC),
+        )),
     }
 }
 

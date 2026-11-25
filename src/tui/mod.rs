@@ -1,9 +1,9 @@
-mod utils;
 mod app;
-mod ui;
-mod view_debug;
 mod scroll_table;
+mod ui;
+mod utils;
+mod view_debug;
 
-pub use utils::print_ratatui_frame_to_stdout;
 pub use app::ViewApp;
-pub use ui::{CLASSIC_VIEWSTYLE, ViewStyle, ScrollTableStyle, BasicTableStyle, theme_by_name};
+pub use ui::{BasicTableStyle, CLASSIC_VIEWSTYLE, ScrollTableStyle, ViewStyle, theme_by_name};
+pub use utils::print_ratatui_frame_to_stdout;

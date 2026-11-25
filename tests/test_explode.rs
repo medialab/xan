@@ -177,6 +177,75 @@ fn explode_singularize() {
 }
 
 #[test]
+fn explode_combinations() {
+    let wrk = Workdir::new("explode_combinations");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "colors"],
+            svec!["Mary", "yellow"],
+            svec!["Carmen", "red|"],
+            svec!["John", "blue|orange|red|yellow"],
+            svec!["Jack", ""],
+        ],
+    );
+
+    let mut cmd = wrk.command("explode");
+    cmd.arg("colors")
+        .args(["--combinations", "3"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["name", "colors1", "colors2", "colors3"],
+        ["Mary", "yellow", "", ""],
+        ["Carmen", "red", "", ""],
+        ["John", "blue", "orange", "red"],
+        ["John", "blue", "orange", "yellow"],
+        ["John", "blue", "red", "yellow"],
+        ["John", "orange", "red", "yellow"],
+        ["Jack", "", "", ""],
+    ];
+    assert_eq!(got, expected);
+
+    // --drop-empty
+    let mut cmd = wrk.command("explode");
+    cmd.arg("colors")
+        .arg("-D")
+        .args(["--combinations", "3"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["name", "colors1", "colors2", "colors3"],
+        ["Mary", "yellow", "", ""],
+        ["Carmen", "red", "", ""],
+        ["John", "blue", "orange", "red"],
+        ["John", "blue", "orange", "yellow"],
+        ["John", "blue", "red", "yellow"],
+        ["John", "orange", "red", "yellow"],
+    ];
+    assert_eq!(got, expected);
+
+    // --drop-incomplete
+    let mut cmd = wrk.command("explode");
+    cmd.arg("colors")
+        .arg("-I")
+        .args(["--combinations", "3"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["name", "colors1", "colors2", "colors3"],
+        ["John", "blue", "orange", "red"],
+        ["John", "blue", "orange", "yellow"],
+        ["John", "blue", "red", "yellow"],
+        ["John", "orange", "red", "yellow"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn explode_no_headers() {
     let wrk = Workdir::new("explode_no_headers");
     wrk.create(
@@ -307,7 +376,7 @@ fn explode_evaluate() {
     // drop empty
     let mut cmd = wrk.command("explode");
     cmd.arg("colors")
-        .args(["-e", "_.split('|')"])
+        .args(["-e", "_ && _.split('|')"])
         .arg("-D")
         .arg("data.csv");
 
@@ -323,7 +392,7 @@ fn explode_evaluate() {
     // keep
     let mut cmd = wrk.command("explode");
     cmd.arg("colors")
-        .args(["-e", "_.split('|')"])
+        .args(["-e", "_ && _.split('|')"])
         .arg("-D")
         .arg("--keep")
         .arg("-S")

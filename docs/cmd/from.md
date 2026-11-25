@@ -64,10 +64,11 @@ Also try to tweak --chunk-size as the sweet spot is often very dependent on the
 actual JSON records being parsed.
 
 from options:
-    -f, --format <format>  Format to convert from. Will be inferred from file
-                           extension if not given. Must be specified when reading
-                           from stdin, since we don't have a file extension to
-                           work with.
+    -f, --format <format>         Format to convert from. Will be inferred from file
+                                  extension if not given. Must be specified when reading
+                                  from stdin, since we don't have a file extension to
+                                  work with.
+    -D, --output-delimiter <arg>  Delimiter for the output CSV format. Defaults to a comma.
 
 Excel/OpenOffice-related options:
     --sheet-index <i>    0-based index of the sheet to convert. Defaults to converting
@@ -112,6 +113,7 @@ NDJSON options:
 
 Parquet options:
     -s, --select <columns>  Selection of columns to keep in the CSV output.
+    --row-group-index <i>   Only yield rows from desired row group, by index.
 
 Text lines & raw options:
     -c, --column <name>    Name of the column to create. Will default to "line" with -f=txt

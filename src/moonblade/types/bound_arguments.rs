@@ -267,7 +267,7 @@ impl BoundArgument<'_> {
     }
 
     #[inline]
-    pub fn try_as_zoned(&self) -> Result<jiff::Zoned, EvaluationError> {
+    pub fn try_as_zoned(&self) -> Result<jiff::ZonedDateTime, EvaluationError> {
         match self {
             Self::Owned(owned) => owned.try_as_zoned(),
             Self::Borrowed(borrowed) => borrowed.try_as_zoned(),

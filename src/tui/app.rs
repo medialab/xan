@@ -1,27 +1,27 @@
 use std::time::Duration;
 
-use simd_csv::StringRecord;
 use ratatui::{
-    Frame,
+    DefaultTerminal, Frame,
+    crossterm::event::{self, Event, KeyCode, KeyEventKind},
     layout::{Constraint, Layout},
-    widgets::{Block, Paragraph},
     text::Text,
-    crossterm::event::{self, Event, KeyEventKind, KeyCode},
-    DefaultTerminal,
+    widgets::{Block, Paragraph},
 };
+use simd_csv::StringRecord;
 
 use crate::CliResult;
 use crate::cmd::view::DisplayedColumn;
+use crate::tui::{
+    CLASSIC_VIEWSTYLE, ViewStyle, scroll_table, scroll_table::ScrollTable, view_debug::ViewInfo,
+};
 use crate::utils::DataType;
-use crate::tui::{ViewStyle, CLASSIC_VIEWSTYLE, view_debug::ViewInfo, scroll_table, scroll_table::ScrollTable};
-
 
 fn list_to_string<I>(list: I) -> String
-where I: Iterator, I::Item: ToString,
+where
+    I: Iterator,
+    I::Item: ToString,
 {
-    list.map(|w| w.to_string())
-        .collect::<Vec<_>>()
-        .join(", ")
+    list.map(|w| w.to_string()).collect::<Vec<_>>().join(", ")
 }
 
 #[derive(Debug)]
@@ -34,7 +34,13 @@ pub struct ViewApp {
 }
 
 impl ViewApp {
-    pub fn new(name: String, headers: StringRecord, rows: Vec<(StringRecord, Vec<DataType>)>, cols: Vec<DisplayedColumn>, style: Option<&'static ViewStyle>) -> Self {
+    pub fn new(
+        name: String,
+        headers: StringRecord,
+        rows: Vec<(StringRecord, Vec<DataType>)>,
+        cols: Vec<DisplayedColumn>,
+        style: Option<&'static ViewStyle>,
+    ) -> Self {
         let viewstyle = style.unwrap_or(&CLASSIC_VIEWSTYLE);
         let scroll_table = ScrollTable::new(headers, rows, cols, &viewstyle.scroll_table);
         let infos = vec![
@@ -43,7 +49,13 @@ impl ViewApp {
             ("column width ", "".to_string()),
             ("Frozen column", "".to_string()),
         ];
-        Self { name, scroll_table, show_info: false, quit: false, infos}
+        Self {
+            name,
+            scroll_table,
+            show_info: false,
+            quit: false,
+            infos,
+        }
     }
 
     pub fn get_infos(&self) -> &[(&'static str, String)] {
@@ -55,11 +67,13 @@ impl ViewApp {
         self.infos.push((label, info));
     }
 
-
     fn footer(&self) -> Text<'static> {
         Text::raw(format!(
             " {} lines | {} columns | Home/End : top/end | Arrows : scroll | Tab (BackTab) : next (previous) column | \
-            f: freeze | i : infos | q : quit", self.scroll_table.n_rows(), self.scroll_table.n_cols()))
+            f: freeze | i : infos | q : quit",
+            self.scroll_table.n_rows(),
+            self.scroll_table.n_cols()
+        ))
     }
 
     fn update_infos(&mut self, infos: [String; 4]) {
@@ -104,7 +118,6 @@ impl ViewApp {
             KeyCode::Right => self.scroll_table.select_next_col(),
             KeyCode::Left => self.scroll_table.select_previous_col(),
 
-
             KeyCode::Char('l') => self.scroll_table.scroll_right(),
             KeyCode::Char('h') => self.scroll_table.scroll_left(),
 
@@ -121,7 +134,6 @@ impl ViewApp {
     }
 
     pub fn draw(&mut self, frame: &mut Frame) {
-
         let [main, footer] =
             Layout::vertical([Constraint::Min(3), Constraint::Length(1)]).areas(frame.area());
 

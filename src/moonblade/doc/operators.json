@@ -96,7 +96,7 @@
         "help": "numerical remainder"
       },
       {
-        "snippet": "x // y",
+        "snippet": "x idiv y",
         "help": "numerical integer division"
       },
       {

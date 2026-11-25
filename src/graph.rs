@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use std::io::Write;
 use std::ops::Not;
 
-use jiff::Zoned;
+use jiff::ZonedDateTime as Zoned;
 use phylacter::UnionFind;
 use serde::ser::{SerializeMap, SerializeSeq, Serializer as _};
 use serde_json::{

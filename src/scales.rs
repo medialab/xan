@@ -827,13 +827,19 @@ impl LinearScale {
     }
 }
 
+impl From<Extent<f64>> for LinearScale {
+    fn from(extent: Extent<f64>) -> Self {
+        Self::new(extent.into_inner(), (0.0, 1.0))
+    }
+}
+
 fn format_timestamp(microseconds: i64, unit: Unit, timezone: TimeZone) -> String {
     // NOTE: I don't think rounding is necessary here because the formatting
     // will naturally hide the irrelevant part, right?
     // I will keep it, I am a superstitious.
     let zoned = Timestamp::from_microsecond(microseconds)
         .unwrap()
-        .to_zoned(timezone)
+        .to_zoned_datetime(timezone)
         .floor(unit)
         .unwrap();
 

@@ -275,7 +275,7 @@ fn groupby_most_common() {
 
     let mut cmd = wrk.command("groupby");
     cmd.arg("name")
-        .arg("most_common(2, color) as top, most_common_counts(2, color) as counts")
+        .arg("most_common(2, color, '|') as top, most_common_counts(2, color, '|') as counts")
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);

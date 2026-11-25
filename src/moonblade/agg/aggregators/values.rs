@@ -16,6 +16,10 @@ impl Values {
         self.values.push(string);
     }
 
+    pub fn values(&self) -> &[String] {
+        &self.values
+    }
+
     pub fn join(&self, separator: &str) -> String {
         self.values.join(separator)
     }

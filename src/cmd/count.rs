@@ -35,6 +35,8 @@ count options:
     -a, --approx             Attempt to approximate a CSV file row count by sampling its
                              first rows. Target must be seekable, which means this cannot
                              work on a stream fed through stdin nor with gzipped data.
+    --row-groups             When used on a parquet file, return the number of row groups of
+                             the file.
     -c, --check-alignment    Use a slower parser validating that given CSV stream yields rows
                              having the same number of columns.
     -p, --parallel           Whether to use parallelization to speed up counting.
@@ -59,6 +61,7 @@ struct Args {
     flag_parallel: bool,
     flag_threads: Option<NonZeroUsize>,
     flag_approx: bool,
+    flag_row_groups: bool,
     flag_check_alignment: bool,
     flag_human_readable: bool,
     flag_no_headers: bool,
@@ -97,8 +100,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let wconf = Config::new(&args.flag_output);
 
-    let count = if conf.is_parquet() {
-        conf.parquet_reader()?.count()
+    let is_parquet = conf.is_parquet();
+
+    if !is_parquet && args.flag_row_groups {
+        Err("--row-groups only works on parquet files!")?;
+    }
+
+    let count = if is_parquet {
+        let reader = conf.parquet_reader()?;
+
+        if args.flag_row_groups {
+            reader.count_row_groups()
+        } else {
+            reader.count()
+        }
     } else if args.flag_approx {
         match conf.simd_seeker()? {
             None => 0,

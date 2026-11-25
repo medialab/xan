@@ -3,7 +3,7 @@ use std::io::{self, IsTerminal, Write};
 use std::num::NonZeroU8;
 use std::str::FromStr;
 
-use colored::{self, Colorize};
+use colored::{self, ColoredString, Colorize};
 use numfmt::{Formatter, Precision, Scales};
 use simd_csv::{ByteRecord, StringRecord};
 use unicode_width::UnicodeWidthStr;
@@ -14,7 +14,7 @@ use crate::read::LeakySponge;
 use crate::select::SelectedColumns;
 use crate::utils::{self, ColorMode, DataType};
 
-use crate::tui::{ViewApp, theme_by_name, CLASSIC_VIEWSTYLE};
+use crate::tui::{CLASSIC_VIEWSTYLE, ViewApp, theme_by_name};
 
 #[derive(Debug, Clone, Copy, Default, Deserialize)]
 pub enum ComplexToggle {
@@ -27,6 +27,29 @@ pub enum ComplexToggle {
 impl ComplexToggle {
     fn is_auto(&self) -> bool {
         matches!(self, Self::Auto)
+    }
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+enum FrameIntensity {
+    Low,
+    Medium,
+    High,
+}
+
+trait FrameIntensityExt {
+    fn frame_intensity(&self, intensity: FrameIntensity) -> ColoredString;
+}
+
+impl<T: AsRef<str>> FrameIntensityExt for T {
+    fn frame_intensity(&self, intensity: FrameIntensity) -> ColoredString {
+        let as_ref = self.as_ref();
+
+        match intensity {
+            FrameIntensity::Low => as_ref.dimmed().bright_black(),
+            FrameIntensity::Medium => as_ref.bright_black(),
+            FrameIntensity::High => as_ref.dimmed(),
+        }
     }
 }
 
@@ -272,6 +295,10 @@ view options:
                                 disable colors completely and `always` to force
                                 colors, even when the output could not handle them.
                                 [default: auto]
+    --frame-intensity <mode>    Color intensity of the table's frames. Can be used to subdue frame
+                                color and be easier on the eye if required. Must be one of
+                                \"low\", \"medium\" or \"high\".
+                                [default: high]
     -e, --expand                Expand the table so that in can be easily piped to
                                 a pager such as \"less\", with larger width constraints.
     -E, --sanitize-emojis       Replace emojis by their shortcode to avoid formatting issues.
@@ -326,6 +353,7 @@ struct Args {
     flag_limit: Option<usize>,
     flag_rainbow: bool,
     flag_expand: bool,
+    flag_frame_intensity: FrameIntensity,
     flag_sanitize_emojis: bool,
     flag_hide_index: bool,
     flag_hide_headers: bool,
@@ -385,6 +413,12 @@ impl Args {
             from_argv.flag_theme = from_env.flag_theme;
         }
 
+        if matches!(from_argv.flag_frame_intensity, FrameIntensity::High)
+            && !matches!(from_env.flag_frame_intensity, FrameIntensity::High)
+        {
+            from_argv.flag_frame_intensity = from_env.flag_frame_intensity;
+        }
+
         if !from_argv.flag_hide_index && from_env.flag_hide_index {
             from_argv.flag_hide_index = true;
         }
@@ -403,7 +437,6 @@ impl Args {
                 from_argv.flag_tui = true;
             }
         }
-
 
         if !from_argv.flag_rainbow && from_env.flag_rainbow {
             from_argv.flag_rainbow = true;
@@ -648,13 +681,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         }
                     }
                     _ => {
-                        let mut cell = utils::sanitize_text_for_single_line_printing(cell);
+                        let cell = utils::sanitize_text_for_single_line_printing(cell);
 
                         if let Some(sanitizer) = &emoji_sanitizer_opt {
-                            cell = sanitizer.sanitize(&cell);
+                            processed_record.push_field(&sanitizer.sanitize(&cell));
+                        } else {
+                            processed_record.push_field(&cell);
                         }
-
-                        processed_record.push_field(&cell);
                     }
                 };
             }
@@ -773,7 +806,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         //     .collect();
         let mut terminal = ratatui::init();
         // let theme = theme_by_name("dracula");
-        let result = ViewApp::new(name.to_string(), headers, records, displayed_columns.left, None).run(&mut terminal);
+        let result = ViewApp::new(
+            name.to_string(),
+            headers,
+            records,
+            displayed_columns.left,
+            None,
+        )
+        .run(&mut terminal);
         ratatui::restore();
         return Ok(result?);
     }
@@ -871,7 +911,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 });
             }
 
-            writeln!(out, "{}", s.dimmed())?;
+            writeln!(out, "{}", s.frame_intensity(args.flag_frame_intensity))?;
 
             Ok(())
         };
@@ -888,7 +928,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             write!(
                 out,
                 "{}",
-                format!("{}{}", theme.vertical(), padding).dimmed()
+                format!("{}{}", theme.vertical(), padding)
+                    .frame_intensity(args.flag_frame_intensity)
             )?;
         }
 
@@ -897,7 +938,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 write!(
                     out,
                     "{}",
-                    format!("{}{}{}", padding, theme.vertical(), padding).dimmed()
+                    format!("{}{}{}", padding, theme.vertical(), padding)
+                        .frame_intensity(args.flag_frame_intensity)
                 )?;
             }
 
@@ -911,7 +953,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 write!(
                     out,
                     "{}",
-                    format!("{}{}{}…", padding, theme.vertical(), padding).dimmed(),
+                    format!("{}{}{}…", padding, theme.vertical(), padding)
+                        .frame_intensity(args.flag_frame_intensity),
                 )?;
             }
         }
@@ -920,7 +963,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             write!(
                 out,
                 "{}",
-                format!("{}{}", padding, theme.vertical()).dimmed()
+                format!("{}{}", padding, theme.vertical())
+                    .frame_intensity(args.flag_frame_intensity)
             )?;
         }
 

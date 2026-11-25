@@ -2,6 +2,8 @@
 
 ## 0.62.0 (provisional)
 
+The **laminated** update.
+
 *Breaking*
 
 * Bumping MSRV to `1.88.0`.
@@ -9,25 +11,42 @@
 * `xan from -f (json|ndjson) --model` is now also used to rename the projected columns.
 * Renaming `xan flatten --row-separator` as `--row-sep` for harmonization purposes and add the `-W` short flag.
 * Dropping `-H` short flag of `xan view --hide-headers` to harmonize with `xan flatten`.
-* `xan behead`, `xan enum` & `xan rename` go back to standardizing their CSV output by default. Use the `--raw` flag to get the fast, non-standardizing alternative.
-* `xan flatten -H/--highlight` is now boolean and will perform tag highlighting. To get the old behavior, use the `-r/--highlight-regex` instead.
+* `xan behead`, `xan enum` & `xan rename` go back to standardizing their CSV output by default. Use the `--raw` flag to force the fast, non-standardizing alternative.
+* `xan flatten -H/--highlight` is now boolean and will perform tag highlighting. To get the old behavior, use the `-r/--highlight-regex` instead so it can easily be used with the newest `xan search -H/--highlight` action.
+* Renaming the obscure `xan search --left` flag to `-k/--keep-unmatched`.
+* `xan search -R/--replace & --replacement-column` now only emit rows with matches unless `-k/--keep-unmatched` is given.
+* `xan explode -e` no longer flatmaps by default and expects an optional list of values instead.
+* `argtop`, `distinct_values`, `most_common`, `most_common_counts`, `top` & `values` aggregation functions no longer join values by `|` and instead serialize to JSON.
+* `xan scrape -k/--keep` becomes a combination of `-s/--select` & `-k/--keep-doc`.
+* Better integration of value post-processing in `xan scrape -e` DSL.
+* `xan scrape -F/--foreach` becomes `-S/--foreach-selector`.
+* Moonblade `//` becomes infix `idiv` and `//` can now be used as well as `#` to write comments.
 
 *Features*
 
 * Adding easy way to use null-byte delimiters through `-d '\0'`, the same way as `-d '\t'`.
 * `xan count` & `xan headers` parquet integration.
+* Adding `xan count --row-groups`.
 * Adding `xan matrix bivar`.
 * Adding the `ord`, `chr`, `chars` & `graphemes` moonblade functions.
 * Adding the `coalesce` moonblade function.
 * Adding `xan from -f=ndjson -p/-t`.
-* Adding `xan from -f=parquet -s/--select`.
+* Adding `xan from -f=parquet -s/--select & --row-group-index`.
+* Adding `xan from -D/--output-delimiter`.
 * Adding support for missing `xan sample -g -w -S`.
 * Adding `xan heatmap --scale, --log, --hide-labels, --hide-col-labels, --hide-row-labels`.
 * Adding an optional default value to the `try` moonblade function.
 * Adding `xan select -M/--add-missing`.
-* Adding `xan view --no-pager, --ignore-env, -k/--thousands-sep`.
+* Adding `xan view --no-pager, --ignore-env, -k/--thousands-sep, --frame-intensity`.
 * Adding `xan flatten --hide-headers, -r/--highlight-regex, --highlight-tag`.
 * The `fmt` function now accepts a list as substitutions, is more robust to errors and is able to accept more than 8 arguments.
+* Adding `xan search -H/--highlight & --highlight-tag`.
+* Adding `xan scrape -F/--foreach-selector, -s/--select & -k/--keep-doc`.
+* Adding `!important` rules to `xan scrape` DSL.
+* Adding `xan explode -C/--combinations <k> & -I/--drop-incomplete`.
+* Adding `xan matrix --normalize`.
+* Adding `xan join --strict`.
+* Adding `xan parallel map --inplace, --replace, --atomicity & --tmp-dir`.
 
 *Fixes*
 
@@ -40,15 +59,25 @@
 * Fixing `xan cat rows -I/--intersection`.
 * Fixing `xan hist -m sum` with nonlinear scales.
 * Fixing temporal functions when working on zero spans.
+* Fixing case-sensitive `xan search -R/--replace & --replacement-column` with multiple patterns.
+* Fixing parallel `xan search -R/--replace & --replacement-column`.
+* Fixing `xan scrape` not streaming input when using `--paths` & `--docs`.
+* Fixing `xan scrape --url-column`.
+* Fixing performance issues when calling a command with a lot of positional arguments (e.g. 10k paths to `xan scrape`).
+* Fixing `xan explode --evaluate --drop-empty` semantics.
+* Fixing `xan bivar` to abide by correct coordinates and flip y axis to fit intuition.
 
 *Performance*
 
 * Improving performance related to pretty-printing numbers.
-* Faster JSON parsing.
+* Faster JSON parsing overall.
 * Only collecting/allocating command line arguments once.
 * Improving performance of `xan view`.
 * Improving performance of the `fmt` & trimming moonblade function.
 * Improving performance of `xan rename`.
+* Improving performance of `xan explode -e`.
+* Improving performance of `xan matrix`.
+* Improving performance of `xan from -f=(parquet|ndjson|npy)`.
 
 ## 0.61.0
 

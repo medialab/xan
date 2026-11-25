@@ -117,31 +117,33 @@ Usage:
     xan join --help
 
 join mode options:
-    --inner  Do an "inner" join. This only returns rows where
-             a match can be found between both data sets. This
-             is the command's default, so this flag can be omitted,
-             or used for clarity.
-    --left   Do an "outer left" join. This returns all rows in
-             first CSV data set, including rows with no
-             corresponding row in the second data set. When no
-             corresponding row exists, it is padded out with
-             empty fields. This is the reverse of --right.
-             Can be used in fuzzy joins.
-    --right  Do an "outer right" join. This returns all rows in
-             second CSV data set, including rows with no
-             corresponding row in the first data set. When no
-             corresponding row exists, it is padded out with
-             empty fields. This is the reverse of --left.
-    --full   Do a "full outer" join. This returns all rows in
-             both data sets with matching records joined. If
-             there is no match, the missing side will be padded
-             out with empty fields.
-    --semi   Only keep rows of left file matching a row in right file.
-    --anti   Only keep rows of left file not matching a row in right file.
-    --cross  This returns the cartesian product of the given CSV
-             files. The number of rows emitted will be equal to N * M,
-             where N and M correspond to the number of rows in the given
-             data sets, respectively.
+    --inner   Do an "inner" join. This only returns rows where
+              a match can be found between both data sets. This
+              is the command's default, so this flag can be omitted,
+              or used for clarity.
+    --strict  Do a "strict" inner join. This is equivalent to an inner join
+              but will error if some rows don't match at all.
+    --left    Do an "outer left" join. This returns all rows in
+              first CSV data set, including rows with no
+              corresponding row in the second data set. When no
+              corresponding row exists, it is padded out with
+              empty fields. This is the reverse of --right.
+              Can be used in fuzzy joins.
+    --right   Do an "outer right" join. This returns all rows in
+              second CSV data set, including rows with no
+              corresponding row in the first data set. When no
+              corresponding row exists, it is padded out with
+              empty fields. This is the reverse of --left.
+    --full    Do a "full outer" join. This returns all rows in
+              both data sets with matching records joined. If
+              there is no match, the missing side will be padded
+              out with empty fields.
+    --semi    Only keep rows of left file matching a row in right file.
+    --anti    Only keep rows of left file not matching a row in right file.
+    --cross   This returns the cartesian product of the given CSV
+              files. The number of rows emitted will be equal to N * M,
+              where N and M correspond to the number of rows in the given
+              data sets, respectively.
 
 fuzzy join mode options:
     -c, --contains    Join by matching substrings.

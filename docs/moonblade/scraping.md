@@ -16,7 +16,7 @@ h2 tag:
 
 ```scss
 h2 > a {
-  title: text;
+  title: text();
   url: attr("href");
 }
 ```
@@ -26,29 +26,26 @@ of selected tag and a "url" column containing its "href" attribute value.
 
 Each inner directive is understood as:
 
-`<column-name>: <extractor-function>;`
+`<output-column-name>: <extractor-expression>;`
 
 A full list of extractor functions can be found at the end of this help.
 
-And processing using a moonblade expression taking `value` as the extractor
-function's output value is also possible:
+The extractor expression can be as complex as need but MUST contain a single call
+to an extraction function. As such, you can very well process the scraped value further
+like so:
 
 ```scss
 h2 > a {
-  title: text, lower(value)[10:];
+  title: text().lower()[10:];
   url: attr("href");
 }
 ```
-
-In which case, inner directives will be understood as:
-
-`<column-name>: <extractor-function>, <processing-expression>;`
 
 Multiple selection rules can be given per scraper, like in a CSS stylesheet:
 
 ```scss
 [data-id=45] {
-  title: text;
+  title: text();
 }
 
 script[type="application/ld+json"] {
@@ -61,7 +58,7 @@ Selections can be nested:
 ```scss
 .main-content {
   h2 {
-    title: text;
+    title: text();
   }
 
   a.main-link {
@@ -75,13 +72,29 @@ a comprehensive list of all selector functions at the end of this help):
 
 ```scss
 first("h2", containing="Summary").parent() {
-  title: text;
+  title: text();
 }
 
 main > p {
   all("a") {
     urls: attr("href");
   }
+}
+```
+
+Any selection leading nowhere will result in its extractor expression yielding nothing without triggering an error. Also, any extractor expression accessing invalid information such as an inexisting attribute will still yield an empty value, without
+triggering an error.
+
+While this is often useful, you might also want to indicate that some extracted
+columns are `!important` so that an error is raised whenever the selection leading
+to them is invalid or if their extractor expression returns a nullish value thusly:
+
+```scss
+// This will error if no a tag with the class "main-url" is found.
+// This will also error if such a tag is found but its href attribute
+// does not exist or happens to be empty.
+a.main-url {
+  url: attr("href") !important;
 }
 ```
 
@@ -96,21 +109,22 @@ main > p {
 }
 ```
 
-`:scope` and `&` are also useful when using `xan scrape --foreach`
+`:scope` and `&` are also useful when using `xan scrape -F/--foreach-selector`
 because we sometimes need a way to select from the scope of an already
 selected element.
 
-The following example assumes we gave --foreach "h2 > a" to `xan scrape`:
+The following example assumes we gave --foreach-selector "h2 > a" to `xan scrape`:
 
 ```scss
 & {
-  title: text;
+  title: text();
   url: attr("href");
 }
 ```
 
 For more examples of real-life scrapers, check out this link:
 https://github.com/medialab/xan/tree/master/docs/scrapers
+
 
 ## Selector functions
 
@@ -129,6 +143,7 @@ https://github.com/medialab/xan/tree/master/docs/scrapers
 - **id** -> `string?`: Extract the id attribute of selected element, if any.
 - **attr**(*name*) -> `string?`: Extract desired attribute of selected element, if it exists.
 - **attrs** -> `map`: Extract a map of selected element's attributes.
+- **data**(*name*) -> `string?`: Extract desired attribute of selected element, with automatic "data-" prefixed name, if it exists.
 - **classes** -> `list`: Extract a list of selected element's classes.
 - **text** -> `string`: Extract a readable version of selected element's text, all while attempting to respect inline vs. block display.
 - **raw_text** -> `string`: Extract selected element's text, without any reformatting except from trimming.

@@ -1,5 +1,5 @@
 use std::fs;
-use std::slice;
+use std::num::NonZeroUsize;
 
 use bstr::ByteSlice;
 use simd_csv::ByteRecord;
@@ -8,9 +8,10 @@ use crate::CliError;
 use crate::CliResult;
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
+use crate::serialize::AmortizedSerializer;
 use crate::utils;
 
-use crate::moonblade::{DynamicValue, Program};
+use crate::moonblade::Program;
 
 fn singularize(name: &[u8]) -> Vec<u8> {
     let mut vec = name.to_vec();
@@ -18,13 +19,134 @@ fn singularize(name: &[u8]) -> Vec<u8> {
     if name.ends_with(b"ies") {
         vec.truncate(vec.len() - 3);
         vec.push(b'y');
-    } else if name.ends_with(b"oes") {
-        vec.truncate(vec.len() - 2);
     } else if name.ends_with(b"s") {
         vec.truncate(vec.len() - 1);
     }
 
     vec
+}
+
+struct Combinations {
+    indices: Vec<usize>,
+    n: usize,
+    k: usize,
+    first: bool,
+}
+
+impl Combinations {
+    fn new(k: usize) -> Self {
+        Self {
+            indices: Vec::new(),
+            n: 0,
+            k,
+            first: true,
+        }
+    }
+
+    fn clear(&mut self, n: usize) {
+        assert!(self.k <= n);
+        self.indices.clear();
+
+        for i in 0..self.k {
+            self.indices.push(i);
+        }
+
+        self.first = true;
+        self.n = n;
+    }
+
+    pub fn next(&mut self) -> Option<&[usize]> {
+        if self.first {
+            self.first = false;
+            return Some(&self.indices);
+        }
+
+        let k = self.k;
+
+        for i in (0..k).rev() {
+            if self.indices[i] < self.n - k + i {
+                self.indices[i] += 1;
+
+                for j in (i + 1)..k {
+                    self.indices[j] = self.indices[j - 1] + 1;
+                }
+
+                return Some(&self.indices);
+            }
+        }
+
+        None
+    }
+}
+
+// NOTE: bstr::ByteSlice::split_str uses a memmem::Finder that uses two different
+// strategies for splitting with single byte or substring. No need to overengineer
+// anything beyond this.
+// NOTE: managing our own bstr::Finder does not seem to improve performance neither
+// and suggests its creation is not expensive at all.
+enum Exploder {
+    Substring(String),
+    Program {
+        program: Program,
+        serializer: AmortizedSerializer,
+    },
+}
+
+impl Exploder {
+    fn explode<F>(
+        &mut self,
+        drop_empty: bool,
+        row_index: usize,
+        column_index: usize,
+        record: &ByteRecord,
+        cell: &[u8],
+        mut callback: F,
+    ) -> CliResult<bool>
+    where
+        F: FnMut(&[u8]) -> CliResult<()>,
+    {
+        match self {
+            Self::Substring(sep) => {
+                if drop_empty && cell.is_empty() {
+                    return Ok(true);
+                }
+
+                for sub in cell.split_str(sep) {
+                    callback(sub)?;
+                }
+            }
+            Self::Program {
+                program,
+                serializer,
+            } => {
+                let value =
+                    program.run_with_record_and_col_index(row_index, column_index, record)?;
+
+                if drop_empty && value.is_nullish() {
+                    return Ok(true);
+                }
+
+                // TODO: flatmap mode
+                match value.try_unwrap_as_vec() {
+                    Err(value) => Err(format!(
+                        "when using -e/--evaluate, produced value should be a list but got {}!",
+                        value.type_of()
+                    ))?,
+                    Ok(list) => {
+                        if list.is_empty() {
+                            callback(cell)?;
+                        } else {
+                            for item in list {
+                                callback(serializer.serialize_value(&item))?;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(false)
+    }
 }
 
 static USAGE: &str = "
@@ -65,22 +187,30 @@ Usage:
     xan explode --help
 
 explode options:
-    --sep <sep>            Separator to split the cells.
-                           [default: |]
-    -e, --evaluate <expr>  Evaluate an expression to split cells instead of using
-                           a simple separator.
+    --sep <sep>             Separator to split the cells.
+                            [default: |]
+    -e, --evaluate <expr>   Evaluate an expression to split cells instead of using
+                            a simple separator.
     -f, --evaluate-file <path>
-                           Read splitting expression from a file instead.
-    -S, --singularize      Singularize (supporting only very simple English-centric cases)
-                           the exploded column names. Does not work with -r, --rename.
-    -r, --rename <name>    New names for the exploded columns. Must be written
-                           in CSV format if exploding multiple columns.
-                           See 'xan rename' help for more details.
-                           Does not work with -S, --singular.
-    -k, --keep             Keep the exploded columns alongside each split.
-    -D, --drop-empty       Drop rows when selected cells are empty.
-    --pad                  When exploding multiple columns at once, pad shorter splits
-                           to align them with the longest one instead of erroring.
+                            Read splitting expression from a file instead.
+    -S, --singularize       Singularize (supporting only very simple English-centric cases)
+                            the exploded column names. Does not work with -r, --rename.
+    -r, --rename <name>     New names for the exploded columns. Must be written
+                            in CSV format if exploding multiple columns.
+                            When used with -c/--combinations only takes a single argument
+                            to rename the single selected column.
+                            See 'xan rename' help for more details.
+                            Does not work with -S, --singular.
+    -k, --keep              Keep the exploded columns alongside each split.
+    -D, --drop-empty        Drop rows when selected cells are empty, or when the evaluated
+                            expression yields a nullish value.
+    --pad                   When exploding multiple columns at once, pad shorter splits
+                            to align them with the longest one instead of erroring.
+    -C, --combinations <k>  Generate k columns coresponding to the binom(n,k) unordered
+                            combinations (e.g. k-combinations) of the exploded elements.
+                            Doesn't work if the selection contains more than 1 column.
+    -I, --drop-incomplete   When used with -C/--combinations, drop rows splitted into too
+                            few pieces to create at least a full combination.
 
 Common options:
     -h, --help             Display this message
@@ -98,8 +228,10 @@ struct Args {
     flag_sep: String,
     flag_singularize: bool,
     flag_rename: Option<String>,
-    flag_drop_empty: bool,
+    flag_combinations: Option<NonZeroUsize>,
     flag_keep: bool,
+    flag_drop_empty: bool,
+    flag_drop_incomplete: bool,
     flag_pad: bool,
     flag_evaluate: Option<String>,
     flag_evaluate_file: Option<String>,
@@ -116,6 +248,19 @@ impl Args {
 
         Ok(())
     }
+
+    #[inline]
+    fn max_len(&self, splits: &[ByteRecord]) -> CliResult<usize> {
+        if self.flag_pad {
+            Ok(splits.iter().map(ByteRecord::len).max().unwrap())
+        } else {
+            if splits.iter().skip(1).any(|s| s.len() != splits[0].len()) {
+                Err("inconsistent exploded length across columns.")?;
+            }
+
+            Ok(splits[0].len())
+        }
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -129,7 +274,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers)
-        .select(args.arg_columns);
+        .select(args.arg_columns.clone());
 
     let mut rdr = rconfig.simd_reader()?;
     let mut wtr = Config::new(&args.flag_output).simd_writer()?;
@@ -137,17 +282,30 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let headers = rdr.byte_headers()?.clone();
     let sel = rconfig.selection(&headers)?;
 
+    if sel.len() > 1
+        && let Some(_) = args.flag_combinations
+    {
+        Err("-C/--combinations only works with a single selected column!")?
+    };
+
+    if args.flag_drop_incomplete && args.flag_combinations.is_none() {
+        Err("-I/--drop-incomplete only makes sense with -C/--combinations!")?;
+    }
+
     if sel.is_empty() {
         return Err(CliError::Other(
             "expecting a non-empty column selection".to_string(),
         ));
     }
 
-    let program_opt = args
-        .flag_evaluate
-        .as_ref()
-        .map(|expr| Program::parse(expr, &headers, rconfig.no_headers))
-        .transpose()?;
+    let mut exploder = if let Some(expr) = &args.flag_evaluate {
+        Exploder::Program {
+            program: Program::parse(expr, &headers, rconfig.no_headers)?,
+            serializer: AmortizedSerializer::new(),
+        }
+    } else {
+        Exploder::Substring(args.flag_sep.clone())
+    };
 
     // NOTE: the mask deduplicates
     let sel_mask = sel.indexed_mask(headers.len());
@@ -165,12 +323,23 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 new_headers.push_field(name);
             }
 
-            if let Some(new_names) = &new_names_opt {
-                new_headers.push_field(&new_names[*i]);
+            let new_col_name = if let Some(new_names) = &new_names_opt {
+                &new_names[*i]
             } else if args.flag_singularize {
-                new_headers.push_field(&singularize(name));
+                &singularize(name)
             } else {
-                new_headers.push_field(name);
+                name
+            };
+            if let Some(k) = args.flag_combinations {
+                let mut base = new_col_name.to_vec();
+                let size = new_col_name.len();
+                for j in 1..=k.get() {
+                    base.extend(j.to_string().as_bytes());
+                    new_headers.push_field(&base);
+                    base.truncate(size);
+                }
+            } else {
+                new_headers.push_field(new_col_name);
             }
         } else {
             new_headers.push_field(name);
@@ -182,10 +351,98 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     let mut record = ByteRecord::new();
-    let mut output_record = ByteRecord::new();
     let mut row_index: usize = 0;
 
-    // Fast path with single column explosion, which is the most common
+    // Combinations path
+    if let Some(k) = args.flag_combinations {
+        let column_index = sel[0];
+        let k = k.get();
+        let mut splitted = ByteRecord::new();
+        let mut combinations = Combinations::new(k);
+
+        while rdr.read_byte_record(&mut record)? {
+            let cell = &record[column_index];
+            row_index += 1;
+
+            splitted.clear();
+
+            if exploder.explode(
+                args.flag_drop_empty,
+                row_index - 1,
+                column_index,
+                &record,
+                cell,
+                |sub_cell| {
+                    splitted.push_field(sub_cell);
+                    Ok(())
+                },
+            )? {
+                continue;
+            }
+
+            if args.flag_drop_incomplete && splitted.len() < k {
+                continue;
+            }
+
+            // Padding
+            while splitted.len() < k {
+                splitted.push_field(b"");
+            }
+
+            combinations.clear(splitted.len());
+
+            while let Some(indices) = combinations.next() {
+                wtr.write_fields(|w| {
+                    for (i, cell) in record.iter().enumerate() {
+                        if i == column_index {
+                            if args.flag_keep {
+                                w.write_field(cell)?;
+                            }
+
+                            for idx in indices {
+                                w.write_field(&splitted[*idx])?;
+                            }
+                        } else {
+                            w.write_field(cell)?;
+                        }
+                    }
+                    Ok(())
+                })?;
+            }
+        }
+
+        return Ok(wtr.flush()?);
+    }
+
+    // Fast path for single column substring explosion, without --keep
+    if sel.len() == 1
+        && !args.flag_keep
+        && let Exploder::Substring(sep) = &exploder
+    {
+        let column_index = sel[0];
+
+        while rdr.read_byte_record(&mut record)? {
+            let cell = &record[column_index];
+
+            if args.flag_drop_empty && cell.is_empty() {
+                continue;
+            }
+
+            for sub_cell in cell.split_str(sep) {
+                wtr.write_record(
+                    record.iter().enumerate().map(
+                        |(i, cell)| {
+                            if i == column_index { sub_cell } else { cell }
+                        },
+                    ),
+                )?;
+            }
+        }
+
+        return Ok(wtr.flush()?);
+    }
+
+    // Fast path for single column explosion
     if sel.len() == 1 {
         let column_index = sel[0];
 
@@ -193,210 +450,92 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let cell = &record[column_index];
             row_index += 1;
 
-            if args.flag_drop_empty && cell.is_empty() {
-                continue;
-            }
+            exploder.explode(
+                args.flag_drop_empty,
+                row_index - 1,
+                column_index,
+                &record,
+                cell,
+                |sub_cell| {
+                    wtr.write_fields(|w| {
+                        for (i, cell) in record.iter().enumerate() {
+                            if i == column_index {
+                                if args.flag_keep {
+                                    w.write_field(cell)?;
+                                }
 
-            // Single expr, with or without keep
-            if let Some(program) = &program_opt {
-                let value =
-                    program.run_with_record_and_col_index(row_index - 1, column_index, &record)?;
-
-                for sub_value in value.flat_iter() {
-                    output_record.clear();
-
-                    for (i, cell) in record.iter().enumerate() {
-                        if i == column_index {
-                            if args.flag_keep {
-                                output_record.push_field(cell);
+                                w.write_field(sub_cell)?;
+                            } else {
+                                w.write_field(cell)?;
                             }
-                            sub_value.push_field_to_record(&mut output_record);
-                        } else {
-                            output_record.push_field(cell);
                         }
-                    }
 
-                    wtr.write_byte_record(&output_record)?;
-                }
-            } else if args.flag_keep {
-                // Single, keep
-                for sub_cell in cell.split_str(&args.flag_sep) {
-                    output_record.clear();
+                        Ok(())
+                    })?;
 
-                    for (i, cell) in record.iter().enumerate() {
-                        if i == column_index {
-                            output_record.push_field(cell);
-                            output_record.push_field(sub_cell);
-                        } else {
-                            output_record.push_field(cell);
-                        }
-                    }
-
-                    wtr.write_byte_record(&output_record)?;
-                }
-            } else {
-                // Single
-                for sub_cell in cell.split_str(&args.flag_sep) {
-                    wtr.write_record(record.iter().enumerate().map(|(i, input_cell)| {
-                        if i == column_index {
-                            sub_cell
-                        } else {
-                            input_cell
-                        }
-                    }))?;
-                }
-            }
+                    Ok(())
+                },
+            )?;
         }
 
         return Ok(wtr.flush()?);
     }
 
-    // Multiple selection path when evaluating an expression
-    if let Some(program) = program_opt {
-        let mut splits: Vec<Vec<DynamicValue>> = Vec::with_capacity(sel.len());
-
-        for _ in 0..sel.len() {
-            splits.push(Vec::new());
-        }
-
-        while rdr.read_byte_record(&mut record)? {
-            let mut all_empty = true;
-            row_index += 1;
-
-            for (i, column_index) in sel.iter().copied().enumerate() {
-                let col_splits = &mut splits[i];
-                let cell = &record[column_index];
-                col_splits.clear();
-
-                if !cell.is_empty() {
-                    all_empty = false;
-                }
-
-                let value =
-                    program.run_with_record_and_col_index(row_index - 1, column_index, &record)?;
-
-                for sub_value in value.into_flat_iter() {
-                    col_splits.push(sub_value);
-                }
-            }
-
-            if args.flag_drop_empty && all_empty {
-                continue;
-            }
-
-            let max_len = if args.flag_pad {
-                splits.iter().map(|s| s.len()).max().unwrap()
-            } else {
-                if splits.iter().skip(1).any(|s| s.len() != splits[0].len()) {
-                    return Err(CliError::Other(
-                        "inconsistent exploded length across columns.".to_string(),
-                    ));
-                }
-
-                splits[0].len()
-            };
-
-            for i in 0..max_len {
-                // Mulitple expr, with or without keep
-                output_record.clear();
-
-                for (cell, mask) in record.iter().zip(sel_mask.iter()) {
-                    if args.flag_keep {
-                        output_record.push_field(cell);
-                    }
-
-                    if let Some(j) = mask {
-                        if let Some(sub_value) = splits[*j].get(i) {
-                            sub_value.push_field_to_record(&mut output_record);
-                        } else {
-                            output_record.push_field(b"");
-                        }
-                    } else {
-                        output_record.push_field(cell);
-                    }
-                }
-
-                wtr.write_byte_record(&output_record)?;
-            }
-        }
-
-        return Ok(wtr.flush()?);
-    }
-
-    // Normal multiple path
-    let mut splits: Vec<Vec<(*const u8, usize)>> = Vec::with_capacity(sel.len());
+    // Slow path for multiple columns explosion
+    let mut splits: Vec<ByteRecord> = Vec::with_capacity(sel.len());
 
     for _ in 0..sel.len() {
-        splits.push(Vec::new());
+        splits.push(ByteRecord::new());
     }
 
     while rdr.read_byte_record(&mut record)? {
         let mut all_empty = true;
+        row_index += 1;
 
-        for (i, cell) in sel.select(&record).enumerate() {
+        for (i, column_index) in sel.iter().copied().enumerate() {
             let col_splits = &mut splits[i];
+            let cell = &record[column_index];
             col_splits.clear();
 
-            if !cell.is_empty() {
-                all_empty = false;
-            }
-
-            for slice in cell.split_str(&args.flag_sep) {
-                col_splits.push((slice.as_ptr(), slice.len()));
-            }
+            all_empty &= exploder.explode(
+                args.flag_drop_empty,
+                row_index,
+                column_index,
+                &record,
+                cell,
+                |sub_cell| {
+                    col_splits.push_field(sub_cell);
+                    Ok(())
+                },
+            )?;
         }
 
         if args.flag_drop_empty && all_empty {
             continue;
         }
 
-        let max_len = if args.flag_pad {
-            splits.iter().map(|s| s.len()).max().unwrap()
-        } else {
-            if splits.iter().skip(1).any(|s| s.len() != splits[0].len()) {
-                return Err(CliError::Other(
-                    "inconsistent exploded length across columns.".to_string(),
-                ));
-            }
-
-            splits[0].len()
-        };
+        let max_len = args.max_len(&splits)?;
 
         for i in 0..max_len {
-            // Multiple keep
-            if args.flag_keep {
-                output_record.clear();
-
+            wtr.write_fields(|w| {
                 for (cell, mask) in record.iter().zip(sel_mask.iter()) {
-                    output_record.push_field(cell);
+                    if let Some(j) = mask {
+                        if args.flag_keep {
+                            w.write_field(cell)?;
+                        }
 
-                    output_record.push_field(if let Some(j) = mask {
                         if let Some(sub_cell) = splits[*j].get(i) {
-                            unsafe { slice::from_raw_parts(sub_cell.0, sub_cell.1) }
+                            w.write_field(sub_cell)?;
                         } else {
-                            b"".as_slice()
+                            w.write_field(b"")?;
                         }
                     } else {
-                        cell
-                    });
+                        w.write_field(cell)?;
+                    }
                 }
 
-                wtr.write_byte_record(&output_record)?;
-            }
-            // Multiple
-            else {
-                wtr.write_record(record.iter().zip(sel_mask.iter()).map(|(cell, mask)| {
-                    if let Some(j) = mask {
-                        if let Some(sub_cell) = splits[*j].get(i) {
-                            unsafe { slice::from_raw_parts(sub_cell.0, sub_cell.1) }
-                        } else {
-                            b"".as_slice()
-                        }
-                    } else {
-                        cell
-                    }
-                }))?;
-            }
+                Ok(())
+            })?;
         }
     }
 

@@ -11,7 +11,6 @@ use pest::{
 };
 use pest_derive::Parser;
 
-use super::functions::get_function;
 use super::utils::downgrade_float;
 
 #[derive(Parser)]
@@ -767,6 +766,7 @@ pub struct ScrapingLeaf {
     pub name: String,
     pub expr: Expr,
     pub processing: Option<Expr>,
+    pub important: bool,
 }
 
 #[derive(Debug, PartialEq)]
@@ -781,51 +781,110 @@ pub struct ScrapingBrackets {
     pub nodes: Vec<ScrapingNode>,
 }
 
+fn is_scraping_extractor(name: &str) -> bool {
+    matches!(
+        name,
+        "id" | "name"
+            | "classes"
+            | "raw_text"
+            | "text"
+            | "json"
+            | "json_ld"
+            | "inner_html"
+            | "outer_html"
+            | "attr"
+            | "attrs"
+            | "data"
+    )
+}
+
+impl Expr {
+    fn find_extractor_nodes(&mut self) -> Vec<&mut Expr> {
+        match self {
+            Expr::Func(call) if is_scraping_extractor(&call.name) => {
+                vec![self]
+            }
+            Expr::Func(call) => call
+                .args
+                .iter_mut()
+                .flat_map(|(_, arg)| arg.find_extractor_nodes())
+                .collect(),
+            Expr::Pipeline(children) | Expr::List(children) => children
+                .iter_mut()
+                .flat_map(Expr::find_extractor_nodes)
+                .collect(),
+            Expr::Map(entries) => entries
+                .iter_mut()
+                .flat_map(|(_, value)| value.find_extractor_nodes())
+                .collect(),
+            _ => Vec::new(),
+        }
+    }
+}
+
+fn process_scraping_leaf_extractor(mut expr: Expr) -> Result<(Expr, Option<Expr>), ParseError> {
+    let mut extractor_nodes = expr.find_extractor_nodes();
+
+    match extractor_nodes.len() {
+        0 => Err("expecting at least 1 scraping extractor (text(), id(), etc. don't forget parenthesis, else you are referring to an input column)".to_string())?,
+        1 => {
+            let extractor_node = extractor_nodes.pop().unwrap();
+            let extractor_expr = extractor_node.clone();
+
+            *extractor_node = Expr::Identifier("__value__".to_string(), false);
+
+            Ok((
+                extractor_expr,
+                if expr == Expr::Identifier("__value__".to_string(), false) {
+                    None
+                } else {
+                    Some(expr)
+                },
+            ))
+        }
+        n => Err(format!(
+            "expecting a single scraping extractor but got {}: {}",
+            n,
+            extractor_nodes
+                .iter()
+                .map(|expr| {
+                    if let Expr::Func(call) = expr {
+                        call.name.as_str()
+                    } else {
+                        unreachable!()
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(", ")
+        ))?,
+    }
+}
+
 fn parse_scraping_leaf(pair: Pair<Rule>) -> Result<ScrapingLeaf, ParseError> {
     debug_assert!(matches!(pair.as_rule(), Rule::scraping_leaf));
 
-    let mut pairs = pair.into_inner().collect::<Vec<_>>();
+    let mut pairs = pair.into_inner();
 
-    let (expr, processing) = if pairs.len() == 3 {
-        let processing = pratt_parse(Pairs::single(pairs.pop().unwrap()))?;
-        let expr = pratt_parse(Pairs::single(pairs.pop().unwrap()))?;
+    let name = parse_generic_string(pairs.next().unwrap().into_inner().next().unwrap());
 
-        (
-            expr,
-            Some(if let Expr::Identifier(name, _) = &processing {
-                if get_function(name).is_some() {
-                    Expr::Func(FunctionCall {
-                        name: name.to_string(),
-                        args: vec![(None, Expr::Identifier("value".to_string(), false))],
-                    })
-                } else {
-                    processing
-                }
-            } else {
-                processing
-            }),
-        )
+    let important = if pairs.len() == 2 {
+        assert!(matches!(
+            pairs.next_back().unwrap().as_rule(),
+            Rule::scraping_important
+        ));
+        true
     } else {
-        let expr = pratt_parse(Pairs::single(pairs.pop().unwrap()))?;
-
-        (expr, None)
+        false
     };
 
-    let name = parse_generic_string(pairs.pop().unwrap().into_inner().next().unwrap());
-
-    let expr = if let Expr::Identifier(name, _) = &expr {
-        Expr::Func(FunctionCall {
-            name: name.to_string(),
-            args: vec![],
-        })
-    } else {
-        expr
-    };
+    let expr = pratt_parse(Pairs::single(pairs.next().unwrap()))?;
+    let (expr, processing) = process_scraping_leaf_extractor(expr)?;
 
     Ok(ScrapingLeaf {
         name,
         expr,
         processing,
+        important,
     })
 }
 
@@ -1355,7 +1414,7 @@ mod tests {
     fn test_scraper() {
         let parsed = parse_scraper(
             "h2 > a {
-                title: text, lower;
+                title: text().lower();
                 url: attr('href');
 
                 & > time {
@@ -1363,14 +1422,16 @@ mod tests {
                 }
 
                 * {
-                    text: text, upper(value);
+                    text: upper(text());
                 }
+
+                crucial: text() !important;
             }
             all('p') {
-                content: text;
+                content: text();
             }
             first('div').all('.content') {
-              info: text;
+              info: text();
             }",
         );
 
@@ -1379,6 +1440,16 @@ mod tests {
                 name: name.to_string(),
                 expr: getter,
                 processing: None,
+                important: false,
+            })
+        }
+
+        fn leafi(name: &str, getter: Expr) -> ScrapingNode {
+            ScrapingNode::Leaf(ScrapingLeaf {
+                name: name.to_string(),
+                expr: getter,
+                processing: None,
+                important: true,
             })
         }
 
@@ -1387,6 +1458,7 @@ mod tests {
                 name: name.to_string(),
                 expr: getter,
                 processing: Some(processing),
+                important: false,
             })
         }
 
@@ -1407,7 +1479,7 @@ mod tests {
                         leafp(
                             "title",
                             func("text", vec![]),
-                            func("lower", vec![id("value")])
+                            func("lower", vec![id("__value__")])
                         ),
                         leaf("url", func("attr", vec![s("href")])),
                         ScrapingNode::Brackets(brackets(
@@ -1421,9 +1493,10 @@ mod tests {
                             vec![leafp(
                                 "text",
                                 func("text", vec![]),
-                                func("upper", vec![id("value")])
+                                func("upper", vec![id("__value__")])
                             )]
-                        ))
+                        )),
+                        leafi("crucial", func("text", vec![]))
                     ]
                 ),
                 brackets("all", "p", vec![leaf("content", func("text", vec![]))]),

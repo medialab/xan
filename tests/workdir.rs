@@ -48,6 +48,21 @@ impl Workdir {
         }
     }
 
+    pub fn dir_as_str(&self) -> &str {
+        self.dir.to_str().unwrap()
+    }
+
+    pub fn ls(&self) -> Vec<String> {
+        let mut paths: Vec<_> = fs::read_dir(&self.dir)
+            .unwrap()
+            .map(|result| result.unwrap().file_name().into_string().unwrap())
+            .collect();
+
+        paths.sort();
+
+        paths
+    }
+
     pub fn flexible(mut self, yes: bool) -> Workdir {
         self.flexible = yes;
         self

@@ -3,10 +3,10 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::sync::Arc;
 
-use bstr::BString;
+use bstr::{BString, ByteSlice};
 use btoi::btoi;
 use jiff::{
-    Span, Zoned,
+    Span, ZonedDateTime as Zoned,
     civil::{Date, DateTime, Time},
     tz::TimeZone,
 };
@@ -60,7 +60,7 @@ impl Serialize for DynamicValue {
             Self::Integer(v) => v.serialize(serializer),
             Self::Boolean(v) => v.serialize(serializer),
             Self::String(v) => v.serialize(serializer),
-            Self::Bytes(v) => v.serialize(serializer),
+            Self::Bytes(v) => v.to_str_lossy().serialize(serializer),
             Self::List(v) => v.serialize(serializer),
             Self::Map(v) => v.serialize(serializer),
             Self::Regex(v) => v.to_string().serialize(serializer),
@@ -599,6 +599,16 @@ impl DynamicValue {
         )
     }
 
+    pub fn try_unwrap_as_vec(self) -> Result<Vec<DynamicValue>, DynamicValue> {
+        match self {
+            DynamicValue::List(arc) => match Arc::try_unwrap(arc) {
+                Ok(list) => Ok(list),
+                Err(value) => Err(DynamicValue::List(value)),
+            },
+            _ => Err(self),
+        }
+    }
+
     pub fn flat_iter(&self) -> DynamicValueFlatIter<'_> {
         DynamicValueFlatIter::new(self)
     }
@@ -773,6 +783,13 @@ impl From<usize> for DynamicValue {
 impl From<i32> for DynamicValue {
     #[inline]
     fn from(value: i32) -> Self {
+        DynamicValue::Integer(value as i64)
+    }
+}
+
+impl From<u64> for DynamicValue {
+    #[inline]
+    fn from(value: u64) -> Self {
         DynamicValue::Integer(value as i64)
     }
 }

@@ -128,8 +128,8 @@ impl ViewStyle {
 pub const DRACULA: ViewStyle = ViewStyle::from_palette(Palette {
     bg: hex(0x282a36),
     fg: hex(0xf8f8f2),
-    accent: hex(0xbd93f9),    // violet
-    accent2: hex(0x50fa7b),   // vert
+    accent: hex(0xbd93f9),  // violet
+    accent2: hex(0x50fa7b), // vert
     row_hl: hex(0x44475a),
     col_hl: hex(0x593d52),    // rose désaturé pour un fond
     cell_hl: hex(0xf1fa8c),   // jaune

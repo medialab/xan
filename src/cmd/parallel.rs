@@ -17,6 +17,7 @@ use colored::{ColoredString, Colorize};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use rayon::{ThreadPoolBuilder, prelude::*};
 use simd_csv::ByteRecord;
+use tempfile::{NamedTempFile, TempDir};
 
 use crate::cmd::progress::get_progress_style;
 use crate::cmd::top::Value as TopValue;
@@ -492,6 +493,20 @@ impl InputReader {
     }
 }
 
+#[derive(Deserialize, Clone, Copy, Default)]
+enum Atomicity {
+    #[default]
+    All,
+    File,
+}
+
+impl Atomicity {
+    #[inline]
+    fn is_all(&self) -> bool {
+        matches!(self, Self::All)
+    }
+}
+
 static USAGE: &str = "
 Parallel processing of CSV data.
 
@@ -574,6 +589,7 @@ Usage:
     xan parallel agg [options] <expr> [<inputs>...]
     xan parallel groupby [options] <group> <expr> [<inputs>...]
     xan parallel top [options] <column> [<inputs>...]
+    xan parallel map --inplace [options] [<inputs>...]
     xan parallel map [options] <template> [<inputs>...]
     xan parallel --help
     xan p count [options] [<inputs>...]
@@ -583,6 +599,7 @@ Usage:
     xan p agg [options] <expr> [<inputs>...]
     xan p groupby [options] <group> <expr> [<inputs>...]
     xan p top [options] <column> [<inputs>...]
+    xan p map --inplace [options] [<inputs>...]
     xan p map [options] <template> [<inputs>...]
     xan p --help
 
@@ -662,6 +679,22 @@ parallel top options:
                           consume O(k + t) memory, t being the number of ties.
 
 parallel map options:
+    --inplace              Replace target files, without changing their names, instead
+                           of adding new ones beside them.
+    --replace              Replace target files instead of adding new ones beside them.
+    --tmp-dir <dir>        Where to write temporary files.
+                           Will default to \"/tmp\" or equivalent.
+    --atomicity <mode>     When using --inplace, use to select when finished files are
+                           replaced. Must be one of the following:
+                                - \"all\":  the command will wait for every file to be
+                                            fully processed before replacing original ones.
+                                            The overall process remains safe in case of an
+                                            error but requires more temporary disk resources.
+                                - \"file\": the command will replace a file as soon as it is
+                                            fully processed. This requires less temporary disk
+                                            resources but is riskier in case of an error because
+                                            only some files will have been replaced.
+                           [default: all]
     -z, --compress <kind>  Compress created files using either \"gz|gzip\" or \"zst|zstd\"
                            compression.
 
@@ -718,6 +751,10 @@ pub struct Args {
     pub flag_lexicographic: bool,
     pub flag_rank: Option<String>,
     pub flag_ties: bool,
+    flag_inplace: bool,
+    flag_replace: bool,
+    flag_tmp_dir: Option<String>,
+    flag_atomicity: Atomicity,
 }
 
 type BoxedReader = simd_csv::Reader<Box<dyn io::Read + Send>>;
@@ -736,6 +773,11 @@ impl Args {
 
         if let Some(path) = &self.flag_run {
             self.flag_preprocess = Some(fs::read_to_string(path)?);
+        }
+
+        // We cannot --inplace or --replace when chunking
+        if self.flag_inplace || self.flag_replace {
+            self.flag_dont_chunk = true;
         }
 
         Ok(())
@@ -1620,8 +1662,45 @@ impl Args {
         //     self.flag_preprocess = Some("slice".to_string());
         // }
 
+        enum PersistMode {
+            Inplace(PathBuf),
+            Replace {
+                new_path: PathBuf,
+                old_path: PathBuf,
+            },
+        }
+
+        impl PersistMode {
+            fn persist(&self, named_tmp_file: NamedTempFile) -> CliResult<()> {
+                match self {
+                    Self::Inplace(new_path) => {
+                        named_tmp_file.persist(new_path).map_err(|err| err.error)?;
+                    }
+                    Self::Replace { new_path, old_path } => {
+                        named_tmp_file.persist(new_path).map_err(|err| err.error)?;
+                        fs::remove_file(old_path)?;
+                    }
+                }
+
+                Ok(())
+            }
+        }
+
+        let tmp_dir_opt = (self.flag_inplace || self.flag_replace)
+            .then(|| {
+                if let Some(dir) = &self.flag_tmp_dir {
+                    TempDir::new_in(dir)
+                } else {
+                    TempDir::new()
+                }
+            })
+            .transpose()?;
+
+        let tmp_files_mutex_opt: Option<Mutex<Vec<(PersistMode, NamedTempFile)>>> =
+            (tmp_dir_opt.is_some() && self.flag_atomicity.is_all())
+                .then(|| Mutex::new(Vec::with_capacity(inputs.len())));
+
         let process_manager = self.process_manager(inputs.len());
-        let template = self.arg_template.clone().unwrap();
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
             let mut input_reader = self.io_reader(input)?;
@@ -1642,30 +1721,74 @@ impl Args {
                 Input::FileChunk(file_chunk) => Cow::Owned(format!("{:0>4}", file_chunk.position)),
             };
 
-            let file_name = template.filename(&file_id);
-            let mut file_path = PathBuf::from(absolute_path.parent().ok_or_else(err)?);
-            file_path.push(file_name);
-
-            let output_file = File::create(file_path)?;
-
-            let mut output: Box<dyn io::Write> = if let Some(compression) = self.flag_compress {
-                compression.wrap_writer(output_file)?
+            let file_path = if let Some(template) = &self.arg_template {
+                let file_name = template.filename(&file_id);
+                let mut file_path = PathBuf::from(absolute_path.parent().ok_or_else(err)?);
+                file_path.push(file_name);
+                file_path
             } else {
-                Box::new(output_file)
+                absolute_path.clone()
             };
 
-            let mut inner = input_reader.take();
+            let mut tmp_path_opt = None;
 
-            if let Some(bar) = &progress_bar.0 {
-                io::copy(&mut bar.wrap_read(&mut inner), &mut output)?;
+            let mut output_file = if let Some(tempdir) = &tmp_dir_opt {
+                let named_tmp_file = NamedTempFile::new_in(tempdir)?;
+                let (file, tmp_path) = named_tmp_file.into_parts();
+                tmp_path_opt = Some(tmp_path);
+                file
             } else {
-                io::copy(&mut inner, &mut output)?;
+                File::create(&file_path)?
+            };
+
+            {
+                let mut output: Box<dyn io::Write> = if let Some(compression) = self.flag_compress {
+                    compression.wrap_writer(&mut output_file)?
+                } else {
+                    Box::new(&mut output_file)
+                };
+
+                let mut inner = input_reader.take();
+
+                if let Some(bar) = &progress_bar.0 {
+                    io::copy(&mut bar.wrap_read(&mut inner), &mut output)?;
+                } else {
+                    io::copy(&mut inner, &mut output)?;
+                }
+            }
+
+            if let Some(tmp_path) = tmp_path_opt {
+                let named_tmp_file = NamedTempFile::from_parts(output_file, tmp_path);
+
+                let persist_mode = if self.flag_replace {
+                    PersistMode::Replace {
+                        new_path: file_path,
+                        old_path: absolute_path,
+                    }
+                } else {
+                    PersistMode::Inplace(file_path)
+                };
+
+                if let Some(tmp_files_mutex) = &tmp_files_mutex_opt {
+                    tmp_files_mutex
+                        .lock()
+                        .unwrap()
+                        .push((persist_mode, named_tmp_file));
+                } else {
+                    persist_mode.persist(named_tmp_file)?;
+                }
             }
 
             process_manager.stop(&input.name());
 
             Ok(())
         })?;
+
+        if let Some(tmp_files_mutex) = tmp_files_mutex_opt {
+            for (persist_mode, named_tmp_file) in tmp_files_mutex.into_inner().unwrap() {
+                persist_mode.persist(named_tmp_file)?;
+            }
+        }
 
         process_manager.succeed();
 

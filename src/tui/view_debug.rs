@@ -1,9 +1,9 @@
 use ratatui::{
+    Frame,
     layout::{Constraint, Flex, Layout, Position, Rect, Size},
     style::{Color, Style},
     text::{Line, Span},
     widgets::{Block, Clear, Paragraph},
-    Frame,
 };
 
 use crate::tui::app::ViewApp;
@@ -60,26 +60,34 @@ impl ViewInfo {
             .iter()
             .map(|c| c.to_string())
             .collect();
-        let visible_cols = if visible_cols.is_empty() { "-".to_string() } else { visible_cols.join(", ") };
+        let visible_cols = if visible_cols.is_empty() {
+            "-".to_string()
+        } else {
+            visible_cols.join(", ")
+        };
 
         vec![
-                Line::raw(""),
-                kv("Canvas body", format!("{}x{}", self.canvas.width, self.canvas.height)),
-                kv("Viewport body", format!("{vw}x{vh}")),
-                kv("Offset", format!("x={x} y={y}")),
-                kv("Offset max", format!("x={max_x} y={max_y}")),
-                Line::raw(""),
-                kv("Lignes visibles", visible_rows),
-                kv("Colonnes visibles", visible_cols),
-            ]
+            Line::raw(""),
+            kv(
+                "Canvas body",
+                format!("{}x{}", self.canvas.width, self.canvas.height),
+            ),
+            kv("Viewport body", format!("{vw}x{vh}")),
+            kv("Offset", format!("x={x} y={y}")),
+            kv("Offset max", format!("x={max_x} y={max_y}")),
+            Line::raw(""),
+            kv("Lignes visibles", visible_rows),
+            kv("Colonnes visibles", visible_cols),
+        ]
     }
 
     pub fn draw_info(&self, frame: &mut Frame, app: &ViewApp) {
-
-        let lines = app.get_infos().into_iter()
-                 .map(|(label, info)| kv(label, info))
-                 .chain(self.get_all_infos(app))
-                 .collect::<Vec<_>>();
+        let lines = app
+            .get_infos()
+            .into_iter()
+            .map(|(label, info)| kv(label, info))
+            .chain(self.get_all_infos(app))
+            .collect::<Vec<_>>();
 
         let area = popup_area(frame.area(), 80, lines.len() as u16 + 2);
         let block = Block::bordered()
