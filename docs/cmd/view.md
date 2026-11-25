@@ -65,6 +65,10 @@ view options:
                                 disable colors completely and `always` to force
                                 colors, even when the output could not handle them.
                                 [default: auto]
+    --frame-intensity <mode>    Color intensity of the table's frames. Can be used to subdue frame
+                                color and be easier on the eye if required. Must be one of
+                                "low", "medium" or "high".
+                                [default: high]
     -e, --expand                Expand the table so that in can be easily piped to
                                 a pager such as "less", with larger width constraints.
     -E, --sanitize-emojis       Replace emojis by their shortcode to avoid formatting issues.

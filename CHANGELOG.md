@@ -37,7 +37,7 @@ The **laminated** update.
 * Adding `xan heatmap --scale, --log, --hide-labels, --hide-col-labels, --hide-row-labels`.
 * Adding an optional default value to the `try` moonblade function.
 * Adding `xan select -M/--add-missing`.
-* Adding `xan view --no-pager, --ignore-env, -k/--thousands-sep`.
+* Adding `xan view --no-pager, --ignore-env, -k/--thousands-sep, --frame-intensity`.
 * Adding `xan flatten --hide-headers, -r/--highlight-regex, --highlight-tag`.
 * The `fmt` function now accepts a list as substitutions, is more robust to errors and is able to accept more than 8 arguments.
 * Adding `xan search -H/--highlight & --highlight-tag`.
