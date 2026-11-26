@@ -31,22 +31,22 @@ pub struct ViewStyle {
 // ---------------------------------------------------------------------------
 
 const CLASSIC_BASIC_TABLE_STYLE: BasicTableStyle = BasicTableStyle {
-    header: Style::new().bold().reversed().blue(),
+    header: Style::new().bold().white().on_blue(),
     body_text: Style::new().white(),
-    body_row_highlight: Style::new().on_gray().bold(),
+    body_row_highlight: Style::new().on_light_yellow().bold(),
 };
 
 const CLASSIC_FROZEN_STYLE: BasicTableStyle = BasicTableStyle {
-    header: Style::new().bold().reversed().green(),
-    body_text: Style::new().fg(Color::Green),
-    body_row_highlight: Style::new().on_yellow().bold(),
+    header: Style::new().italic().bold().reversed().green(),
+    body_text: Style::new().italic(),
+    body_row_highlight: Style::new().on_light_yellow().bold(),
 };
 
 const CLASSIC_SCROLLTABLE_STYLE: ScrollTableStyle = ScrollTableStyle {
     table: CLASSIC_BASIC_TABLE_STYLE,
     col_spacing: 1,
-    body_col_highlight: Style::new().red(),
-    body_cell_highlight: Style::new().reversed().yellow(),
+    body_col_highlight: Style::new().bg(Color::DarkGray),
+    body_cell_highlight: Style::new().bold().on_yellow(),
     frozen: CLASSIC_FROZEN_STYLE,
     separator: Style::new().red(),
 };
