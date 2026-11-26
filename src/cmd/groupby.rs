@@ -143,7 +143,7 @@ Usage:
     xan groupby --help
 
 groupby options:
-    -f, --evaluate-file         Read evaluation expression from a file instead.
+    -f, --evaluate-file        Read evaluation expression from a file instead.
     --keep <cols>              Keep this selection of columns, in addition to
                                the ones representing groups, in the output. Only
                                values from the first seen row per group will be kept.
