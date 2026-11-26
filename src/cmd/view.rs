@@ -14,7 +14,7 @@ use crate::read::LeakySponge;
 use crate::select::SelectedColumns;
 use crate::utils::{self, ColorMode, DataType};
 
-use crate::tui::{ViewApp, theme_by_name, CLASSIC_VIEWSTYLE};
+use crate::tui::{ViewApp, CLASSIC_VIEWSTYLE};
 
 #[derive(Debug, Clone, Copy, Default, Deserialize)]
 pub enum ComplexToggle {
