@@ -1,7 +1,7 @@
 mod utils;
 mod app;
 mod ui;
-mod view_debug;
+mod view_infos;
 mod scroll_table;
 
 pub use utils::print_ratatui_frame_to_stdout;

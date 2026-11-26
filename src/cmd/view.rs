@@ -1113,12 +1113,6 @@ impl DisplayedColumn {
     }
 }
 
-impl std::fmt::Display for DisplayedColumn {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "({}, {})", self.allowed_width, self.max_width)
-    }
-}
-
 #[derive(Debug)]
 struct DisplayedColumns {
     max_allowed_cols: usize,

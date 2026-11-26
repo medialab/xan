@@ -97,6 +97,10 @@ impl ScrollTable {
     //     self.headers.get(i)
     // }
 
+    pub fn selected_row(&self) -> Option<usize> {
+        self.table_state.selected()
+    }
+
     pub fn body_size(&self) -> Size {
         self.body_size
     }
@@ -207,6 +211,18 @@ impl ScrollTable {
     }
 
     // ---------------------------------------------------------------------------------
+
+    pub fn next_col_idx(&self, off_x: u16) -> usize {
+        self.cum_sum.partition_point(|&start| start <= off_x as usize)
+    }
+
+    pub fn last_col_view(&self, off_x: u16, view_w: u16) -> usize {
+        let right = off_x as usize + view_w as usize;
+        self.cum_sum
+            .partition_point(|&start| start < right)
+            .saturating_sub(1)
+            .min(self.n_cols().saturating_sub(1))
+    }
 
     fn first_visible_col(&self, off: usize) -> usize {
         self.cum_sum

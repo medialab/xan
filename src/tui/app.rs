@@ -13,16 +13,8 @@ use ratatui::{
 use crate::CliResult;
 use crate::cmd::view::DisplayedColumn;
 use crate::utils::DataType;
-use crate::tui::{ViewStyle, CLASSIC_VIEWSTYLE, view_debug::ViewInfo, scroll_table, scroll_table::ScrollTable};
+use crate::tui::{ViewStyle, CLASSIC_VIEWSTYLE, view_infos::ViewInfo, scroll_table, scroll_table::ScrollTable};
 
-
-fn list_to_string<I>(list: I) -> String
-where I: Iterator, I::Item: ToString,
-{
-    list.map(|w| w.to_string())
-        .collect::<Vec<_>>()
-        .join(", ")
-}
 
 #[derive(Debug)]
 pub struct ViewApp {
@@ -30,42 +22,29 @@ pub struct ViewApp {
     scroll_table: ScrollTable,
     show_info: bool,
     quit: bool,
-    infos: Vec<(&'static str, String)>,
 }
 
 impl ViewApp {
-    pub fn new(name: String, headers: StringRecord, rows: Vec<(StringRecord, Vec<DataType>)>, cols: Vec<DisplayedColumn>, style: Option<&'static ViewStyle>) -> Self {
+    pub fn new(name: String, headers: StringRecord,
+        rows: Vec<(StringRecord, Vec<DataType>)>, cols: Vec<DisplayedColumn>,
+        style: Option<&'static ViewStyle>) -> Self {
         let viewstyle = style.unwrap_or(&CLASSIC_VIEWSTYLE);
         let scroll_table = ScrollTable::new(headers, rows, cols, &viewstyle.scroll_table);
-        let infos = vec![
-            ("Lines", "".to_string()),
-            ("Columns", "".to_string()),
-            ("column width ", "".to_string()),
-            ("Frozen column", "".to_string()),
-        ];
-        Self { name, scroll_table, show_info: false, quit: false, infos}
+        Self { name, scroll_table, show_info: false, quit: false }
     }
 
-    pub fn get_infos(&self) -> &[(&'static str, String)] {
-        &self.infos
+    pub fn n_rows(&self) -> usize {
+        self.scroll_table.n_rows()
     }
 
-    #[cfg(debug_assertions)]
-    fn log(&mut self, label: &'static str, info: String) {
-        self.infos.push((label, info));
+    pub fn n_cols(&self) -> usize {
+        self.scroll_table.n_cols()
     }
-
 
     fn footer(&self) -> Text<'static> {
         Text::raw(format!(
-            " {} lines | {} columns | Home/End : top/end | Arrows : scroll | Tab (BackTab) : next (previous) column | \
+            " {} lines | {} columns | Home/End : top/end | Arrows : scroll | Tab/BackTab : next/previous column | \
             f: freeze | i : infos | q : quit", self.scroll_table.n_rows(), self.scroll_table.n_cols()))
-    }
-
-    fn update_infos(&mut self, infos: [String; 4]) {
-        for ((_, info), new_info) in self.infos.iter_mut().take(4).zip(infos) {
-            *info = new_info;
-        }
     }
 
     pub fn run(mut self, terminal: &mut DefaultTerminal) -> CliResult<()> {
@@ -140,20 +119,38 @@ impl ViewApp {
         };
 
         if self.show_info {
-            let infos: [String; 4] = [
-                self.scroll_table.n_rows().to_string(),
-                self.scroll_table.n_cols().to_string(),
-                list_to_string(self.scroll_table.col_widths()),
-                self.scroll_table.frozen_name().to_string(),
-            ];
-            self.update_infos(infos);
-
             view.draw_info(frame, &self);
         }
     }
 
     pub fn is_empty(&self) -> bool {
         self.scroll_table.is_empty()
+    }
+
+    pub fn selected_row(&self) -> Option<usize> {
+        if self.is_empty() {
+            return None;
+        }
+        self.scroll_table.selected_row()
+    }
+
+    pub fn selected_column(&self) -> Option<usize> {
+        if self.scroll_table.n_cols() == 0 {
+            return None;
+        }
+        Some(self.scroll_table.selected_col())
+    }
+
+    pub fn frozen_column(&self) -> Option<usize> {
+        self.scroll_table.frozen()
+    }
+
+    pub fn next_col_idx(&self, off_x: u16) -> usize {
+        self.scroll_table.next_col_idx(off_x)
+    }
+
+    pub fn last_col_view(&self, off_x: u16, view_w: u16) -> usize {
+        self.scroll_table.last_col_view(off_x, view_w)
     }
 
     pub fn scrollable_columns(&self) -> Vec<usize> {
