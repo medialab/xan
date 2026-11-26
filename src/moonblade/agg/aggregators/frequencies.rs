@@ -101,6 +101,12 @@ impl Frequencies {
         self.counter.len()
     }
 
+    pub fn distinct_values(&self) -> Vec<&str> {
+        let mut keys: Vec<_> = self.counter.keys().map(|k| k.as_str()).collect();
+        keys.sort();
+        keys
+    }
+
     pub fn join(&self, separator: &str) -> String {
         let mut keys: Vec<_> = self.counter.keys().map(|k| k.as_str()).collect();
         keys.sort_unstable();

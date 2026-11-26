@@ -3,7 +3,8 @@ use std::fmt;
 
 use btoi::btoi;
 use jiff::{
-    Error, SignedDuration, SpanRelativeTo, Timestamp, ToSpan, Unit, Zoned, ZonedRound,
+    Error, SignedDuration, SpanRelativeTo, Timestamp, ToSpan, Unit, ZonedDateTime as Zoned,
+    ZonedDateTimeRound as ZonedRound,
     civil::{Date, DateTime, Time},
     fmt::strtime,
     fmt::temporal::{DateTimeParser, PiecesOffset},
@@ -264,10 +265,12 @@ impl AnyTemporal {
     pub fn to_lower_bound_timestamp(&self, timezone: TimeZone) -> Result<Timestamp, Error> {
         Ok(match self {
             AnyTemporal::Zoned(zoned) => zoned.with_time_zone(timezone).timestamp(),
-            AnyTemporal::DateTime(datetime) => datetime.to_zoned(TimeZone::UTC)?.timestamp(),
+            AnyTemporal::DateTime(datetime) => {
+                datetime.to_zoned_datetime(TimeZone::UTC)?.timestamp()
+            }
             AnyTemporal::Date(date) => date
                 .to_datetime(Time::default())
-                .to_zoned(TimeZone::UTC)?
+                .to_zoned_datetime(TimeZone::UTC)?
                 .timestamp(),
             AnyTemporal::Time(_) => {
                 return Err(Error::from_args(format_args!(
@@ -330,7 +333,9 @@ impl From<FuzzyTemporal> for AnyTemporal {
         match value {
             FuzzyTemporal::Any(temporal) => temporal,
             FuzzyTemporal::PartialDate(partial_date) => Self::Date(partial_date.into_inner()),
-            FuzzyTemporal::Timestamp(timestamp) => Self::Zoned(timestamp.to_zoned(TimeZone::UTC)),
+            FuzzyTemporal::Timestamp(timestamp) => {
+                Self::Zoned(timestamp.to_zoned_datetime(TimeZone::UTC))
+            }
         }
     }
 }
@@ -363,7 +368,7 @@ impl FuzzyTemporal {
             Self::PartialDate(partial_date) => Ok(partial_date
                 .as_date()
                 .to_datetime(Time::default())
-                .to_zoned(TimeZone::UTC)?
+                .to_zoned_datetime(TimeZone::UTC)?
                 .timestamp()),
             Self::Timestamp(timestamp) => Ok(*timestamp),
         }
@@ -395,7 +400,9 @@ pub fn parse_maybe_zoned(input: impl AsRef<[u8]>) -> Result<MaybeZoned, Error> {
             } else {
                 // We have a timestamp
                 if matches!(pieces.offset(), Some(PiecesOffset::Zulu)) {
-                    return Ok(MaybeZoned::Zoned(datetime.to_zoned(TimeZone::UTC)?));
+                    return Ok(MaybeZoned::Zoned(
+                        datetime.to_zoned_datetime(TimeZone::UTC)?,
+                    ));
                 }
 
                 let conflict_resolution = OffsetConflict::Reject;
@@ -407,10 +414,10 @@ pub fn parse_maybe_zoned(input: impl AsRef<[u8]>) -> Result<MaybeZoned, Error> {
                             return Err(Error::from_args(format_args!("no valid timezone info")));
                         };
 
-                        TimeZone::fixed(offset).into_ambiguous_zoned(datetime)
+                        TimeZone::fixed(offset).into_ambiguous_zoned_datetime(datetime)
                     }
                     Ok(Some(tz)) => match pieces.to_numeric_offset() {
-                        None => tz.into_ambiguous_zoned(datetime),
+                        None => tz.into_ambiguous_zoned_datetime(datetime),
                         Some(offset) => conflict_resolution.resolve(datetime, offset, tz)?,
                     },
                     Err(_) => {
@@ -437,7 +444,7 @@ pub fn parse_maybe_zoned_with_format(
     }
     // Else we can attempt to parse it as a zoned
     else {
-        Ok(MaybeZoned::Zoned(broken_down_time.to_zoned()?))
+        Ok(MaybeZoned::Zoned(broken_down_time.to_zoned_datetime()?))
     }
 }
 
@@ -462,7 +469,9 @@ pub fn parse_any_temporal(input: impl AsRef<[u8]>) -> Result<AnyTemporal, Error>
             } else {
                 // We have a timestamp
                 if matches!(pieces.offset(), Some(PiecesOffset::Zulu)) {
-                    return Ok(AnyTemporal::Zoned(datetime.to_zoned(TimeZone::UTC)?));
+                    return Ok(AnyTemporal::Zoned(
+                        datetime.to_zoned_datetime(TimeZone::UTC)?,
+                    ));
                 }
 
                 let conflict_resolution = OffsetConflict::Reject;
@@ -474,10 +483,10 @@ pub fn parse_any_temporal(input: impl AsRef<[u8]>) -> Result<AnyTemporal, Error>
                             return Err(Error::from_args(format_args!("no valid timezone info")));
                         };
 
-                        TimeZone::fixed(offset).into_ambiguous_zoned(datetime)
+                        TimeZone::fixed(offset).into_ambiguous_zoned_datetime(datetime)
                     }
                     Ok(Some(tz)) => match pieces.to_numeric_offset() {
-                        None => tz.into_ambiguous_zoned(datetime),
+                        None => tz.into_ambiguous_zoned_datetime(datetime),
                         Some(offset) => conflict_resolution.resolve(datetime, offset, tz)?,
                     },
                     Err(_) => {
@@ -547,10 +556,10 @@ pub fn parse_fuzzy_temporal(
                             return Err(Error::from_args(format_args!("no valid timezone info")));
                         };
 
-                        TimeZone::fixed(offset).into_ambiguous_zoned(datetime)
+                        TimeZone::fixed(offset).into_ambiguous_zoned_datetime(datetime)
                     }
                     Ok(Some(tz)) => match pieces.to_numeric_offset() {
-                        None => tz.into_ambiguous_zoned(datetime),
+                        None => tz.into_ambiguous_zoned_datetime(datetime),
                         Some(offset) => conflict_resolution.resolve(datetime, offset, tz)?,
                     },
                     Err(_) => {

@@ -331,6 +331,16 @@ sum(
 )
 ```
 
+Comments can also be added with `//`:
+
+```javascript
+// Summing
+sum(
+  retweets + // we add retweets,
+  replies // and replies
+)
+```
+
 ## Implementation details & design choices
 
 The `moonblade` expression language uses a PEG-like parser and a tree-walker

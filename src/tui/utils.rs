@@ -122,4 +122,3 @@ where
 // fn is_regional_indicator(c: char) -> bool {
 //     ('\u{1F1E6}'..='\u{1F1FF}').contains(&c)
 // }
-

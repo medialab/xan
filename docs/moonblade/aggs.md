@@ -20,7 +20,7 @@ the number of nodes in a graph represented by a CSV edge list.
 - **approx_quantile**(*\<expr\>*, *p*) -> `number`: Returns an approximation of the desired quantile of values returned by given expression using t-digests.
 - **argmin**(*\<expr\>*, *\<expr\>?*) -> `any`: Return the index of the row where the first expression is minimized, or the result of the second expression where the first expression is minimized. Ties will be broken by original row index.
 - **argmax**(*\<expr\>*, *\<expr\>?*) -> `any`: Return the index of the row where the first expression is maximized, or the result of the second expression where the first expression is maximized. Ties will be broken by original row index.
-- **argtop**(*k*, *\<expr\>*, *\<expr\>?*, *separator?*) -> `string`: Find the top k values returned by the first expression and either return the indices of matching rows or the result of the second expression, joined by a pipe character ('|') or by the provided separator. Ties will be broken by original row index.
+- **argtop**(*k*, *\<expr\>*, *\<expr\>?*, *separator?*) -> `string`: Find the top k values returned by the first expression and either return the indices of matching rows or the result of the second expression, serialized as JSON or joined by the provided separator. Ties will be broken by original row index.
 - **avg**(*\<expr\>*) -> `number`: Average of numerical values. Same as `mean`.
 - **cardinality**(*\<expr\>*) -> `number`: Number of distinct values returned by given expression.
 - **correlation**(*\<expr\>*, *\<expr\>*) -> `number`: Return the correlation (covariance divided by the product of standard deviations) of series represented by the two given expressions.
@@ -33,7 +33,7 @@ the number of nodes in a graph represented by a CSV edge list.
 - **covariance_pop**(*\<expr\>*, *\<expr\>*) -> `number`: Return the population covariance of series represented by the two given expressions. Same as `covariance`.
 - **covariance_sample**(*\<expr\>*, *\<expr\>*) -> `number`: Return the sample covariance of series represented by the two given expressions.
 - **dist**(*\<expr\>*, *bins=10*) -> `string`: Return a symbolic distribution plot (e.g. `▇▅▆▄▃▃▂▂▁▁`) of the numbers returned by given expression.
-- **distinct_values**(*\<expr\>*, *separator?*) -> `string`: List of sorted distinct values joined by a pipe character ('|') by default or by the provided separator.
+- **distinct_values**(*\<expr\>*, *separator?*) -> `string`: List of sorted distinct values serialized as JSON or joined by the provided separator.
 - **earliest**(*\<expr\>*) -> `datetime`: Earliest datetime returned by given expression.
 - **first**(*\<expr\>*) -> `string`: Return first seen non empty element of the values returned by the given expression.
 - **latest**(*\<expr\>*) -> `datetime`: Latest datetime returned by given expression.
@@ -50,8 +50,8 @@ the number of nodes in a graph represented by a CSV edge list.
 - **median_high**(*\<expr\>*) -> `number`: Median of numerical values, returning higher value on even counts.
 - **median_low**(*\<expr\>*) -> `number`: Median of numerical values, returning lower value on even counts.
 - **mode**(*\<expr\>*) -> `string`: Value appearing the most, breaking ties arbitrarily in favor of the first value in lexicographical order.
-- **most_common**(*k*, *\<expr\>*, *separator?*) -> `string`: List of top k most common values returned by expression joined by a pipe character ('|') or by the provided separator. Ties will be broken by lexicographical order.
-- **most_common_counts**(*k*, *\<expr\>*, *separator?*) -> `string`: List of top k most common counts returned by expression joined by a pipe character ('|') or by the provided separator. Ties will be broken by lexicographical order.
+- **most_common**(*k*, *\<expr\>*, *separator?*) -> `string`: List of top k most common values returned by expression serialized as JSON or joined by the provided separator. Ties will be broken by lexicographical order.
+- **most_common_counts**(*k*, *\<expr\>*, *separator?*) -> `string`: List of top k most common counts returned by expression serialized as JSON or joined by the provided separator. Ties will be broken by lexicographical order.
 - **percentage**(*\<expr\>*, *decimals?*) -> `string`: Return the percentage of truthy values returned by expression, up to an optional number of decimal places.
 - **quantile**(*\<expr\>*, *q*) -> `number`: Return the desired quantile of numerical values.
 - **q1**(*\<expr\>*) -> `number`: Return the first quartile of numerical values.
@@ -63,10 +63,10 @@ the number of nodes in a graph represented by a CSV edge list.
 - **stddev_pop**(*\<expr\>*) -> `number`: Population standard deviation. Same as `stddev`.
 - **stddev_sample**(*\<expr\>*) -> `number`: Sample standard deviation (i.e. using Bessel's correction).
 - **sum**(*\<expr\>*) -> `number`: Sum of numerical values. Will return nothing if the sum overflows. Uses the Kahan-Babuska routine for precise float summation.
-- **top**(*k*, *\<expr\>*, *separator?*) -> `any`: Find the top k values returned by the expression and join them by a pipe character ('|') or by the provided separator. Ties will be broken by original row index.
+- **top**(*k*, *\<expr\>*, *separator?*) -> `any`: Find the top k values returned by the expression serialized as JSON or joined by the provided separator. Ties will be broken by original row index.
 - **type**(*\<expr\>*) -> `string`: Best type description for seen values.
 - **types**(*\<expr\>*) -> `string`: Sorted list, pipe-separated, of all the types seen in the values.
-- **values**(*\<expr\>*, *separator?*) -> `string`: List of values joined by a pipe character ('|') by default or by the provided separator.
+- **values**(*\<expr\>*, *separator?*) -> `string`: List of values serialized as JSON or joined by the provided separator.
 - **var**(*\<expr\>*) -> `number`: Population variance. Same as `var_pop`.
 - **var_pop**(*\<expr\>*) -> `number`: Population variance. Same as `var`.
 - **var_sample**(*\<expr\>*) -> `number`: Sample variance (i.e. using Bessel's correction).

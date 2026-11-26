@@ -15,10 +15,11 @@ use simd_csv::ByteRecord;
 
 use crate::CliError;
 use crate::CliResult;
-use crate::config::Config;
+use crate::config::{Config, Delimiter};
 use crate::json::{GetPathOwned, JSONTabularizer, fill_record_from_tape_value};
 use crate::moonblade::Path as JSONPath;
 use crate::select::SelectedColumns;
+use crate::serialize::AmortizedSerializer;
 use crate::utils::{self, ChunksIteratorExt};
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -136,10 +137,11 @@ Also try to tweak --chunk-size as the sweet spot is often very dependent on the
 actual JSON records being parsed.
 
 from options:
-    -f, --format <format>  Format to convert from. Will be inferred from file
-                           extension if not given. Must be specified when reading
-                           from stdin, since we don't have a file extension to
-                           work with.
+    -f, --format <format>         Format to convert from. Will be inferred from file
+                                  extension if not given. Must be specified when reading
+                                  from stdin, since we don't have a file extension to
+                                  work with.
+    -D, --output-delimiter <arg>  Delimiter for the output CSV format. Defaults to a comma.
 
 Excel/OpenOffice-related options:
     --sheet-index <i>    0-based index of the sheet to convert. Defaults to converting
@@ -184,6 +186,7 @@ NDJSON options:
 
 Parquet options:
     -s, --select <columns>  Selection of columns to keep in the CSV output.
+    --row-group-index <i>   Only yield rows from desired row group, by index.
 
 Text lines & raw options:
     -c, --column <name>    Name of the column to create. Will default to "line" with -f=txt
@@ -220,11 +223,15 @@ struct Args {
     flag_threads: Option<NonZeroUsize>,
     flag_chunk_size: NonZeroUsize,
     flag_select: Option<SelectedColumns>,
+    flag_row_group_index: Option<usize>,
+    flag_output_delimiter: Option<Delimiter>,
 }
 
 impl Args {
     fn writer(&self) -> io::Result<simd_csv::Writer<Box<dyn io::Write + Send>>> {
-        Config::new(&self.flag_output).simd_writer()
+        Config::new(&self.flag_output)
+            .delimiter(self.flag_output_delimiter)
+            .simd_writer()
     }
 
     fn sample_size(&self) -> Option<NonZeroUsize> {
@@ -588,6 +595,10 @@ impl Args {
 
         wtr.write_record_no_quoting((0..columns).map(|i| format!("dim_{i}")))?;
 
+        let mut fields_writer = wtr.fields_writer();
+
+        let mut buffer = zmij::Buffer::new();
+
         macro_rules! process {
             ($type: ty) => {
                 for row in rdr
@@ -595,10 +606,14 @@ impl Args {
                     .unwrap()
                     .chunks(NonZeroUsize::new(columns as usize).unwrap())
                 {
-                    // NOTE: this is safe because the output delimiter is guaranteed to be a comma
-                    wtr.write_record_no_quoting(
-                        row.into_iter().map(|cell| cell.unwrap().to_string()),
-                    )?;
+                    for result in row {
+                        let x = result?;
+
+                        // NOTE: this is safe because the output delimiter is guaranteed to be a comma
+                        fields_writer.write_field_no_quoting(buffer.format(x).as_bytes())?;
+                    }
+
+                    fields_writer.finalize_record()?;
                 }
             };
         }
@@ -744,9 +759,20 @@ impl Args {
     }
 
     fn convert_parquet(&self) -> CliResult<()> {
-        use parquet::file::reader::FileReader;
+        use parquet::file::reader::{FileReader, RowGroupReader};
 
         let reader = Config::new(&self.arg_input).parquet_reader()?;
+
+        if let Some(row_group_index) = self.flag_row_group_index {
+            let row_groups = reader.count_row_groups() as usize;
+
+            if row_group_index >= row_groups {
+                Err(format!(
+                    "--row-group-index {row_group_index} is out of bound (only {row_groups} row groups in target parquet file)!"
+                ))?;
+            }
+        }
+
         let mut headers = reader.byte_headers();
 
         let mut sel_opt = self
@@ -770,19 +796,25 @@ impl Args {
 
         let reader = reader.into_inner();
 
-        let mut output_record = ByteRecord::new();
-        let iter = reader.get_row_iter(projection)?;
+        let mut serializer = AmortizedSerializer::new();
+        let row_group_opt: Option<Box<dyn RowGroupReader>>;
+
+        let iter = if let Some(row_group_index) = self.flag_row_group_index {
+            row_group_opt = Some(reader.get_row_group(row_group_index)?);
+            row_group_opt.as_ref().unwrap().get_row_iter(projection)?
+        } else {
+            reader.get_row_iter(projection)?
+        };
 
         for result in iter {
-            output_record.clear();
-
             let row = result?;
 
-            for (_, field) in row.get_column_iter() {
-                crate::parquet::push_parquet_field(&mut output_record, field)?;
-            }
-
-            wtr.write_byte_record(&output_record)?;
+            wtr.write_fields(|w| {
+                for (_, field) in row.get_column_iter() {
+                    w.write_field(serializer.serialize_parquet_field(field))?;
+                }
+                Ok(())
+            })?;
         }
 
         Ok(wtr.flush()?)

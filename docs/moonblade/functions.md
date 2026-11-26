@@ -64,13 +64,13 @@ x ge y - string greater than or equal
 ### Arithmetic operators
 
 ```txt
-x + y  - numerical addition
-x - y  - numerical subtraction
-x * y  - numerical multiplication
-x / y  - numerical division
-x % y  - numerical remainder
-x // y - numerical integer division
-x ** y - numerical exponentiation
+x + y    - numerical addition
+x - y    - numerical subtraction
+x * y    - numerical multiplication
+x / y    - numerical division
+x % y    - numerical remainder
+x idiv y - numerical integer division
+x ** y   - numerical exponentiation
 ```
 
 ### String/sequence operators

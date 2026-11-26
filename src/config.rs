@@ -129,10 +129,7 @@ impl Compression {
         }
     }
 
-    pub fn wrap_writer<W: Write + 'static>(
-        &self,
-        writer: W,
-    ) -> io::Result<Box<dyn Write + 'static>> {
+    pub fn wrap_writer<'s, W: Write + 's>(&self, writer: W) -> io::Result<Box<dyn Write + 's>> {
         match self {
             Self::Gzip => Ok(Box::new(flate2::write::GzEncoder::new(
                 writer,
@@ -201,7 +198,10 @@ pub struct Config {
 
 impl Config {
     pub fn has_known_extension(path: &str) -> bool {
-        let uncompressed_path = path.strip_suffix(".gz").unwrap_or(path);
+        let uncompressed_path = path
+            .strip_suffix(".gz")
+            .or_else(|| path.strip_suffix(".zst"))
+            .unwrap_or(path);
 
         [
             ".csv", ".tsv", ".tab", ".ssv", ".scsv", ".psv", ".cdx", ".ndjson", ".jsonl", ".vcf",
@@ -218,6 +218,10 @@ impl Config {
 
         if path.ends_with(".gz") {
             Self::new(&Some(path.to_string())).has_seekable_index()
+        } else if path.ends_with(".zst") {
+            Self::new(&Some(path.to_string()))
+                .seekable_io_reader()
+                .is_ok()
         } else {
             true
         }
@@ -603,24 +607,32 @@ impl Config {
             None => Err(error_msg)?,
             Some(ref p) => match fs::File::open(p) {
                 Ok(mut x) => {
-                    if let Some(Compression::Gzip) = self.compression {
-                        if let Some(index_path) =
-                            self.compression.unwrap().index_path(p.to_str().unwrap())
-                        {
-                            let reader = BGZFReader::new(x)?;
-                            let index = BGZFIndex::from_reader(fs::File::open(index_path)?)?;
-                            let mut indexed_reader = IndexedBGZFReader::new(reader, index)?;
+                    match self.compression {
+                        Some(compression @ Compression::Gzip) => {
+                            if let Some(index_path) = compression.index_path(p.to_str().unwrap()) {
+                                let reader = BGZFReader::new(x)?;
+                                let index = BGZFIndex::from_reader(fs::File::open(index_path)?)?;
+                                let mut indexed_reader = IndexedBGZFReader::new(reader, index)?;
 
-                            self.process_typical_headers_seek(&mut indexed_reader)?;
+                                self.process_typical_headers_seek(&mut indexed_reader)?;
 
-                            return Ok(Box::new(indexed_reader));
-                        } else {
-                            Err(error_msg)?;
+                                return Ok(Box::new(indexed_reader));
+                            } else {
+                                Err(error_msg)?;
+                            }
                         }
-                    } else if self.compression.is_some() {
-                        Err(error_msg)?;
-                    } else {
-                        self.process_typical_headers_seek(&mut x)?;
+                        Some(Compression::Zstd) => {
+                            if let Ok(mut decoder) = zeekstd::Decoder::new(x) {
+                                self.process_typical_headers_seek(&mut decoder)?;
+
+                                return Ok(Box::new(decoder));
+                            } else {
+                                return Err(error_msg)?;
+                            }
+                        }
+                        None => {
+                            self.process_typical_headers_seek(&mut x)?;
+                        }
                     }
 
                     match x.borrow().stream_position() {

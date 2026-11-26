@@ -817,21 +817,19 @@ impl EmojiSanitizer {
         EmojiSanitizer { pattern }
     }
 
-    pub fn sanitize(&self, string: &str) -> String {
-        self.pattern
-            .replace_all(string, |caps: &Captures| {
-                format!(
-                    ":{}:",
-                    match emojis::get(&caps[0]) {
+    pub fn sanitize<'s>(&self, string: &'s str) -> Cow<'s, str> {
+        self.pattern.replace_all(string, |caps: &Captures| {
+            format!(
+                ":{}:",
+                match emojis::get(&caps[0]) {
+                    None => "unknown_emoji",
+                    Some(emoji) => match emoji.shortcode() {
                         None => "unknown_emoji",
-                        Some(emoji) => match emoji.shortcode() {
-                            None => "unknown_emoji",
-                            Some(shortcode) => shortcode,
-                        },
-                    }
-                )
-            })
-            .to_string()
+                        Some(shortcode) => shortcode,
+                    },
+                }
+            )
+        })
     }
 }
 

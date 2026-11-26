@@ -78,15 +78,22 @@ leverage a custom CSS-like language to describe exactly what you want to
 scrape.
 
 Given scraper will either run once per HTML document or one time per
-element matching the CSS selector given to -F/--foreach.
+element matching the root CSS selector when given -F/--foreach or any CSS
+selector given to -S/--foreach-selector.
 
 Example scraping the first h2 title from a HTML document:
 
-    $ xan scrape -e 'h2 > a {title: text; url: attr("href");}' page.html
+    $ xan scrape -e 'h2 > a {title: text(); url: attr("href");}' page.html
 
 Example scraping all the h2 titles from a HTML document:
 
-    $ xan scrape --foreach 'h2 > a' -e '& {title: text; url: attr("href");}' page.html
+    $ xan scrape --foreach -e 'h2 > a {title: text(); url: attr("href");}' page.html
+
+Same example but using -S/--foreach-selector:
+
+    $ xan scrape --foreach-selector 'h2 > a' -e '& {title: text(); url: attr("href");}' page.html
+
+Note that -F/--foreach only works when evaluated scraper has a single CSS root selector.
 
 A full reference of this language can be found using `xan help scraping`.
 
@@ -96,14 +103,30 @@ Scrapers can either output exactly one row per input row or 0 to n output rows
 per input row.
 
 Scrapers outputting exactly one row per input row: "head", "article", any
-scraper given to -e/-f WITHOUT -F/--foreach.
+scraper given to -e/-f WITHOUT -F/--foreach/-S or --foreach-selector.
 
 Scrapers outputting 0 to n rows per input row: "urls", "images", any scraper
-given to -e/-f WITH -F/--foreach.
+given to -e/-f WITH -F/--foreach or -S/--foreach-selector.
 
-It can be useful sometimes to use the -k/--keep flag to select the input columns
-to keep in the output. Note that using this flag with an empty selection (-k '')
-means outputting only the scraped columns.
+# Columns kept in the output
+
+By default, all columns from input are kept in the output. You can still choose
+columns to keep using the -s/--select flag. This also means you can pass the '!'
+empty selection to keep nothing from your input.
+
+Note that if you are not providing a CSV input to the command (i.e. when not
+using the --paths nor --docs flags), the command will pretend it was fed with
+one having columns depending on how the command was fed its paths or documents:
+
+- Passing <inputs>..., one path per line (--paths without --path-column) or --glob:
+  a single "path" column containing scraped path.
+
+- Using -D/--stdin-doc:
+  a single "doc" column containing scraped document.
+
+Then, note that since keeping inline docs is usually undesirable, the column
+containing it is dropped by default, unless explicitly given to -s/--select
+or when using -k/--keep-doc.
 
 Usage:
     xan scrape (head|urls|article|images) [options] [<inputs>...]
@@ -130,10 +153,12 @@ scrape options:
     --glob <pattern>            If given, collects document paths to process by applying
                                 the given glob pattern.
     -E, --encoding <name>       Encoding of to read on disk. Will default utf-8.
-    -k, --keep <column>         Selection of columns from the input to keep in
-                                the output. Default is to keep all columns from input.
+    -s, --select <columns>      Select columns of input to keep in the output.
+    -k, --keep-docs             Whether to keep inline documents (when using --docs or -D/--stdin-doc)
+                                in the output.
     -I, --input-dir <path>      When set, processed paths will be read relative to the
                                 given base <path>.
+                                [default: .]
     -p, --parallel              Whether to use parallelization to speed up computations.
                                 Will automatically select a suitable number of threads to use
                                 based on your number of cores. Use -t, --threads if you want to
@@ -145,9 +170,13 @@ scrape url, links, images options:
     -u, --url-column <column>  Column containing the base url for given HTML.
 
 scrape -e/--evaluate & -f/--evaluate-file options:
-    -F, --foreach <css>  If given, will return one row per element matching
-                         the CSS selector in target document, instead of returning
-                         a single row per document.
+    -F, --foreach                 If given, will return one row per element matching
+                                  the root selector of evaluated scraper. Can only
+                                  work when evaluated scraper as a single root
+                                  selector.
+    -S, --foreach-selector <css>  If given, will return one row per element matching
+                                  the CSS selector in target document, instead of
+                                  returning a single row per document.
 
 Common options:
     -h, --help             Display this message

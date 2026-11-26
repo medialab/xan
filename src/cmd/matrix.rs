@@ -1,11 +1,255 @@
+use std::iter::once;
+use std::ops::{Index, IndexMut};
+
 use simd_csv::ByteRecord;
 
 use crate::CliResult;
 use crate::collections::{HashMap, IndexSet, new_index_set};
 use crate::config::{Config, Delimiter};
 use crate::moonblade::agg::CovarianceWelford;
+use crate::scales::{ExtentBuilder, LinearScale};
 use crate::select::SelectedColumns;
 use crate::utils;
+
+#[derive(Debug, Deserialize, Clone, Copy)]
+#[serde(try_from = "String")]
+enum Normalization {
+    Full,
+    Row,
+    Column,
+    Phi,
+}
+
+impl TryFrom<String> for Normalization {
+    type Error = String;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Ok(match value.as_str() {
+            "all" | "full" => Self::Full,
+            "col" | "cols" | "column" | "columns" => Self::Column,
+            "row" | "rows" => Self::Row,
+            "phi" => Self::Phi,
+            _ => return Err(format!("unsupported normalization \"{}\"", &value)),
+        })
+    }
+}
+
+struct LabeledMatrix<T> {
+    columns: ByteRecord,
+    rows: ByteRecord,
+    data: Vec<T>,
+}
+
+impl<T: Default> LabeledMatrix<T> {
+    fn new(columns: ByteRecord, rows: ByteRecord) -> Self {
+        let len = columns.len() * rows.len();
+
+        let mut data = Vec::with_capacity(len);
+
+        for _ in 0..len {
+            data.push(Default::default());
+        }
+
+        Self {
+            columns,
+            rows,
+            data,
+        }
+    }
+}
+
+impl<T> LabeledMatrix<T> {
+    #[inline(always)]
+    fn flat_index(&self, x: usize, y: usize) -> usize {
+        debug_assert!(x < self.columns.len());
+        debug_assert!(y < self.rows.len());
+
+        y * self.columns.len() + x
+    }
+
+    #[inline(always)]
+    fn cell_index(&self, i: usize) -> (usize, usize) {
+        debug_assert!(i < self.data.len());
+
+        let width = self.columns.len();
+
+        (i % width, i / width)
+    }
+
+    fn x_labels(&self) -> impl Iterator<Item = &[u8]> {
+        self.columns.iter()
+    }
+
+    fn labeled_rows(&self) -> impl Iterator<Item = (&[u8], &[T])> {
+        self.rows
+            .iter()
+            .zip(self.data.chunks_exact(self.columns.len()))
+    }
+
+    fn cells(&self) -> impl Iterator<Item = (usize, usize, &T)> {
+        self.data.iter().enumerate().map(|(i, v)| {
+            let (x, y) = self.cell_index(i);
+            (x, y, v)
+        })
+    }
+
+    fn cells_mut(&mut self) -> impl Iterator<Item = (usize, usize, &mut T)> {
+        let width = self.columns.len();
+
+        self.data
+            .iter_mut()
+            .enumerate()
+            .map(move |(i, v)| (i % width, i / width, v))
+    }
+
+    fn rows_mut(&mut self) -> impl Iterator<Item = &mut [T]> {
+        let width = self.columns.len();
+        self.data.chunks_exact_mut(width)
+    }
+
+    fn column(&self, x: usize) -> impl Iterator<Item = &T> {
+        debug_assert!(x < self.columns.len());
+
+        let width = self.columns.len();
+
+        self.data.chunks_exact(width).map(move |row| &row[x])
+    }
+
+    fn column_mut(&mut self, x: usize) -> impl Iterator<Item = &mut T> {
+        debug_assert!(x < self.columns.len());
+
+        let width = self.columns.len();
+
+        self.data
+            .chunks_exact_mut(width)
+            .map(move |row| &mut row[x])
+    }
+}
+
+impl<T: Copy> LabeledMatrix<Option<T>> {
+    fn set(&mut self, x: usize, y: usize, v: T) {
+        let i = self.flat_index(x, y);
+        self.data[i] = Some(v);
+    }
+
+    fn fill_diagonal(&mut self, v: T) {
+        for x in 0..self.columns.len() {
+            let i = self.flat_index(x, x);
+            self.data[i] = Some(v);
+        }
+    }
+}
+
+impl LabeledMatrix<Option<f64>> {
+    fn normalize(&mut self, normalization: Normalization) -> Result<(), String> {
+        match normalization {
+            Normalization::Full => {
+                let mut extent_builder = ExtentBuilder::new();
+
+                for v in self.data.iter().flatten() {
+                    extent_builder.process(*v);
+                }
+
+                if let Some(scale) = extent_builder.build().map(LinearScale::from) {
+                    for v in self.data.iter_mut().flatten() {
+                        *v = scale.map(*v);
+                    }
+                }
+            }
+            Normalization::Column => {
+                let mut extent_builder = ExtentBuilder::new();
+
+                for x in 0..self.columns.len() {
+                    extent_builder.clear();
+
+                    for v in self.column(x).flatten() {
+                        extent_builder.process(*v);
+                    }
+
+                    if let Some(scale) = extent_builder.build().map(LinearScale::from) {
+                        for v in self.column_mut(x).flatten() {
+                            *v = scale.map(*v);
+                        }
+                    }
+                }
+            }
+            Normalization::Row => {
+                let mut extent_builder = ExtentBuilder::new();
+
+                for row in self.rows_mut() {
+                    extent_builder.clear();
+
+                    for v in row.iter().flatten() {
+                        extent_builder.process(*v);
+                    }
+
+                    if let Some(scale) = extent_builder.build().map(LinearScale::from) {
+                        for v in row.iter_mut().flatten() {
+                            *v = scale.map(*v);
+                        }
+                    }
+                }
+            }
+            Normalization::Phi => {
+                let mut total_sum = 0.0;
+                let mut col_total = vec![0.0; self.columns.len()];
+                let mut row_total = vec![0.0; self.rows.len()];
+
+                // TODO: decide whether to ignore self-loops in the adj case
+                for (x, y, cell_opt) in self.cells() {
+                    if let Some(cell) = cell_opt {
+                        if *cell < 0.0 {
+                            return Err(
+                                "cannot compute --normalize phi when cells have negative values. Check your -w/--weight!".to_string(),
+                            );
+                        }
+
+                        total_sum += cell;
+                        col_total[x] += cell;
+                        row_total[y] += cell;
+                    }
+                }
+
+                for (x, y, cell_opt) in self.cells_mut() {
+                    if let Some(cell) = cell_opt {
+                        let c = col_total[x];
+                        let r = row_total[y];
+
+                        let denominator_squared = r * (total_sum - r) * c * (total_sum - c);
+
+                        if total_sum == 0.0 || denominator_squared == 0.0 {
+                            *cell_opt = None;
+                            continue;
+                        }
+
+                        let numerator = total_sum * *cell - r * c;
+
+                        *cell = numerator / denominator_squared.sqrt();
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl<T> Index<(usize, usize)> for LabeledMatrix<T> {
+    type Output = T;
+
+    #[inline(always)]
+    fn index(&self, (x, y): (usize, usize)) -> &Self::Output {
+        &self.data[self.flat_index(x, y)]
+    }
+}
+
+impl<T> IndexMut<(usize, usize)> for LabeledMatrix<T> {
+    #[inline(always)]
+    fn index_mut(&mut self, (x, y): (usize, usize)) -> &mut Self::Output {
+        let i = self.flat_index(x, y);
+        &mut self.data[i]
+    }
+}
 
 enum Axes {
     Homogeneous(IndexSet<Vec<u8>>),
@@ -40,25 +284,15 @@ impl Axes {
             Self::Heterogeneous { y, .. } => y.insert_full(label).0,
         }
     }
+}
 
-    fn shape(&self) -> (usize, usize) {
-        match self {
-            Self::Homogeneous(labels) => (labels.len(), labels.len()),
-            Self::Heterogeneous { x, y } => (x.len(), y.len()),
-        }
-    }
-
-    fn x_labels(&self) -> impl Iterator<Item = &Vec<u8>> {
-        match self {
-            Self::Homogeneous(labels) => labels.iter(),
-            Self::Heterogeneous { x, .. } => x.iter(),
-        }
-    }
-
-    fn get_y_label(&self, index: usize) -> &Vec<u8> {
-        match self {
-            Self::Homogeneous(labels) => labels.get_index(index).unwrap(),
-            Self::Heterogeneous { y, .. } => y.get_index(index).unwrap(),
+impl From<Axes> for LabeledMatrix<Option<f64>> {
+    fn from(value: Axes) -> Self {
+        match value {
+            Axes::Heterogeneous { x, y } => Self::new(x.iter().collect(), y.iter().collect()),
+            Axes::Homogeneous(labels) => {
+                Self::new(labels.iter().collect(), labels.iter().collect())
+            }
         }
     }
 }
@@ -87,6 +321,16 @@ Usage:
     xan matrix corr [options] [<input>]
     xan matrix bivar [options] <x> <y> [<input>]
     xan matrix --help
+
+matrix options:
+    --normalize <mode>  Normalize matrix cells using the given method. Can be
+                        one of the following:
+                            - \"full\": full normalization over all matrix cells
+                            - \"column\": column-wise normalization
+                            - \"row\": row-wise normalization
+                            - \"phi\": phi coefficient normalization that can be
+                                       used to highligh unexpected cells. only
+                                       works with `adj`.
 
 matrix adj/count/bivar options:
     -w, --weight <column>  Optional column containing numbers that will be used
@@ -172,13 +416,16 @@ struct Args {
     flag_bins: usize,
     flag_x_bins: Option<usize>,
     flag_y_bins: Option<usize>,
+    flag_normalize: Option<Normalization>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_output: Option<String>,
 }
 
+type Matrix = LabeledMatrix<Option<f64>>;
+
 impl Args {
-    fn adj_or_count(self) -> CliResult<()> {
+    fn adj_or_count(&self) -> CliResult<Matrix> {
         if self.cmd_count && self.flag_undirected {
             Err("-U/--undirected does not make sense with `count` mode!")?;
         }
@@ -229,50 +476,21 @@ impl Args {
                 .or_insert(weight);
         }
 
-        let (cols, rows) = axes.shape();
-
-        let mut writer = Config::new(&self.flag_output).simd_writer()?;
-        let mut output_record = ByteRecord::new();
-        output_record.push_field(b"");
-
-        for value in axes.x_labels() {
-            output_record.push_field(value);
-        }
-
-        writer.write_byte_record(&output_record)?;
-
-        let mut flat_matrix: Vec<Option<f64>> = vec![None; cols * rows];
+        let mut matrix = LabeledMatrix::from(axes);
 
         for ((x, y), val) in hash_matrix.iter() {
-            let index = y * cols + x;
-            flat_matrix[index] = Some(*val);
+            matrix.set(*x, *y, *val);
 
             if self.flag_undirected {
                 // NOTE: no need to have a special case for diagonal.
-                let other_index = x * cols + y;
-                flat_matrix[other_index] = Some(*val);
+                matrix.set(*y, *x, *val);
             }
         }
 
-        for (index, row) in flat_matrix.chunks_exact(cols).enumerate() {
-            let row_label = axes.get_y_label(index);
-            output_record.clear();
-            output_record.push_field(row_label);
-
-            for v_opt in row {
-                match v_opt {
-                    Some(v) => output_record.push_field(v.to_string().as_bytes()),
-                    None => output_record.push_field(b""),
-                };
-            }
-
-            writer.write_byte_record(&output_record)?;
-        }
-
-        Ok(())
+        Ok(matrix)
     }
 
-    fn correlation(self) -> CliResult<()> {
+    fn correlation(&self) -> CliResult<Matrix> {
         let rconf = Config::new(&self.arg_input)
             .delimiter(self.flag_delimiter)
             .no_headers(self.flag_no_headers)
@@ -344,11 +562,7 @@ impl Args {
             }
         }
 
-        let mut correlation_matrix: Vec<Vec<Option<f64>>> = Vec::new();
-
-        for _ in 0..n {
-            correlation_matrix.push(vec![None; n]);
-        }
+        let mut matrix = Matrix::new(output_headers.clone(), output_headers);
 
         k = 0;
 
@@ -356,34 +570,21 @@ impl Args {
             for j in (i + 1)..n {
                 let correlation = welfords[k].correlation();
 
-                correlation_matrix[i][j] = correlation;
-                correlation_matrix[j][i] = correlation;
+                matrix[(i, j)] = correlation;
+                matrix[(j, i)] = correlation;
 
                 k += 1;
             }
         }
 
-        for (row, name) in correlation_matrix
-            .into_iter()
-            .zip(output_headers.iter().skip(1))
-        {
-            record.clear();
-            record.push_field(name);
-
-            for cell in row {
-                match cell {
-                    None => record.push_field(if self.flag_fill_diagonal { b"1.0" } else { b"" }),
-                    Some(f) => record.push_field(f.to_string().as_bytes()),
-                }
-            }
-
-            writer.write_byte_record(&record)?;
+        if self.flag_fill_diagonal {
+            matrix.fill_diagonal(1.0);
         }
 
-        Ok(())
+        Ok(matrix)
     }
 
-    fn bivar(self) -> CliResult<()> {
+    fn bivar(&self) -> CliResult<Matrix> {
         let rconf = Config::new(&self.arg_input)
             .delimiter(self.flag_delimiter)
             .no_headers(self.flag_no_headers);
@@ -445,90 +646,123 @@ impl Args {
         let cell_width: f64 = (max_x - min_x) / (nb_cols as f64);
         let cell_height: f64 = (max_y - min_y) / (nb_rows as f64);
 
-        let mut x_labels = Vec::with_capacity(nb_cols);
+        let mut x_labels = ByteRecord::new();
         let mut x_lower_bound = min_x;
         for _ in 0..(nb_cols - 1) {
-            x_labels.push(format!(
-                ">= {} < {}",
-                utils::format_number(x_lower_bound),
-                utils::format_number(x_lower_bound + cell_width)
-            ));
+            x_labels.push_field(
+                format!(
+                    ">= {} < {}",
+                    utils::format_number(x_lower_bound),
+                    utils::format_number(x_lower_bound + cell_width)
+                )
+                .as_bytes(),
+            );
             x_lower_bound += cell_width;
         }
-        x_labels.push(format!(
-            ">= {} <= {}",
-            utils::format_number(x_lower_bound),
-            utils::format_number(max_x)
-        ));
+        x_labels.push_field(
+            format!(
+                ">= {} <= {}",
+                utils::format_number(x_lower_bound),
+                utils::format_number(max_x)
+            )
+            .as_bytes(),
+        );
 
-        let mut y_labels = Vec::with_capacity(nb_rows);
+        let mut y_labels = ByteRecord::new();
         let mut y_lower_bound = min_y;
         for _ in 0..(nb_cols - 1) {
-            y_labels.push(format!(
-                ">= {} < {}",
-                utils::format_number(y_lower_bound),
-                utils::format_number(y_lower_bound + cell_height)
-            ));
+            y_labels.push_field(
+                format!(
+                    ">= {} < {}",
+                    utils::format_number(y_lower_bound),
+                    utils::format_number(y_lower_bound + cell_height)
+                )
+                .as_bytes(),
+            );
             y_lower_bound += cell_height;
         }
-        y_labels.push(format!(
-            ">= {} <= {}",
-            utils::format_number(y_lower_bound),
-            utils::format_number(max_y)
-        ));
+        y_labels.push_field(
+            format!(
+                ">= {} <= {}",
+                utils::format_number(y_lower_bound),
+                utils::format_number(max_y)
+            )
+            .as_bytes(),
+        );
 
-        let mut writer = Config::new(&self.flag_output).simd_writer()?;
-        let mut output_record = ByteRecord::new();
-        output_record.push_field(b"");
+        y_labels = y_labels.into_iter().rev().collect();
 
-        for value in x_labels {
-            output_record.push_field(value.as_bytes());
+        let mut matrix = LabeledMatrix::new(x_labels, y_labels);
+
+        let max_x_index = nb_cols - 1;
+        let max_y_index = nb_rows - 1;
+
+        for (x_value, y_value, weight) in points.into_iter() {
+            let x = (((x_value - min_x) / cell_width).floor() as usize).min(max_x_index);
+            // NOTE: we flip y axis to fit intuition
+            let y =
+                max_y_index - (((y_value - min_y) / cell_height).floor() as usize).min(max_y_index);
+
+            let cell = &mut matrix[(x, y)];
+
+            match cell {
+                None => {
+                    *cell = Some(weight);
+                }
+                Some(w) => *w += weight,
+            };
         }
 
-        writer.write_byte_record(&output_record)?;
-
-        let mut flat_matrix: Vec<Option<f64>> = vec![None; nb_cols * nb_rows];
-
-        let list_points = points.into_iter();
-        for (x_value, y_value, weight) in list_points {
-            let idx_col = (((x_value - min_x) / cell_width).floor() as usize).min(nb_cols - 1);
-            let idx_row = (((y_value - min_y) / cell_height).floor() as usize).min(nb_rows - 1);
-
-            flat_matrix[idx_row + nb_rows * idx_col] =
-                Some(match flat_matrix[idx_row + nb_rows * idx_col] {
-                    Some(value) => value + weight,
-                    None => weight,
-                })
-        }
-
-        for (row, label) in flat_matrix.chunks_exact(nb_cols).zip(&y_labels) {
-            let row_label = label.as_bytes();
-            output_record.clear();
-            output_record.push_field(row_label);
-
-            for v_opt in row {
-                match v_opt {
-                    Some(v) => output_record.fmt_field(&v),
-                    None => output_record.push_field(b""),
-                };
-            }
-
-            writer.write_byte_record(&output_record)?;
-        }
-        Ok(())
+        Ok(matrix)
     }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = utils::get_args(USAGE, argv)?;
 
-    if args.cmd_adj || args.cmd_count {
-        args.adj_or_count()
+    if matches!(args.flag_normalize, Some(Normalization::Phi)) && !args.cmd_adj {
+        Err("--normalize phi is only relevant when using xan matrix adj!")?;
+    }
+
+    let mut matrix = if args.cmd_adj || args.cmd_count {
+        args.adj_or_count()?
     } else if args.cmd_corr {
-        args.correlation()
+        args.correlation()?
     } else if args.cmd_bivar {
-        args.bivar()
+        args.bivar()?
     } else {
         unreachable!()
+    };
+
+    if let Some(normalization) = args.flag_normalize {
+        matrix.normalize(normalization)?;
     }
+
+    let mut buffer = zmij::Buffer::new();
+
+    let mut writer = Config::new(&args.flag_output).simd_writer()?;
+
+    writer.write_record(once(&b""[..]).chain(matrix.x_labels()))?;
+
+    for (row_label, row) in matrix.labeled_rows() {
+        writer.write_fields(|w| {
+            w.write_field(row_label)?;
+
+            for v_opt in row {
+                match v_opt {
+                    Some(v) => {
+                        let mut formatted = buffer.format(*v);
+                        formatted = formatted.strip_suffix(".0").unwrap_or(formatted);
+
+                        w.write_field_no_quoting(formatted)?
+                    }
+                    None => w.write_field_no_quoting(b"")?,
+                }
+            }
+
+            Ok(())
+        })?;
+    }
+
+    Ok(writer.flush()?)
 }

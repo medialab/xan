@@ -333,3 +333,204 @@ fn parallel_top_single_file() {
 
     assert_eq!(got, expected);
 }
+
+#[test]
+fn parallel_map() {
+    let wrk = Workdir::new("parallel_map");
+    wrk.create(
+        "data1.csv",
+        vec![svec!["color"], svec!["blue"], svec!["yellow"]],
+    );
+    wrk.create(
+        "data2.csv",
+        vec![svec!["color"], svec!["red"], svec!["ochre"]],
+    );
+
+    let mut cmd = wrk.command("parallel");
+    cmd.arg("map")
+        .arg("{}_slice.csv")
+        .args(["-P", "slice -l 1"])
+        .arg("data1.csv")
+        .arg("data2.csv");
+
+    wrk.assert_success(&mut cmd);
+
+    assert_eq!(
+        wrk.ls(),
+        &[
+            "data1.csv",
+            "data1_slice.csv",
+            "data2.csv",
+            "data2_slice.csv"
+        ]
+    );
+
+    let mut cmd = wrk.command("cat");
+    cmd.arg("rows").arg("data1_slice.csv");
+
+    let got1: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+
+    let mut cmd = wrk.command("cat");
+    cmd.arg("rows").arg("data2_slice.csv");
+
+    let got2: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+
+    assert_eq!(got1, &[["color"], ["blue"]]);
+    assert_eq!(got2, &[["color"], ["red"]]);
+}
+
+#[test]
+fn parallel_map_inplace() {
+    let wrk = Workdir::new("parallel_map_inplace");
+    wrk.create(
+        "data1.csv",
+        vec![svec!["color"], svec!["blue"], svec!["yellow"]],
+    );
+    wrk.create(
+        "data2.csv",
+        vec![svec!["color"], svec!["red"], svec!["ochre"]],
+    );
+
+    let mut cmd = wrk.command("parallel");
+    cmd.arg("map")
+        .arg("--inplace")
+        .args(["--tmp-dir", wrk.dir_as_str()])
+        .args(["-P", "slice -l 1"])
+        .arg("data1.csv")
+        .arg("data2.csv");
+
+    wrk.assert_success(&mut cmd);
+
+    assert_eq!(wrk.ls(), &["data1.csv", "data2.csv",]);
+
+    let mut cmd = wrk.command("cat");
+    cmd.arg("rows").arg("data1.csv");
+
+    let got1: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+
+    let mut cmd = wrk.command("cat");
+    cmd.arg("rows").arg("data2.csv");
+
+    let got2: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+
+    assert_eq!(got1, &[["color"], ["blue"]]);
+    assert_eq!(got2, &[["color"], ["red"]]);
+}
+
+#[test]
+fn parallel_map_replace() {
+    let wrk = Workdir::new("parallel_map_replace");
+    wrk.create(
+        "data1.csv",
+        vec![svec!["color"], svec!["blue"], svec!["yellow"]],
+    );
+    wrk.create(
+        "data2.csv",
+        vec![svec!["color"], svec!["red"], svec!["ochre"]],
+    );
+
+    let mut cmd = wrk.command("parallel");
+    cmd.arg("map")
+        .arg("--replace")
+        .args(["--tmp-dir", wrk.dir_as_str()])
+        .arg("{}_slice.csv")
+        .args(["-P", "slice -l 1"])
+        .arg("data1.csv")
+        .arg("data2.csv");
+
+    wrk.assert_success(&mut cmd);
+
+    assert_eq!(wrk.ls(), &["data1_slice.csv", "data2_slice.csv",]);
+
+    let mut cmd = wrk.command("cat");
+    cmd.arg("rows").arg("data1_slice.csv");
+
+    let got1: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+
+    let mut cmd = wrk.command("cat");
+    cmd.arg("rows").arg("data2_slice.csv");
+
+    let got2: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+
+    assert_eq!(got1, &[["color"], ["blue"]]);
+    assert_eq!(got2, &[["color"], ["red"]]);
+}
+
+#[test]
+fn parallel_map_inplace_file_atomicity() {
+    let wrk = Workdir::new("parallel_map_inplace_file_atomicity");
+    wrk.create(
+        "data1.csv",
+        vec![svec!["color"], svec!["blue"], svec!["yellow"]],
+    );
+    wrk.create(
+        "data2.csv",
+        vec![svec!["color"], svec!["red"], svec!["ochre"]],
+    );
+
+    let mut cmd = wrk.command("parallel");
+    cmd.arg("map")
+        .arg("--inplace")
+        .args(["--tmp-dir", wrk.dir_as_str()])
+        .args(["--atomicity", "file"])
+        .args(["-P", "slice -l 1"])
+        .arg("data1.csv")
+        .arg("data2.csv");
+
+    wrk.assert_success(&mut cmd);
+
+    assert_eq!(wrk.ls(), &["data1.csv", "data2.csv",]);
+
+    let mut cmd = wrk.command("cat");
+    cmd.arg("rows").arg("data1.csv");
+
+    let got1: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+
+    let mut cmd = wrk.command("cat");
+    cmd.arg("rows").arg("data2.csv");
+
+    let got2: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+
+    assert_eq!(got1, &[["color"], ["blue"]]);
+    assert_eq!(got2, &[["color"], ["red"]]);
+}
+
+#[test]
+fn parallel_map_replace_file_atomicity() {
+    let wrk = Workdir::new("parallel_map_replace_file_atomicity");
+    wrk.create(
+        "data1.csv",
+        vec![svec!["color"], svec!["blue"], svec!["yellow"]],
+    );
+    wrk.create(
+        "data2.csv",
+        vec![svec!["color"], svec!["red"], svec!["ochre"]],
+    );
+
+    let mut cmd = wrk.command("parallel");
+    cmd.arg("map")
+        .arg("--replace")
+        .args(["--tmp-dir", wrk.dir_as_str()])
+        .args(["--atomicity", "file"])
+        .arg("{}_slice.csv")
+        .args(["-P", "slice -l 1"])
+        .arg("data1.csv")
+        .arg("data2.csv");
+
+    wrk.assert_success(&mut cmd);
+
+    assert_eq!(wrk.ls(), &["data1_slice.csv", "data2_slice.csv",]);
+
+    let mut cmd = wrk.command("cat");
+    cmd.arg("rows").arg("data1_slice.csv");
+
+    let got1: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+
+    let mut cmd = wrk.command("cat");
+    cmd.arg("rows").arg("data2_slice.csv");
+
+    let got2: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+
+    assert_eq!(got1, &[["color"], ["blue"]]);
+    assert_eq!(got2, &[["color"], ["red"]]);
+}

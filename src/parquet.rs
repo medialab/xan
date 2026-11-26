@@ -3,7 +3,6 @@ use std::fs::File;
 use parquet::basic::{ConvertedType, LogicalType, TimeUnit, Type};
 use parquet::errors::Result as ParquetResult;
 use parquet::file::reader::{FileReader, SerializedFileReader};
-use parquet::record::Field;
 use parquet::schema::types::{ColumnDescriptor, Type as SchemaType};
 use simd_csv::{ByteRecord, StringRecord};
 
@@ -66,37 +65,13 @@ impl ParquetReader {
         self.0.metadata().file_metadata().num_rows() as u64
     }
 
+    pub fn count_row_groups(&self) -> u64 {
+        self.0.metadata().num_row_groups() as u64
+    }
+
     pub fn into_inner(self) -> SerializedFileReader<File> {
         self.0
     }
-}
-
-pub fn push_parquet_field(record: &mut ByteRecord, field: &Field) -> Result<(), String> {
-    match field {
-        Field::Null => record.push_field(b""),
-        Field::Bool(b) => record.push_field(if *b { b"true" } else { b"false" }),
-        Field::Str(string) => record.push_field(string.as_bytes()),
-        Field::Bytes(bytes) => record.push_field(bytes.data()),
-        Field::UByte(f) => record.fmt_field(f),
-        Field::UShort(f) => record.fmt_field(f),
-        Field::UInt(f) => record.fmt_field(f),
-        Field::ULong(f) => record.fmt_field(f),
-        Field::Byte(f) => record.fmt_field(f),
-        Field::Short(f) => record.fmt_field(f),
-        Field::Int(f) => record.fmt_field(f),
-        Field::Long(f) => record.fmt_field(f),
-        Field::Float(f) => record.fmt_field(f),
-        Field::Float16(f) => record.fmt_field(f),
-        Field::Double(f) => record.fmt_field(f),
-        Field::TimestampMicros(f) => record.fmt_field(f),
-        Field::TimestampMillis(f) => record.fmt_field(f),
-        Field::ListInternal(_) | Field::MapInternal(_) => record.write_field(|view| {
-            serde_json::to_writer(view, &field.to_json_value()).unwrap();
-        }),
-        _ => Err("unsupported parquet value type!")?,
-    };
-
-    Ok(())
 }
 
 fn human_readable_column_type(column: &ColumnDescriptor) -> &'static str {
@@ -111,6 +86,17 @@ fn human_readable_column_type(column: &ColumnDescriptor) -> &'static str {
                 LogicalType::Map => "map",
                 LogicalType::List => "list",
                 LogicalType::String => "string",
+                LogicalType::Integer(int_type) => match (int_type.bit_width, int_type.is_signed) {
+                    (8, false) => "uint8",
+                    (16, false) => "uint16",
+                    (32, false) => "uint32",
+                    (64, false) => "uint64",
+                    (8, true) => "int8",
+                    (16, true) => "int16",
+                    (32, true) => "int32",
+                    (64, true) => "int64",
+                    _ => "unknown",
+                },
                 _ => "unknown",
             };
         }
