@@ -266,10 +266,12 @@ impl ScrollTable {
         if start < off {
             self.set_offset_x(start);
         } else if end > off + view_w {
-            let k = self.cum_sum[..=s]
-                .partition_point(|&x| x + view_w < end)
-                .min(s);
-            self.set_offset_x(self.cum_sum[k]);
+            let target = if end - start > view_w {
+                start
+            } else {
+                end - view_w
+            };
+            self.set_offset_x(target);
         }
     }
 
