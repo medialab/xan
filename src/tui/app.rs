@@ -4,6 +4,8 @@ use simd_csv::StringRecord;
 use ratatui::{
     Frame,
     layout::{Constraint, Layout},
+    text::{Line, Span},
+    style::Style,
     widgets::{Block, Borders, Paragraph},
     text::Text,
     crossterm::event::{self, Event, KeyEventKind, KeyCode},
@@ -42,16 +44,33 @@ impl ViewApp {
         self.scroll_table.n_cols()
     }
 
-    fn header(&self) -> Text<'static> {
-        let limited_txt = if self.all_records { " first" } else { "" };
-        Text::raw(format!(
-            " {} cols from {}{} rows of {} ", self.n_cols(), self.n_rows(), limited_txt, self.name))
+    fn title(&self) -> Line<'_> {
+        let limited_txt = if !self.all_records { " first" } else { "" };
+        Line::from(vec![
+            Span::styled(self.n_cols().to_string(), Style::new().cyan()),
+            Span::raw(" cols from "),
+            Span::styled(self.n_rows().to_string(), Style::new().cyan()),
+            Span::raw(format!("{} rows of ", limited_txt)),
+            Span::styled(&self.name, Style::new().dim()),
+        ])
     }
 
-    fn footer(&self) -> Text<'static> {
-        Text::raw(format!(
-            " {} lines | {} columns | Home/End : top/end | Arrows : scroll | Tab/BackTab : next/previous column | \
-            f: freeze | i : infos | q : quit", self.scroll_table.n_rows(), self.scroll_table.n_cols()))
+    fn footer(&self) -> Line<'static> {
+        Line::from(vec![
+            Span::raw(" "),
+            Span::styled("Arrows", Style::new().bold().yellow()),
+            Span::raw(" scroll "),
+            Span::styled("f", Style::new().bold().yellow()),
+            Span::raw(" freeze "),
+            Span::styled("i", Style::new().bold().yellow()),
+            Span::raw(" infos "),
+            Span::styled("q", Style::new().bold().yellow()),
+            Span::raw(" quit "),
+            Span::styled("Home/End", Style::new().bold().yellow()),
+            Span::raw(" top/end "),
+            Span::styled("Tab/BackTab", Style::new().bold().yellow()),
+            Span::raw(" next/previous column "),
+        ])
     }
 
     pub fn run(mut self, terminal: &mut DefaultTerminal) -> CliResult<()> {
@@ -108,14 +127,14 @@ impl ViewApp {
 
     pub fn draw(&mut self, frame: &mut Frame) {
 
-        let [header, main, footer] =
+        let [title, main, footer] =
             Layout::vertical([Constraint::Length(1), Constraint::Min(3), Constraint::Length(1)]).areas(frame.area());
 
-        frame.render_widget(Paragraph::new(self.header()),header);
+        frame.render_widget(self.title(),title);
 
         scroll_table::draw(frame, &mut self.scroll_table, main);
 
-        frame.render_widget(Paragraph::new(self.footer()), footer);
+        frame.render_widget(self.footer(), footer);
 
         let view = ViewInfo {
             canvas: self.scroll_table.body_size(),

@@ -25,7 +25,7 @@ pub struct ViewStyle {
 const CLASSIC_BASIC_TABLE_STYLE: BasicTableStyle = BasicTableStyle {
     header: Style::new().bold().white().on_blue(),
     body_text: Style::new().white(),
-    body_row_highlight: Style::new().on_light_yellow().bold(),
+    body_row_highlight: Style::new().bold().bg(Color::Black),
 };
 
 const CLASSIC_FROZEN_STYLE: BasicTableStyle = BasicTableStyle {
@@ -36,8 +36,8 @@ const CLASSIC_FROZEN_STYLE: BasicTableStyle = BasicTableStyle {
 
 const CLASSIC_SCROLLTABLE_STYLE: ScrollTableStyle = ScrollTableStyle {
     table: CLASSIC_BASIC_TABLE_STYLE,
-    body_col_highlight: Style::new().bg(Color::DarkGray),
-    body_cell_highlight: Style::new().bold().on_yellow(),
+    body_col_highlight: Style::new().bg(Color::Black),
+    body_cell_highlight: Style::new().reversed(),
     frozen: CLASSIC_FROZEN_STYLE,
     separator: Style::new().red(),
 };
