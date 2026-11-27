@@ -71,6 +71,7 @@ The **laminated** update.
 * Fixing moonblade negative string indexing.
 * Commands with `--glob` flag will filter out path given to `-o/--output`.
 * Fixing commands parsing partial dates vs. timestamps.
+* Fixing `xan split -c & --segments`.
 
 *Performance*
 
