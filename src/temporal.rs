@@ -513,17 +513,17 @@ pub fn parse_fuzzy_temporal(
         )));
     }
 
-    // Early exit for float timestamp
-    if parse_float {
-        if let Ok(secs) = fast_float::parse::<f64, &[u8]>(bytes) {
-            return Timestamp::from_secs_f64(secs).map(FuzzyTemporal::Timestamp);
-        }
-    }
-
     // Early exit for year or month
     if bytes.len() == 4 || bytes.len() == 7 {
         if let Some(partial_date) = parse_partial_date(bytes) {
             return Ok(FuzzyTemporal::PartialDate(partial_date));
+        }
+    }
+
+    // Early exit for float timestamp
+    if parse_float {
+        if let Ok(secs) = fast_float::parse::<f64, &[u8]>(bytes) {
+            return Timestamp::from_secs_f64(secs).map(FuzzyTemporal::Timestamp);
         }
     }
 
