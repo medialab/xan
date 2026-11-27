@@ -1,3 +1,4 @@
+use std::fs;
 use std::num::NonZeroUsize;
 
 use simd_csv::ByteRecord;
@@ -142,6 +143,7 @@ Usage:
     xan groupby --help
 
 groupby options:
+    -f, --evaluate-file        Read evaluation expression from a file instead.
     --keep <cols>              Keep this selection of columns, in addition to
                                the ones representing groups, in the output. Only
                                values from the first seen row per group will be kept.
@@ -180,6 +182,7 @@ struct Args {
     flag_no_headers: bool,
     flag_output: Option<String>,
     flag_delimiter: Option<Delimiter>,
+    flag_evaluate_file: bool,
     flag_keep: Option<SelectedColumns>,
     flag_along_cols: Option<SelectedColumns>,
     flag_along_matrix: Option<SelectedColumns>,
@@ -189,8 +192,19 @@ struct Args {
     flag_threads: Option<NonZeroUsize>,
 }
 
+impl Args {
+    fn resolve(&mut self) -> CliResult<()> {
+        if self.flag_evaluate_file {
+            self.arg_expression = fs::read_to_string(&self.arg_expression)?;
+        }
+
+        Ok(())
+    }
+}
+
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut args: Args = utils::get_args(USAGE, argv)?;
+    args.resolve()?;
 
     if args.flag_parallel || args.flag_threads.is_some() {
         if args.flag_along_cols.is_some() {

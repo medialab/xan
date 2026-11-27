@@ -1,3 +1,4 @@
+use std::fs;
 use std::num::NonZeroUsize;
 
 use crate::CliResult;
@@ -169,6 +170,7 @@ Usage:
     xan agg --help
 
 agg options:
+    -f, --evaluate-file        Read evaluation expression from a file instead.
     -R, --along-rows <cols>    Aggregate a selection of columns for each row
                                instead of the whole file.
     -C, --along-cols <cols>    Aggregate a selection of columns the same way and
@@ -199,6 +201,7 @@ struct Args {
     flag_no_headers: bool,
     flag_output: Option<String>,
     flag_delimiter: Option<Delimiter>,
+    flag_evaluate_file: bool,
     flag_along_rows: Option<SelectedColumns>,
     flag_along_cols: Option<SelectedColumns>,
     flag_along_matrix: Option<SelectedColumns>,
@@ -206,8 +209,19 @@ struct Args {
     flag_threads: Option<NonZeroUsize>,
 }
 
+impl Args {
+    fn resolve(&mut self) -> CliResult<()> {
+        if self.flag_evaluate_file {
+            self.arg_expression = fs::read_to_string(&self.arg_expression)?;
+        }
+
+        Ok(())
+    }
+}
+
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = utils::get_args(USAGE, argv)?;
+    let mut args: Args = utils::get_args(USAGE, argv)?;
+    args.resolve()?;
 
     let agg_modes = args.flag_along_cols.is_some() as u8
         + args.flag_along_rows.is_some() as u8
