@@ -24,20 +24,34 @@ pub struct ViewApp {
     scroll_table: ScrollTable,
     show_info: bool,
     all_records: bool,
+    hide_headers: bool,
+    hide_index: bool,
     quit: bool,
 }
 
 impl ViewApp {
     pub fn new(name: String, headers: StringRecord,
-        rows: Vec<(StringRecord, Vec<DataType>)>, cols: Vec<DisplayedColumn>,
-        all_records: bool, frame: FrameTheme, style: Option<&'static ViewStyle>) -> Self {
+        mut rows: Vec<(StringRecord, Vec<DataType>)>, cols: Vec<DisplayedColumn>,
+        all_records: bool, hide_headers: bool, hide_index: bool,
+        frame: FrameTheme, style: Option<&'static ViewStyle>) -> Self {
+        let first_row = &rows.get(0);
+        if let Some(row) = first_row {
+            if !all_records {
+                let n_cols = row.1.len();
+                rows.push((StringRecord::from_iter(vec!["..."; n_cols]), vec![DataType::Nullish; n_cols]));
+            }
+        }
         let viewstyle = style.unwrap_or(&CLASSIC_VIEWSTYLE);
-        let scroll_table = ScrollTable::new(headers, rows, cols, &viewstyle.scroll_table, frame);
-        Self { name, scroll_table, show_info: false, all_records, quit: false }
+        let scroll_table = ScrollTable::new(headers, rows, cols, &viewstyle.scroll_table, frame, hide_headers);
+        Self { name, scroll_table, show_info: false, all_records, hide_headers, hide_index, quit: false }
     }
 
     pub fn n_rows(&self) -> usize {
-        self.scroll_table.n_rows()
+        if self.all_records {
+            self.scroll_table.n_rows()
+        } else { // last row = "..."
+            self.scroll_table.n_rows() - 1
+        }
     }
 
     pub fn n_cols(&self) -> usize {
@@ -155,14 +169,18 @@ impl ViewApp {
         if self.is_empty() {
             return None;
         }
-        self.scroll_table.selected_row()
+        self.scroll_table.selected_row().filter(|&x| x < self.n_rows())
     }
 
     pub fn selected_column(&self) -> Option<usize> {
         if self.scroll_table.n_cols() == 0 {
             return None;
         }
-        Some(self.scroll_table.selected_col())
+        if !self.hide_index {
+            Some(self.scroll_table.selected_col()).filter(|&x| x > 0).and_then(|x: usize| Some(x - 1))
+        } else {
+            Some(self.scroll_table.selected_col())
+        }
     }
 
     pub fn frozen_column(&self) -> Option<usize> {

@@ -26,6 +26,7 @@ pub struct ScrollTable {
     frozen: Option<usize>,
     style: &'static ScrollTableStyle,
     frame: FrameTheme,
+    hide_headers: bool,
 }
 
 impl ScrollTable {
@@ -35,6 +36,7 @@ impl ScrollTable {
         cols: Vec<DisplayedColumn>,
         style: &'static ScrollTableStyle,
         frame: FrameTheme,
+        hide_headers: bool,
     ) -> Self {
         let body_size = Size::new(0, rows.len() as u16);
         let mut table = Self {
@@ -49,6 +51,7 @@ impl ScrollTable {
             style,
             frame,
             frozen: None,
+            hide_headers,
         };
         table.update_cum_sum();
         table.update_body_width();
@@ -82,8 +85,12 @@ impl ScrollTable {
         self.frame.col_spacing()
     }
 
+    fn header_height(&self) -> u16 {
+        !self.hide_headers as u16
+    }
+
     fn hr_height(&self) -> u16 {
-        self.frame.hr_under_headers as u16
+        (!self.hide_headers && self.frame.hr_under_headers) as u16
     }
 
     pub fn scrollable_columns(&self) -> Vec<usize> {
@@ -589,7 +596,7 @@ pub fn draw(frame: &mut Frame, table: &mut ScrollTable, outer: Rect) {
 
     // scrollable table:
     let [header_area, ruler_area, body_area] = Layout::vertical([
-        Constraint::Length(1),
+        Constraint::Length(table.header_height()),
         Constraint::Length(table.hr_height()),
         Constraint::Min(0),
     ])
@@ -619,21 +626,23 @@ pub fn draw(frame: &mut Frame, table: &mut ScrollTable, outer: Rect) {
 
     let off = table.scroll_state.offset(); // after ScrollView's clamp
 
-    let mut header = ScrollView::new(Size::new(table.body_size.width, 1))
-        .scrollbars_visibility(ScrollbarVisibility::Never);
+    if !table.hide_headers {
+        let mut header = ScrollView::new(Size::new(table.body_size.width, 1))
+            .scrollbars_visibility(ScrollbarVisibility::Never);
 
-    let header_table = headers_from_parts(table, &table.style.table.header, &scrollable_cols)
-        .column_spacing(table.col_spacing() as u16);
-    header.render_widget(header_table, header.area());
-    let header_inner = header.area();
-    draw_col_delimiters(header.buf_mut(), table, header_inner);
+        let header_table = headers_from_parts(table, &table.style.table.header, &scrollable_cols)
+            .column_spacing(table.col_spacing() as u16);
+        header.render_widget(header_table, header.area());
+        let header_inner = header.area();
+        draw_col_delimiters(header.buf_mut(), table, header_inner);
 
-    let header_area = Rect {
-        width: header_area.width.saturating_sub(1),
-        ..header_area
-    };
-    let mut header_state = ScrollViewState::with_offset(Position::new(off.x, 0));
-    frame.render_stateful_widget(header, header_area, &mut header_state);
+        let header_area = Rect {
+            width: header_area.width.saturating_sub(1),
+            ..header_area
+        };
+        let mut header_state = ScrollViewState::with_offset(Position::new(off.x, 0));
+        frame.render_stateful_widget(header, header_area, &mut header_state);
+    }
 
     if table.hr_height() > 0 {
         let mut ruler = ScrollView::new(Size::new(table.body_size.width, 1))
@@ -663,7 +672,7 @@ fn set_symbol_at(buf: &mut Buffer, x: u16, y: u16, c: char) {
 }
 
 fn draw_junctions(buf: &mut Buffer, table: &ScrollTable, outer: Rect, left: Rect, right: Rect, off_x: u16) {
-    let ruler_y = (table.hr_height() > 0).then_some(right.top() + 1);
+    let ruler_y = (table.hr_height() > 0).then_some(right.top() + table.header_height());
     // last column of `right` is taken by the vertical scrollbar
     let right_end = right.right().saturating_sub(1);
     let separator_x = table.frozen().map(|_| left.right().saturating_sub(1));
@@ -719,7 +728,7 @@ pub fn draw_frozen(frame: &mut Frame, frozen: usize, table: &ScrollTable, area: 
     frame.render_widget(separator, area);
 
     let [corner, ruler_area, left_column_area] = Layout::vertical([
-        Constraint::Length(1),
+        Constraint::Length(table.header_height()),
         Constraint::Length(table.hr_height()),
         Constraint::Min(0),
     ])
@@ -734,10 +743,12 @@ pub fn draw_frozen(frame: &mut Frame, frozen: usize, table: &ScrollTable, area: 
             }
         }
     }
-    frame.render_widget(
-        headers_from_parts(table, &table.style.frozen.header, &[frozen]),
-        corner,
-    );
+    if !table.hide_headers {
+        frame.render_widget(
+            headers_from_parts(table, &table.style.frozen.header, &[frozen]),
+            corner,
+        );
+    }
 
     let left_column_area = Rect {
         height: left_column_area.height.saturating_sub(1),

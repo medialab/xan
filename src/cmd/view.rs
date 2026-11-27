@@ -838,10 +838,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     };
 
     if args.flag_tui {
-        // let rows = records
-        //     .into_iter()
-        //     .map(|(record, types)| (sanitize_emoji(&record), types))
-        //     .collect();
         let mut terminal = ratatui::init();
         // let theme = theme_by_name("dracula");
         let result = ViewApp::new(
@@ -850,6 +846,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             records,
             displayed_columns.left,
             all_records_buffered,
+            args.flag_hide_headers,
+            args.flag_hide_index,
             theme.tui_frame(args.flag_frame_intensity),
             None,
         )

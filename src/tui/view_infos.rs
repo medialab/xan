@@ -92,7 +92,7 @@ impl ViewInfo {
         let visible_cols = if app.is_empty() {
             "-".to_string()
         } else {
-            format!("{}-{}", app.next_col_idx(x) - 1, app.last_col_view(x, vw))
+            format!("{}-{}", app.next_col_idx(x).saturating_sub(2), app.last_col_view(x, vw).saturating_sub(1))
         };
 
         let mut lines = vec![
@@ -100,7 +100,7 @@ impl ViewInfo {
                       "Number of columns", app.n_cols()),
             double_kv("Visible rows", visible_rows,
                       "Visible columns", visible_cols),
-            double_kv("Selected row", opt(app.selected_row().map(|r| r + 1)),
+            double_kv("Selected row", opt(app.selected_row()),
                       "Selected column", opt(app.selected_column())),
             Line::raw(""),
             kv("Frozen column", opt(app.frozen_column())),
