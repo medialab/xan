@@ -4,7 +4,7 @@ use simd_csv::StringRecord;
 use ratatui::{
     Frame,
     layout::{Constraint, Layout},
-    widgets::{Block, Paragraph},
+    widgets::{Block, Borders, Paragraph},
     text::Text,
     crossterm::event::{self, Event, KeyEventKind, KeyCode},
     DefaultTerminal,
@@ -13,7 +13,7 @@ use ratatui::{
 use crate::CliResult;
 use crate::cmd::view::DisplayedColumn;
 use crate::utils::DataType;
-use crate::tui::{ViewStyle, CLASSIC_VIEWSTYLE, view_infos::ViewInfo, scroll_table, scroll_table::ScrollTable};
+use crate::tui::{FrameTheme, ViewStyle, CLASSIC_VIEWSTYLE, view_infos::ViewInfo, scroll_table, scroll_table::ScrollTable};
 
 
 #[derive(Debug)]
@@ -27,9 +27,9 @@ pub struct ViewApp {
 impl ViewApp {
     pub fn new(name: String, headers: StringRecord,
         rows: Vec<(StringRecord, Vec<DataType>)>, cols: Vec<DisplayedColumn>,
-        style: Option<&'static ViewStyle>) -> Self {
+        frame: FrameTheme, style: Option<&'static ViewStyle>) -> Self {
         let viewstyle = style.unwrap_or(&CLASSIC_VIEWSTYLE);
-        let scroll_table = ScrollTable::new(headers, rows, cols, &viewstyle.scroll_table);
+        let scroll_table = ScrollTable::new(headers, rows, cols, &viewstyle.scroll_table, frame);
         Self { name, scroll_table, show_info: false, quit: false }
     }
 
@@ -104,7 +104,15 @@ impl ViewApp {
         let [main, footer] =
             Layout::vertical([Constraint::Min(3), Constraint::Length(1)]).areas(frame.area());
 
-        let block = Block::bordered().title(format!(" {} ", self.name));
+        let frame_theme = self.scroll_table.frame();
+        let block = if frame_theme.external_borders {
+            Block::bordered()
+                .border_type(frame_theme.border_type)
+                .border_style(frame_theme.style)
+        } else {
+            Block::new().borders(Borders::NONE)
+        }
+        .title(format!(" {} ", self.name));
         let inner = block.inner(main);
         frame.render_widget(block, main);
 

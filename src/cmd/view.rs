@@ -14,7 +14,7 @@ use crate::read::LeakySponge;
 use crate::select::SelectedColumns;
 use crate::utils::{self, ColorMode, DataType};
 
-use crate::tui::{CLASSIC_VIEWSTYLE, ViewApp};
+use crate::tui::{FrameTheme, ViewApp};
 
 #[derive(Debug, Clone, Copy, Default, Deserialize)]
 pub enum ComplexToggle {
@@ -49,6 +49,20 @@ impl<T: AsRef<str>> FrameIntensityExt for T {
             FrameIntensity::Low => as_ref.dimmed().bright_black(),
             FrameIntensity::Medium => as_ref.bright_black(),
             FrameIntensity::High => as_ref.dimmed(),
+        }
+    }
+}
+
+impl FrameIntensity {
+    fn tui_style(self) -> ratatui::style::Style {
+        use ratatui::style::{Color, Modifier, Style};
+
+        let base = Style::new().remove_modifier(Modifier::BOLD | Modifier::ITALIC);
+
+        match self {
+            FrameIntensity::Low => base.fg(Color::DarkGray).add_modifier(Modifier::DIM),
+            FrameIntensity::Medium => base.fg(Color::DarkGray),
+            FrameIntensity::High => base.fg(Color::Reset).add_modifier(Modifier::DIM),
         }
     }
 }
@@ -211,6 +225,26 @@ impl ViewTheme {
     #[inline]
     fn vertical(&self) -> char {
         self.box_chars[BoxChar::Vertical as usize]
+    }
+
+    fn tui_frame(&self, intensity: FrameIntensity) -> FrameTheme {
+        use ratatui::widgets::BorderType;
+
+        FrameTheme {
+            vertical: self.vertical(),
+            horizontal: self.box_chars[BoxChar::Horizontal as usize],
+            cross: self.cross_full(),
+            padding: self.padding.chars().count(),
+            external_borders: self.external_borders,
+            border_type: if self.box_chars == ROUNDED_BOX_CHARS {
+                BorderType::Rounded
+            } else {
+                BorderType::Plain
+            },
+            hr_under_headers: self.hr_under_headers,
+            striped: self.striped,
+            style: intensity.tui_style(),
+        }
     }
 }
 
@@ -811,6 +845,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             headers,
             records,
             displayed_columns.left,
+            theme.tui_frame(args.flag_frame_intensity),
             None,
         )
         .run(&mut terminal);

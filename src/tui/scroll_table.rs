@@ -1,10 +1,11 @@
 use crate::cmd::view::DisplayedColumn;
-use crate::tui::{BasicTableStyle, ScrollTableStyle};
+use crate::tui::{BasicTableStyle, FrameTheme, STRIPED_ROW_STYLE, ScrollTableStyle};
 use crate::utils::{ColorOrStyles, DataType};
 
 use colored::{Color as DataColor, Styles};
 use ratatui::{
     Frame,
+    buffer::Buffer,
     layout::{Constraint, Layout, Position, Rect, Size},
     style::{Color, Modifier, Style},
     widgets::{Block, Borders, Cell, Row, Table, TableState},
@@ -24,6 +25,7 @@ pub struct ScrollTable {
     viewport: Size,
     frozen: Option<usize>,
     style: &'static ScrollTableStyle,
+    frame: FrameTheme,
 }
 
 impl ScrollTable {
@@ -32,6 +34,7 @@ impl ScrollTable {
         rows: Vec<(StringRecord, Vec<DataType>)>,
         cols: Vec<DisplayedColumn>,
         style: &'static ScrollTableStyle,
+        frame: FrameTheme,
     ) -> Self {
         let body_size = Size::new(0, rows.len() as u16);
         let mut table = Self {
@@ -44,6 +47,7 @@ impl ScrollTable {
             body_size,
             viewport: Size::new(0, 0),
             style,
+            frame,
             frozen: None,
         };
         table.update_cum_sum();
@@ -54,7 +58,7 @@ impl ScrollTable {
     pub fn update_body_width(&mut self) -> u16 {
         let n = self.n_cols();
         let widths: usize = (0..n).map(|s| self.scroll_width(s)).sum();
-        let total = widths + self.style.col_spacing * n.saturating_sub(1);
+        let total = widths + self.col_spacing() * n.saturating_sub(1);
         self.body_size.width = total.min(u16::MAX as usize) as u16;
         self.body_size.width
     }
@@ -64,10 +68,22 @@ impl ScrollTable {
         self.cum_sum = (0..self.n_cols())
             .map(|s| {
                 let start = sum;
-                sum += self.scroll_width(s) + self.style.col_spacing;
+                sum += self.scroll_width(s) + self.col_spacing();
                 start
             })
             .collect();
+    }
+
+    pub fn frame(&self) -> &FrameTheme {
+        &self.frame
+    }
+
+    fn col_spacing(&self) -> usize {
+        self.frame.col_spacing()
+    }
+
+    fn hr_height(&self) -> u16 {
+        self.frame.hr_under_headers as u16
     }
 
     pub fn scrollable_columns(&self) -> Vec<usize> {
@@ -146,7 +162,7 @@ impl ScrollTable {
 
     pub fn col_step(&self, col: usize) -> usize {
         if col < self.n_cols() {
-            self.scroll_width(col) + self.style.col_spacing
+            self.scroll_width(col) + self.col_spacing()
         } else {
             0
         }
@@ -154,7 +170,7 @@ impl ScrollTable {
 
     fn frozen_step(&self) -> usize {
         self.frozen
-            .map_or(0, |f| self.cols[f].allowed_width() + self.style.col_spacing)
+            .map_or(0, |f| self.cols[f].allowed_width() + self.col_spacing())
     }
 
     pub fn col_widths(&self) -> impl Iterator<Item = u16> + '_ {
@@ -427,6 +443,12 @@ impl ScrollTable {
         self.set_offset_on_col(s);
     }
 
+    fn delimiter_positions(&self) -> impl Iterator<Item = u16> + '_ {
+        let padding = self.frame.padding;
+        (0..self.n_cols().saturating_sub(1))
+            .map(move |s| (self.col_end(s) + padding).min(u16::MAX as usize) as u16)
+    }
+
     fn get_frozen_space(&self) -> u16 {
         if self.frozen.is_some() {
             (self.frozen_step() + 1).min(u16::MAX as usize) as u16 // +1 : bord droit du séparateur
@@ -477,9 +499,15 @@ fn table_from_parts<'a>(
     cols: &[DisplayedColumn],
     style: &BasicTableStyle,
     scrollable_cols: &[usize],
+    striped: bool,
 ) -> Table<'a> {
-    let rows = rows.iter().map(|(record, data_types)| {
-        row_of(record, Some(data_types), scrollable_cols, style.body_text)
+    let rows = rows.iter().enumerate().map(|(i, (record, data_types))| {
+        let row = row_of(record, Some(data_types), scrollable_cols, style.body_text);
+        if striped && i % 2 == 0 {
+            row.style(STRIPED_ROW_STYLE)
+        } else {
+            row
+        }
     });
     Table::new(
         rows,
@@ -506,6 +534,41 @@ fn headers_from_parts<'a>(
     .style(*style)
 }
 
+fn draw_col_delimiters(buf: &mut Buffer, table: &ScrollTable, area: Rect) {
+    let mut symbol = [0u8; 4];
+    let symbol = table.frame.vertical.encode_utf8(&mut symbol);
+
+    for x in table.delimiter_positions() {
+        if x < area.left() || x >= area.right() {
+            continue;
+        }
+        for y in area.top()..area.bottom() {
+            if let Some(cell) = buf.cell_mut(Position::new(x, y)) {
+                cell.set_symbol(symbol).set_style(table.frame.style);
+            }
+        }
+    }
+}
+
+fn draw_header_ruler(buf: &mut Buffer, table: &ScrollTable, area: Rect) {
+    let mut tmp = [0u8; 4];
+    let horizontal = table.frame.horizontal.encode_utf8(&mut tmp).to_string();
+    let cross = table.frame.cross.encode_utf8(&mut tmp).to_string();
+
+    for y in area.top()..area.bottom() {
+        for x in area.left()..area.right() {
+            if let Some(cell) = buf.cell_mut(Position::new(x, y)) {
+                cell.set_symbol(&horizontal).set_style(table.frame.style);
+            }
+        }
+        for x in table.delimiter_positions() {
+            if let Some(cell) = buf.cell_mut(Position::new(x, y)) {
+                cell.set_symbol(&cross);
+            }
+        }
+    }
+}
+
 pub fn draw(frame: &mut Frame, table: &mut ScrollTable, area: Rect) {
     let scrollable_cols = table.scrollable_columns();
     let left_w = table.get_frozen_space();
@@ -513,8 +576,12 @@ pub fn draw(frame: &mut Frame, table: &mut ScrollTable, area: Rect) {
         Layout::horizontal([Constraint::Length(left_w), Constraint::Min(0)]).areas(area);
 
     // scrollable table:
-    let [header_area, body_area] =
-        Layout::vertical([Constraint::Length(1), Constraint::Min(0)]).areas(right);
+    let [header_area, ruler_area, body_area] = Layout::vertical([
+        Constraint::Length(1),
+        Constraint::Length(table.hr_height()),
+        Constraint::Min(0),
+    ])
+    .areas(right);
 
     table.set_viewport(body_area);
     table.ensure_selected_visible();
@@ -527,12 +594,15 @@ pub fn draw(frame: &mut Frame, table: &mut ScrollTable, area: Rect) {
         &table.cols,
         &table.style.table,
         &scrollable_cols,
+        table.frame.striped,
     )
-    .column_spacing(table.style.col_spacing as u16)
+    .column_spacing(table.col_spacing() as u16)
     .column_highlight_style(table.style.body_col_highlight)
     .cell_highlight_style(table.style.body_cell_highlight);
 
     body.render_stateful_widget(body_table, body.area(), &mut table.table_state);
+    let body_inner = body.area();
+    draw_col_delimiters(body.buf_mut(), table, body_inner);
     frame.render_stateful_widget(body, body_area, &mut table.scroll_state);
 
     let off = table.scroll_state.offset(); // after ScrollView's clamp
@@ -541,8 +611,10 @@ pub fn draw(frame: &mut Frame, table: &mut ScrollTable, area: Rect) {
         .scrollbars_visibility(ScrollbarVisibility::Never);
 
     let header_table = headers_from_parts(table, &table.style.table.header, &scrollable_cols)
-        .column_spacing(table.style.col_spacing as u16);
+        .column_spacing(table.col_spacing() as u16);
     header.render_widget(header_table, header.area());
+    let header_inner = header.area();
+    draw_col_delimiters(header.buf_mut(), table, header_inner);
 
     let header_area = Rect {
         width: header_area.width.saturating_sub(1),
@@ -550,6 +622,19 @@ pub fn draw(frame: &mut Frame, table: &mut ScrollTable, area: Rect) {
     };
     let mut header_state = ScrollViewState::with_offset(Position::new(off.x, 0));
     frame.render_stateful_widget(header, header_area, &mut header_state);
+
+    if table.hr_height() > 0 {
+        let mut ruler = ScrollView::new(Size::new(table.body_size.width, 1))
+            .scrollbars_visibility(ScrollbarVisibility::Never);
+        let ruler_inner = ruler.area();
+        draw_header_ruler(ruler.buf_mut(), table, ruler_inner);
+        let ruler_area = Rect {
+            width: ruler_area.width.saturating_sub(1),
+            ..ruler_area
+        };
+        let mut ruler_state = ScrollViewState::with_offset(Position::new(off.x, 0));
+        frame.render_stateful_widget(ruler, ruler_area, &mut ruler_state);
+    }
 
     if let Some(frozen_col) = table.frozen() {
         draw_frozen(frame, frozen_col, table, left);
@@ -563,8 +648,22 @@ pub fn draw_frozen(frame: &mut Frame, frozen: usize, table: &ScrollTable, area: 
     let left_inner = separator.inner(area);
     frame.render_widget(separator, area);
 
-    let [corner, left_column_area] =
-        Layout::vertical([Constraint::Length(1), Constraint::Min(0)]).areas(left_inner);
+    let [corner, ruler_area, left_column_area] = Layout::vertical([
+        Constraint::Length(1),
+        Constraint::Length(table.hr_height()),
+        Constraint::Min(0),
+    ])
+    .areas(left_inner);
+    if table.hr_height() > 0 {
+        let mut tmp = [0u8; 4];
+        let horizontal = table.frame.horizontal.encode_utf8(&mut tmp);
+        let buf = frame.buffer_mut();
+        for x in ruler_area.left()..ruler_area.right() {
+            if let Some(cell) = buf.cell_mut(Position::new(x, ruler_area.y)) {
+                cell.set_symbol(horizontal).set_style(table.frame.style);
+            }
+        }
+    }
     frame.render_widget(
         headers_from_parts(table, &table.style.frozen.header, &[frozen]),
         corner,
@@ -577,7 +676,13 @@ pub fn draw_frozen(frame: &mut Frame, frozen: usize, table: &ScrollTable, area: 
     let mut left_column =
         ScrollView::new(Size::new(table.frozen_step() as u16, table.n_rows() as u16))
             .scrollbars_visibility(ScrollbarVisibility::Never);
-    let frozen_table = table_from_parts(&table.rows, &table.cols, &table.style.frozen, &[frozen]);
+    let frozen_table = table_from_parts(
+        &table.rows,
+        &table.cols,
+        &table.style.frozen,
+        &[frozen],
+        table.frame.striped,
+    );
 
     let mut frozen_row_state = TableState::new().with_selected(table.table_state.selected());
     left_column.render_stateful_widget(frozen_table, left_column.area(), &mut frozen_row_state);

@@ -1,4 +1,5 @@
 use ratatui::style::{Color, Style};
+use ratatui::widgets::BorderType;
 
 #[derive(Debug)]
 pub struct BasicTableStyle {
@@ -10,7 +11,6 @@ pub struct BasicTableStyle {
 #[derive(Debug)]
 pub struct ScrollTableStyle {
     pub table: BasicTableStyle,
-    pub col_spacing: usize,
     pub body_col_highlight: Style,
     pub body_cell_highlight: Style,
     pub frozen: BasicTableStyle,
@@ -36,7 +36,6 @@ const CLASSIC_FROZEN_STYLE: BasicTableStyle = BasicTableStyle {
 
 const CLASSIC_SCROLLTABLE_STYLE: ScrollTableStyle = ScrollTableStyle {
     table: CLASSIC_BASIC_TABLE_STYLE,
-    col_spacing: 1,
     body_col_highlight: Style::new().bg(Color::DarkGray),
     body_cell_highlight: Style::new().bold().on_yellow(),
     frozen: CLASSIC_FROZEN_STYLE,
@@ -46,3 +45,40 @@ const CLASSIC_SCROLLTABLE_STYLE: ScrollTableStyle = ScrollTableStyle {
 pub const CLASSIC_VIEWSTYLE: ViewStyle = ViewStyle {
     scroll_table: CLASSIC_SCROLLTABLE_STYLE,
 };
+
+#[derive(Debug, Clone)]
+pub struct FrameTheme {
+    pub vertical: char,
+    pub horizontal: char,
+    pub cross: char,
+    pub padding: usize,
+    pub external_borders: bool,
+    pub border_type: BorderType,
+    pub hr_under_headers: bool,
+    pub striped: bool,
+    pub style: Style,
+}
+
+impl FrameTheme {
+    pub fn col_spacing(&self) -> usize {
+        2 * self.padding + 1
+    }
+}
+
+impl Default for FrameTheme {
+    fn default() -> Self {
+        Self {
+            vertical: '│',
+            horizontal: '─',
+            cross: '┼',
+            padding: 1,
+            external_borders: true,
+            border_type: BorderType::Plain,
+            hr_under_headers: true,
+            striped: false,
+            style: Style::new().fg(Color::DarkGray),
+        }
+    }
+}
+
+pub const STRIPED_ROW_STYLE: Style = Style::new().reversed();
