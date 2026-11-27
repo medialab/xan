@@ -79,8 +79,6 @@ fn opt(value: Option<usize>) -> String {
 
 impl ViewInfo {
     fn get_all_infos(&self, app: &ViewApp) -> Vec<Line<'static>> {
-        let scrollable = app.scrollable_columns();
-
         let (x, y) = (self.offset.x, self.offset.y);
         let (vw, vh) = (self.viewport.width, self.viewport.height);
         let max_x = self.canvas.width.saturating_sub(self.viewport.width);
