@@ -14,6 +14,8 @@ use crate::read::LeakySponge;
 use crate::select::SelectedColumns;
 use crate::utils::{self, ColorMode, DataType};
 
+use crate::tui::{FrameTheme, ViewApp};
+
 #[derive(Debug, Clone, Copy, Default, Deserialize)]
 pub enum ComplexToggle {
     #[default]
@@ -51,6 +53,20 @@ impl<T: AsRef<str>> FrameIntensityExt for T {
     }
 }
 
+impl FrameIntensity {
+    fn tui_style(self) -> ratatui::style::Style {
+        use ratatui::style::{Color, Modifier, Style};
+
+        let base = Style::new().remove_modifier(Modifier::BOLD | Modifier::ITALIC);
+
+        match self {
+            FrameIntensity::Low => base.fg(Color::DarkGray).add_modifier(Modifier::DIM),
+            FrameIntensity::Medium => base.fg(Color::DarkGray),
+            FrameIntensity::High => base.fg(Color::Reset).add_modifier(Modifier::DIM),
+        }
+    }
+}
+
 fn prepend(record: &StringRecord, cell_value: &str) -> StringRecord {
     let mut new_record = StringRecord::new();
     new_record.push_field(cell_value);
@@ -60,6 +76,8 @@ fn prepend(record: &StringRecord, cell_value: &str) -> StringRecord {
 }
 
 const HEADERS_ROWS: usize = 8;
+const MAX_RATIO_EXTEND: f64 = 0.75;
+const MAX_RATIO_TUI: f64 = 0.4;
 
 type BoxCharsArray = [char; 11];
 
@@ -208,6 +226,30 @@ impl ViewTheme {
     fn vertical(&self) -> char {
         self.box_chars[BoxChar::Vertical as usize]
     }
+
+    fn tui_frame(&self, intensity: FrameIntensity) -> FrameTheme {
+        use ratatui::widgets::BorderType;
+
+        FrameTheme {
+            vertical: self.vertical(),
+            horizontal: self.box_chars[BoxChar::Horizontal as usize],
+            cross: self.cross_full(),
+            tee_down: self.cross_bottom(),
+            tee_up: self.cross_up(),
+            tee_right: self.cross_right(),
+            tee_left: self.cross_left(),
+            padding: self.padding.chars().count(),
+            external_borders: self.external_borders,
+            border_type: if self.box_chars == ROUNDED_BOX_CHARS {
+                BorderType::Rounded
+            } else {
+                BorderType::Plain
+            },
+            hr_under_headers: self.hr_under_headers,
+            striped: self.striped,
+            style: intensity.tui_style(),
+        }
+    }
 }
 
 impl FromStr for ViewTheme {
@@ -270,6 +312,7 @@ view options:
                                 [default: table]
     --name <name>               Name for the viewed table. Will default to the path of the file
                                 if any or \"<stdin>\" when viewing standard input.
+    --tui                       Display result in a terminal user interface.
     -p, --pager                 Automatically use the \"less\" command to page the results.
                                 Ignored when stdout is not a terminal, e.g. when piping
                                 or redirecting to a file. This flag does not work on windows!
@@ -336,6 +379,7 @@ Common options:
 struct Args {
     arg_input: Option<String>,
     flag_select: SelectedColumns,
+    flag_tui: bool,
     flag_pager: bool,
     flag_no_pager: bool,
     flag_theme: String,
@@ -379,17 +423,27 @@ impl Args {
             self.flag_pager = false;
         }
 
-        if (self.flag_pager || self.flag_tee) && !self.flag_color.is_never() {
+        if (self.flag_pager || self.flag_tee || self.flag_tui) && !self.flag_color.is_never() {
             self.flag_color = ColorMode::Always;
         }
 
         if self.flag_limit.is_none() {
             self.flag_limit = Some(if self.flag_tee { 5 } else { 100 });
         }
+
+        if self.flag_tui {
+            self.flag_sanitize_emojis = true;
+        }
     }
 
-    fn infer_expand(&self) -> bool {
-        self.flag_pager || self.flag_expand
+    fn infer_expand_max_ratio(&self) -> Option<f64> {
+        if self.flag_pager || self.flag_expand {
+            Some(MAX_RATIO_EXTEND)
+        } else if self.flag_tui {
+            Some(MAX_RATIO_TUI)
+        } else {
+            None
+        }
     }
 
     fn merge(from_env: Self, mut from_argv: Self) -> Self {
@@ -411,10 +465,15 @@ impl Args {
             from_argv.flag_hide_info = true;
         }
 
-        // NOTE: -T/--tee is incompatible with the pager and should take precedence
-        // over a default
-        if !from_argv.flag_pager && from_env.flag_pager && !from_argv.flag_tee {
-            from_argv.flag_pager = true;
+        // NOTE: -T/--tee is incompatible with the pager and the tui and should
+        // take precedence over a default
+        if !from_argv.flag_pager && !from_argv.flag_tui && !from_argv.flag_tee {
+            if from_env.flag_pager {
+                from_argv.flag_pager = true;
+            }
+            if from_env.flag_tui {
+                from_argv.flag_tui = true;
+            }
         }
 
         if !from_argv.flag_rainbow && from_env.flag_rainbow {
@@ -478,6 +537,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if args.flag_tee && args.flag_pager {
         Err("-T/--tee does not work with -p/--pager!")?;
+    }
+
+    if args.flag_tee && args.flag_tui {
+        Err("-T/--tee does not work with --tui!")?;
+    }
+
+    if args.flag_pager && args.flag_tui {
+        Err("-p/--pager does not work with --tui!")?;
     }
 
     let emoji_sanitizer_opt = args.flag_sanitize_emojis.then(utils::EmojiSanitizer::new);
@@ -743,15 +810,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let displayed_columns = infer_best_column_display(
         cols,
         &max_column_widths,
-        args.infer_expand(),
+        args.infer_expand_max_ratio(),
         if args.flag_hide_index { 0 } else { 1 },
         padding,
     );
 
     let all_columns_shown = displayed_columns.len() == headers.len();
 
-    // NOTE: we setup the pager when everything has been read and process and no error
-    // occurred along the way, so that we don't get to read a paged error
+    // NOTE: we setup the pager or the tui when everything has been read and process
+    // and no error occurred along the way, so that we don't get to read a paged error
     if args.flag_pager {
         #[cfg(not(windows))]
         {
@@ -762,6 +829,31 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         {
             Err("The -p/--pager flag does not work on windows, sorry :'(".to_string())?;
         }
+    }
+
+    let name = match (&args.flag_name, &args.arg_input) {
+        (Some(name), _) => name,
+        (None, Some(filename)) => filename,
+        (None, None) => "<stdin>",
+    };
+
+    if args.flag_tui {
+        let mut terminal = ratatui::init();
+        // let theme = theme_by_name("dracula");
+        let result = ViewApp::new(
+            name.to_string(),
+            headers,
+            records,
+            displayed_columns.left,
+            all_records_buffered,
+            args.flag_hide_headers,
+            args.flag_hide_index,
+            theme.tui_frame(args.flag_frame_intensity),
+            None,
+        )
+        .run(&mut terminal);
+        ratatui::restore();
+        return Ok(result?);
     }
 
     let write_info = |out: &mut Box<dyn Write>| -> Result<(), io::Error> {
@@ -794,12 +886,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             } else {
                 format!("{} first rows", pretty_records_len.cyan())
             },
-            match (&args.flag_name, &args.arg_input) {
-                (Some(name), _) => name,
-                (None, Some(filename)) => filename,
-                (None, None) => "<stdin>",
-            }
-            .dimmed()
+            name.dimmed()
         )?;
 
         Ok(())
@@ -1095,10 +1182,17 @@ fn adjust_column_widths(widths: &[usize], max_width: usize) -> Vec<usize> {
 }
 
 #[derive(Debug)]
-struct DisplayedColumn {
+pub struct DisplayedColumn {
     index: usize,
     allowed_width: usize,
     max_width: usize,
+}
+
+impl DisplayedColumn {
+    // used in tui/app.rs
+    pub fn allowed_width(&self) -> usize {
+        self.allowed_width
+    }
 }
 
 #[derive(Debug)]
@@ -1120,25 +1214,6 @@ impl DisplayedColumns {
 
     fn split_point(&self) -> Option<usize> {
         self.left.last().map(|col| col.index)
-    }
-
-    fn from_widths(cols: usize, widths: Vec<usize>) -> Self {
-        let left = widths
-            .iter()
-            .copied()
-            .enumerate()
-            .map(|(i, w)| DisplayedColumn {
-                index: i,
-                allowed_width: w,
-                max_width: w,
-            })
-            .collect::<Vec<_>>();
-
-        DisplayedColumns {
-            max_allowed_cols: cols,
-            left,
-            right: Vec::new(),
-        }
     }
 
     fn len(&self) -> usize {
@@ -1195,16 +1270,27 @@ impl<'a> Iterator for DisplayedColumnsIter<'a> {
 fn infer_best_column_display(
     cols: usize,
     max_column_widths: &[usize],
-    expand: bool,
+    expand_max_ratio: Option<f64>,
     left_advantage: usize,
     padding: &str,
 ) -> DisplayedColumns {
-    if expand {
-        // NOTE: we keep max column size to 3/4 of current screen
-        return DisplayedColumns::from_widths(
-            cols,
-            adjust_column_widths(max_column_widths, ((cols as f64) * 0.75) as usize),
-        );
+    if let Some(ratio) = expand_max_ratio {
+        let left = max_column_widths
+            .iter()
+            .copied()
+            .enumerate()
+            .map(|(i, w)| DisplayedColumn {
+                index: i,
+                allowed_width: w.min(((cols as f64) * ratio) as usize),
+                max_width: w,
+            })
+            .collect::<Vec<_>>();
+
+        return DisplayedColumns {
+            max_allowed_cols: cols,
+            left,
+            right: Vec::new(),
+        };
     }
 
     let per_cell_padding_cols = padding.len() * 2 + 1;

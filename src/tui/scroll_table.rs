@@ -1,0 +1,774 @@
+use crate::cmd::view::DisplayedColumn;
+use crate::tui::{BasicTableStyle, FrameTheme, STRIPED_ROW_STYLE, ScrollTableStyle};
+use crate::utils::{ColorOrStyles, DataType};
+
+use colored::{Color as DataColor, Styles};
+use ratatui::{
+    Frame,
+    buffer::Buffer,
+    layout::{Constraint, Layout, Position, Rect, Size},
+    style::{Color, Modifier, Style},
+    widgets::{Block, Borders, Cell, Row, Table, TableState},
+};
+use simd_csv::StringRecord;
+use tui_scrollview::{ScrollView, ScrollViewState, ScrollbarVisibility};
+
+#[derive(Debug)]
+pub struct ScrollTable {
+    headers: StringRecord,
+    rows: Vec<(StringRecord, Vec<DataType>)>,
+    cols: Vec<DisplayedColumn>,
+    cum_sum: Vec<usize>, // beginning of each scrollable column
+    table_state: TableState,
+    scroll_state: ScrollViewState,
+    body_size: Size,
+    viewport: Size,
+    frozen: Option<usize>,
+    style: &'static ScrollTableStyle,
+    frame: FrameTheme,
+    hide_headers: bool,
+}
+
+impl ScrollTable {
+    pub fn new(
+        headers: StringRecord,
+        rows: Vec<(StringRecord, Vec<DataType>)>,
+        cols: Vec<DisplayedColumn>,
+        style: &'static ScrollTableStyle,
+        frame: FrameTheme,
+        hide_headers: bool,
+    ) -> Self {
+        let body_size = Size::new(0, rows.len() as u16);
+        let mut table = Self {
+            headers,
+            rows,
+            cols,
+            cum_sum: Vec::new(),
+            table_state: TableState::new().with_selected_column(0).with_selected(0),
+            scroll_state: ScrollViewState::new(),
+            body_size,
+            viewport: Size::new(0, 0),
+            style,
+            frame,
+            frozen: None,
+            hide_headers,
+        };
+        table.update_cum_sum();
+        table.update_body_width();
+        table
+    }
+
+    pub fn update_body_width(&mut self) -> u16 {
+        let n = self.n_cols();
+        let widths: usize = (0..n).map(|s| self.scroll_width(s)).sum();
+        let total = widths + self.col_spacing() * n.saturating_sub(1);
+        self.body_size.width = total.min(u16::MAX as usize) as u16;
+        self.body_size.width
+    }
+
+    pub fn update_cum_sum(&mut self) {
+        let mut sum = 0_usize;
+        self.cum_sum = (0..self.n_cols())
+            .map(|s| {
+                let start = sum;
+                sum += self.scroll_width(s) + self.col_spacing();
+                start
+            })
+            .collect();
+    }
+
+    pub fn frame(&self) -> &FrameTheme {
+        &self.frame
+    }
+
+    fn col_spacing(&self) -> usize {
+        self.frame.col_spacing()
+    }
+
+    fn header_height(&self) -> u16 {
+        !self.hide_headers as u16
+    }
+
+    fn hr_height(&self) -> u16 {
+        (!self.hide_headers && self.frame.hr_under_headers) as u16
+    }
+
+    pub fn scrollable_columns(&self) -> Vec<usize> {
+        (0..self.cols.len())
+            .filter(|&i| Some(i) != self.frozen)
+            .collect()
+    }
+
+    pub fn frozen(&self) -> Option<usize> {
+        self.frozen
+    }
+
+    pub fn frozen_name(&self) -> &str {
+        self.frozen.and_then(|f| self.headers.get(f)).unwrap_or("-")
+    }
+
+    pub fn n_cols(&self) -> usize {
+        self.cols
+            .len()
+            .saturating_sub(self.frozen.is_some() as usize)
+    }
+
+    pub fn n_cols_original(&self) -> usize {
+        self.cols.len()
+    }
+
+    pub fn n_rows(&self) -> usize {
+        self.rows.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.rows.is_empty()
+    }
+
+    // pub fn header(&self, i: usize) -> Option<&str> {
+    //     self.headers.get(i)
+    // }
+
+    pub fn selected_row(&self) -> Option<usize> {
+        self.table_state.selected()
+    }
+
+    pub fn body_size(&self) -> Size {
+        self.body_size
+    }
+
+    pub fn viewport(&self) -> Size {
+        self.viewport
+    }
+
+    fn set_viewport(&mut self, area: Rect) {
+        self.viewport.width = area.width.saturating_sub(1);
+        self.viewport.height = area.height.saturating_sub(1);
+    }
+
+    // ---------------------------------------------------------------------------------
+
+    fn resolve_col(&self, s: usize) -> usize {
+        match self.frozen {
+            Some(f) if s >= f => s + 1,
+            _ => s,
+        }
+    }
+
+    fn scroll_width(&self, s: usize) -> usize {
+        self.cols[self.resolve_col(s)].allowed_width()
+    }
+
+    fn col_start(&self, s: usize) -> usize {
+        self.cum_sum[s]
+    }
+
+    fn col_end(&self, s: usize) -> usize {
+        self.cum_sum[s] + self.scroll_width(s)
+    }
+
+    pub fn col_step(&self, col: usize) -> usize {
+        if col < self.n_cols() {
+            self.scroll_width(col) + self.col_spacing()
+        } else {
+            0
+        }
+    }
+
+    fn frozen_step(&self) -> usize {
+        self.frozen
+            .map_or(0, |f| self.cols[f].allowed_width() + self.col_spacing())
+    }
+
+    pub fn col_widths(&self) -> impl Iterator<Item = u16> + '_ {
+        self.cols.iter().map(|col| col.allowed_width() as u16)
+    }
+
+    pub fn width_until(&self, col: usize) -> usize {
+        self.cum_sum
+            .get(col)
+            .or(self.cum_sum.last())
+            .copied()
+            .unwrap_or(0)
+    }
+
+    fn next_row_idx(&self, off_y: u16) -> usize {
+        off_y as usize
+    }
+
+    fn n_rows_view(&self) -> u16 {
+        (self.viewport.height.saturating_sub(1)) / 4 - 2
+    }
+
+    fn last_row_view(&self, off_y: u16) -> u16 {
+        off_y + self.n_rows_view()
+    }
+
+    // ---------------------------------------------------------------------------------
+
+    pub fn offset(&self) -> Position {
+        self.scroll_state.offset()
+    }
+
+    pub fn set_offset(&mut self, off: Position) {
+        self.scroll_state.set_offset(off);
+    }
+
+    fn offset_x(&self) -> usize {
+        self.scroll_state.offset().x as usize
+    }
+
+    fn max_offset_x(&self) -> usize {
+        (self.body_size.width as usize).saturating_sub(self.viewport.width as usize)
+    }
+
+    fn set_offset_x(&mut self, x: usize) {
+        let mut off = self.scroll_state.offset();
+        off.x = x.min(self.max_offset_x()) as u16;
+        self.scroll_state.set_offset(off);
+    }
+
+    pub fn set_offset_on_col(&mut self, col_idx: usize) {
+        let x = self.width_until(col_idx);
+        self.set_offset_x(x);
+    }
+
+    // ---------------------------------------------------------------------------------
+
+    fn selected_scroll_col(&self) -> usize {
+        self.table_state.selected_column().unwrap_or(0)
+    }
+
+    pub fn selected_col(&self) -> usize {
+        self.resolve_col(self.selected_scroll_col())
+    }
+
+    fn select_col(&mut self, s: usize) {
+        let last = self.n_cols().saturating_sub(1);
+        self.table_state.select_column(Some(s.min(last)));
+    }
+
+    // ---------------------------------------------------------------------------------
+
+    pub fn next_col_idx(&self, off_x: u16) -> usize {
+        self.cum_sum.partition_point(|&start| start <= off_x as usize)
+    }
+
+    pub fn last_col_view(&self, off_x: u16, view_w: u16) -> usize {
+        let right = off_x as usize + view_w as usize;
+        self.cum_sum
+            .partition_point(|&start| start < right)
+            .saturating_sub(1)
+            .min(self.n_cols().saturating_sub(1))
+    }
+
+    fn first_visible_col(&self, off: usize) -> usize {
+        self.cum_sum
+            .partition_point(|&x| x < off)
+            .min(self.n_cols().saturating_sub(1))
+    }
+
+    fn last_visible_col(&self, off: usize) -> usize {
+        let first = self.first_visible_col(off);
+        let right = off + self.viewport.width as usize;
+        (first..self.n_cols())
+            .rev()
+            .find(|&s| self.col_end(s) <= right)
+            .unwrap_or(first)
+    }
+
+    fn ensure_col_visible(&mut self, s: usize) {
+        if s >= self.n_cols() {
+            return;
+        }
+        let off = self.offset_x();
+        let view_w = self.viewport.width as usize;
+        let start = self.col_start(s);
+        let end = self.col_end(s);
+
+        if start < off {
+            self.set_offset_x(start);
+        } else if end > off + view_w {
+            let target = if end - start > view_w {
+                start
+            } else {
+                end - view_w
+            };
+            self.set_offset_x(target);
+        }
+    }
+
+    fn ensure_selected_visible(&mut self) {
+        let s = self.selected_scroll_col();
+        self.ensure_col_visible(s);
+    }
+
+    fn clamp_selection_to_view(&mut self) {
+        if self.n_cols() == 0 {
+            return;
+        }
+        let off = self.offset_x();
+        let first = self.first_visible_col(off);
+        let last = self.last_visible_col(off).max(first);
+        let s = self.selected_scroll_col().clamp(first, last);
+        self.select_col(s);
+    }
+
+    // ---------------------------------------------------------------------------------
+
+    pub fn scroll_right(&mut self) {
+        self.scroll_state.scroll_right();
+        self.clamp_selection_to_view();
+    }
+
+    pub fn scroll_left(&mut self) {
+        self.scroll_state.scroll_left();
+        self.clamp_selection_to_view();
+    }
+
+    pub fn scroll_col_right(&mut self) {
+        let off = self.offset_x();
+        let next = self.cum_sum.partition_point(|&x| x <= off);
+        if next >= self.n_cols() {
+            return;
+        }
+
+        self.set_offset_x(self.cum_sum[next]);
+        if self.offset_x() == off {
+            return;
+        }
+        self.clamp_selection_to_view();
+    }
+
+    pub fn scroll_col_left(&mut self) {
+        let off = self.offset_x();
+        let prev = self.cum_sum.partition_point(|&x| x < off);
+        let target = if prev == 0 { 0 } else { self.cum_sum[prev - 1] };
+
+        self.set_offset_x(target);
+        if self.offset_x() == off {
+            return;
+        }
+        self.clamp_selection_to_view();
+    }
+
+    pub fn select_next_col(&mut self) {
+        let next = self.selected_scroll_col() + 1;
+        if next < self.n_cols() {
+            self.select_col(next);
+            self.ensure_col_visible(next);
+        }
+    }
+
+    pub fn select_previous_col(&mut self) {
+        let selected = self.selected_scroll_col();
+        if selected > 0 {
+            self.select_col(selected - 1);
+            self.ensure_col_visible(selected - 1);
+        }
+    }
+
+    // ---------------------------------------------------------------------------------
+
+    pub fn select_previous_row(&mut self) {
+        // safe: usize cannot be negative
+        let selected = self.table_state.selected().unwrap();
+        let off_y = self.scroll_state.offset().y;
+        if self.next_row_idx(off_y) + 1 > selected {
+            self.scroll_state.scroll_up();
+        }
+        self.table_state.scroll_up_by(1);
+    }
+
+    pub fn select_next_row(&mut self) {
+        let selected = self.table_state.selected().unwrap();
+        if selected < self.n_rows() - 1 {
+            let off_y = self.scroll_state.offset().y;
+            if self.last_row_view(off_y) < selected as u16 {
+                self.scroll_state.scroll_down();
+            }
+            self.table_state.scroll_down_by(1);
+        }
+    }
+
+    pub fn scroll_page_up(&mut self) {
+        self.table_state.scroll_up_by(self.viewport.height);
+        self.scroll_state.scroll_page_up();
+        self.scroll_state.scroll_up();
+    }
+
+    pub fn scroll_page_down(&mut self) {
+        self.table_state.scroll_down_by(self.viewport.height);
+        self.scroll_state.scroll_page_down();
+        self.scroll_state.scroll_down();
+    }
+
+    pub fn scroll_to_top(&mut self) {
+        self.table_state.select(Some(0));
+        self.scroll_state.scroll_to_top();
+    }
+
+    pub fn scroll_to_bottom(&mut self) {
+        self.table_state.select(Some(self.n_rows() - 1));
+        self.scroll_state.scroll_to_bottom();
+    }
+
+    // ---------------------------------------------------------------------------------
+
+    pub fn toggle_freeze(&mut self) {
+        if self.cols.len() < 2 {
+            return;
+        }
+        match self.frozen {
+            Some(frozen_col) => self.apply_frozen(None, frozen_col),
+            None => {
+                let selected = self.selected_col();
+                self.apply_frozen(Some(selected), selected);
+            }
+        }
+    }
+
+    pub fn set_frozen(&mut self, frozen: usize) {
+        if self.cols.len() < 2 || frozen >= self.cols.len() {
+            return;
+        }
+        let focus = self.selected_col();
+        self.apply_frozen(Some(frozen), focus);
+    }
+
+    fn apply_frozen(&mut self, new_frozen: Option<usize>, focus: usize) {
+        self.frozen = new_frozen;
+        self.update_cum_sum();
+        self.update_body_width();
+
+        let selected = match new_frozen {
+            Some(f) if focus > f => focus - 1,
+            _ => focus,
+        };
+        self.select_col(selected);
+        let s = self.selected_scroll_col();
+        self.set_offset_on_col(s);
+    }
+
+    fn delimiter_positions(&self) -> impl Iterator<Item = u16> + '_ {
+        let padding = self.frame.padding;
+        (0..self.n_cols().saturating_sub(1))
+            .map(move |s| (self.col_end(s) + padding).min(u16::MAX as usize) as u16)
+    }
+
+    fn get_frozen_space(&self) -> u16 {
+        if self.frozen.is_some() {
+            (self.frozen_step() + 1).min(u16::MAX as usize) as u16 // +1 : bord droit du séparateur
+        } else {
+            0
+        }
+    }
+}
+
+fn colorizer_style(colorizer: ColorOrStyles, base: Style) -> Style {
+    match colorizer {
+        ColorOrStyles::Color(color) => {
+            let color = match color {
+                DataColor::White => Color::White,
+                DataColor::Red => Color::Red,
+                DataColor::Blue => Color::Blue,
+                DataColor::Cyan => Color::Cyan,
+                DataColor::Green => Color::Green,
+                DataColor::Yellow => Color::Yellow,
+                DataColor::Magenta => Color::Magenta,
+                _ => return base,
+            };
+            base.fg(color)
+        }
+        // ColorOrStyles::Styles(Styles::Dimmed) => base.add_modifier(Modifier::DIM).fg(Color::DarkGray),
+        ColorOrStyles::Styles(Styles::Dimmed) => base.fg(Color::DarkGray),
+        _ => base,
+    }
+}
+
+fn row_of<'a>(
+    record: &'a StringRecord,
+    data_types: Option<&[DataType]>,
+    cols: &[usize],
+    base_style: Style,
+) -> Row<'a> {
+    Row::new(cols.iter().map(|&c| {
+        let mut cell_style = base_style;
+        if let Some(data_type) = data_types.and_then(|types| types.get(c)) {
+            cell_style = colorizer_style(data_type.as_colorizer(), base_style);
+        }
+        Cell::new(record.get(c).unwrap_or("")).style(cell_style)
+    }))
+}
+
+fn table_from_parts<'a>(
+    rows: &'a [(StringRecord, Vec<DataType>)],
+    cols: &[DisplayedColumn],
+    style: &BasicTableStyle,
+    scrollable_cols: &[usize],
+    striped: bool,
+) -> Table<'a> {
+    let rows = rows.iter().enumerate().map(|(i, (record, data_types))| {
+        let row = row_of(record, Some(data_types), scrollable_cols, style.body_text);
+        if striped && i % 2 == 0 {
+            row.style(STRIPED_ROW_STYLE)
+        } else {
+            row
+        }
+    });
+    Table::new(
+        rows,
+        scrollable_cols
+            .iter()
+            .map(|&index| cols[index].allowed_width() as u16),
+    )
+    .style(style.body_text)
+    .row_highlight_style(style.body_row_highlight)
+}
+
+fn headers_from_parts<'a>(
+    table: &'a ScrollTable,
+    style: &Style,
+    scrollable_cols: &[usize],
+) -> Table<'a> {
+    let head = row_of(&table.headers, None, scrollable_cols, *style);
+    Table::new(
+        [head],
+        scrollable_cols
+            .iter()
+            .map(|&index| table.cols[index].allowed_width() as u16),
+    )
+    .style(*style)
+}
+
+fn draw_col_delimiters(buf: &mut Buffer, table: &ScrollTable, area: Rect) {
+    let mut symbol = [0u8; 4];
+    let symbol = table.frame.vertical.encode_utf8(&mut symbol);
+
+    for x in table.delimiter_positions() {
+        if x < area.left() || x >= area.right() {
+            continue;
+        }
+        for y in area.top()..area.bottom() {
+            if let Some(cell) = buf.cell_mut(Position::new(x, y)) {
+                cell.set_symbol(symbol).set_style(table.frame.style);
+            }
+        }
+    }
+}
+
+fn draw_header_ruler(buf: &mut Buffer, table: &ScrollTable, area: Rect) {
+    let mut tmp = [0u8; 4];
+    let horizontal = table.frame.horizontal.encode_utf8(&mut tmp).to_string();
+    let cross = table.frame.cross.encode_utf8(&mut tmp).to_string();
+
+    for y in area.top()..area.bottom() {
+        for x in area.left()..area.right() {
+            if let Some(cell) = buf.cell_mut(Position::new(x, y)) {
+                cell.set_symbol(&horizontal).set_style(table.frame.style);
+            }
+        }
+        for x in table.delimiter_positions() {
+            if let Some(cell) = buf.cell_mut(Position::new(x, y)) {
+                cell.set_symbol(&cross);
+            }
+        }
+    }
+}
+
+pub fn draw(frame: &mut Frame, table: &mut ScrollTable, outer: Rect) {
+    let area = if table.frame.external_borders {
+        let border = Block::new()
+            .borders(Borders::ALL)
+            .border_type(table.frame.border_type)
+            .border_style(table.frame.style);
+        let inner = border.inner(outer);
+        frame.render_widget(border, outer);
+        inner
+    } else {
+        outer
+    };
+
+    let scrollable_cols = table.scrollable_columns();
+    let left_w = table.get_frozen_space();
+    let [left, right] =
+        Layout::horizontal([Constraint::Length(left_w), Constraint::Min(0)]).areas(area);
+
+    // scrollable table:
+    let [header_area, ruler_area, body_area] = Layout::vertical([
+        Constraint::Length(table.header_height()),
+        Constraint::Length(table.hr_height()),
+        Constraint::Min(0),
+    ])
+    .areas(right);
+
+    table.set_viewport(body_area);
+    table.ensure_selected_visible();
+
+    let mut body =
+        ScrollView::new(table.body_size).scrollbars_visibility(ScrollbarVisibility::Always);
+
+    let body_table = table_from_parts(
+        &table.rows,
+        &table.cols,
+        &table.style.table,
+        &scrollable_cols,
+        table.frame.striped,
+    )
+    .column_spacing(table.col_spacing() as u16)
+    .column_highlight_style(table.style.body_col_highlight)
+    .cell_highlight_style(table.style.body_cell_highlight);
+
+    body.render_stateful_widget(body_table, body.area(), &mut table.table_state);
+    let body_inner = body.area();
+    draw_col_delimiters(body.buf_mut(), table, body_inner);
+    frame.render_stateful_widget(body, body_area, &mut table.scroll_state);
+
+    let off = table.scroll_state.offset(); // after ScrollView's clamp
+
+    if !table.hide_headers {
+        let mut header = ScrollView::new(Size::new(table.body_size.width, 1))
+            .scrollbars_visibility(ScrollbarVisibility::Never);
+
+        let header_table = headers_from_parts(table, &table.style.table.header, &scrollable_cols)
+            .column_spacing(table.col_spacing() as u16);
+        header.render_widget(header_table, header.area());
+        let header_inner = header.area();
+        draw_col_delimiters(header.buf_mut(), table, header_inner);
+
+        let header_area = Rect {
+            width: header_area.width.saturating_sub(1),
+            ..header_area
+        };
+        let mut header_state = ScrollViewState::with_offset(Position::new(off.x, 0));
+        frame.render_stateful_widget(header, header_area, &mut header_state);
+    }
+
+    if table.hr_height() > 0 {
+        let mut ruler = ScrollView::new(Size::new(table.body_size.width, 1))
+            .scrollbars_visibility(ScrollbarVisibility::Never);
+        let ruler_inner = ruler.area();
+        draw_header_ruler(ruler.buf_mut(), table, ruler_inner);
+        let ruler_area = Rect {
+            width: ruler_area.width.saturating_sub(1),
+            ..ruler_area
+        };
+        let mut ruler_state = ScrollViewState::with_offset(Position::new(off.x, 0));
+        frame.render_stateful_widget(ruler, ruler_area, &mut ruler_state);
+    }
+
+    if let Some(frozen_col) = table.frozen() {
+        draw_frozen(frame, frozen_col, table, left);
+    }
+
+    draw_junctions(frame.buffer_mut(), table, outer, left, right, off.x);
+}
+
+fn set_symbol_at(buf: &mut Buffer, x: u16, y: u16, c: char) {
+    let mut tmp = [0u8; 4];
+    if let Some(cell) = buf.cell_mut(Position::new(x, y)) {
+        cell.set_symbol(c.encode_utf8(&mut tmp));
+    }
+}
+
+fn draw_junctions(buf: &mut Buffer, table: &ScrollTable, outer: Rect, left: Rect, right: Rect, off_x: u16) {
+    let ruler_y = (table.hr_height() > 0).then_some(right.top() + table.header_height());
+    // last column of `right` is taken by the vertical scrollbar
+    let right_end = right.right().saturating_sub(1);
+    let separator_x = table.frozen().map(|_| left.right().saturating_sub(1));
+
+    if table.frame.external_borders {
+        // scrollable column delimiters only reach the top border
+        // (the horizontal scrollbar sits between them and the bottom border)
+        for d in table.delimiter_positions() {
+            if d < off_x {
+                continue;
+            }
+            let x = right.x.saturating_add(d - off_x);
+            if x >= right_end {
+                break;
+            }
+            set_symbol_at(buf, x, outer.top(), table.frame.tee_down);
+        }
+
+        // frozen separator spans the whole height
+        if let Some(x) = separator_x {
+            set_symbol_at(buf, x, outer.top(), table.frame.tee_down);
+            set_symbol_at(buf, x, outer.bottom().saturating_sub(1), table.frame.tee_up);
+        }
+
+        if let Some(y) = ruler_y {
+            set_symbol_at(buf, outer.left(), y, table.frame.tee_right);
+            // extend the ruler up to the right border (past the last column
+            // and above the vertical scrollbar)
+            let mut tmp = [0u8; 4];
+            let horizontal = table.frame.horizontal.encode_utf8(&mut tmp);
+            for x in right.left()..right.right() {
+                if let Some(cell) = buf.cell_mut(Position::new(x, y))
+                    && cell.symbol() == " "
+                {
+                    cell.set_symbol(horizontal).set_style(table.frame.style);
+                }
+            }
+            set_symbol_at(buf, outer.right().saturating_sub(1), y, table.frame.tee_left);
+        }
+    }
+
+    if let (Some(x), Some(y)) = (separator_x, ruler_y) {
+        set_symbol_at(buf, x, y, table.frame.cross);
+    }
+}
+
+pub fn draw_frozen(frame: &mut Frame, frozen: usize, table: &ScrollTable, area: Rect) {
+    let separator = Block::new()
+        .borders(Borders::RIGHT)
+        .border_type(table.frame.border_type)
+        .style(table.style.separator);
+    let left_inner = separator.inner(area);
+    frame.render_widget(separator, area);
+
+    let [corner, ruler_area, left_column_area] = Layout::vertical([
+        Constraint::Length(table.header_height()),
+        Constraint::Length(table.hr_height()),
+        Constraint::Min(0),
+    ])
+    .areas(left_inner);
+    if table.hr_height() > 0 {
+        let mut tmp = [0u8; 4];
+        let horizontal = table.frame.horizontal.encode_utf8(&mut tmp);
+        let buf = frame.buffer_mut();
+        for x in ruler_area.left()..ruler_area.right() {
+            if let Some(cell) = buf.cell_mut(Position::new(x, ruler_area.y)) {
+                cell.set_symbol(horizontal).set_style(table.frame.style);
+            }
+        }
+    }
+    if !table.hide_headers {
+        frame.render_widget(
+            headers_from_parts(table, &table.style.frozen.header, &[frozen]),
+            corner,
+        );
+    }
+
+    let left_column_area = Rect {
+        height: left_column_area.height.saturating_sub(1),
+        ..left_column_area
+    }; // -1 : scrollbar
+    let mut left_column =
+        ScrollView::new(Size::new(table.frozen_step() as u16, table.n_rows() as u16))
+            .scrollbars_visibility(ScrollbarVisibility::Never);
+    let frozen_table = table_from_parts(
+        &table.rows,
+        &table.cols,
+        &table.style.frozen,
+        &[frozen],
+        table.frame.striped,
+    );
+
+    let mut frozen_row_state = TableState::new().with_selected(table.table_state.selected());
+    left_column.render_stateful_widget(frozen_table, left_column.area(), &mut frozen_row_state);
+
+    let off_y = table.offset().y; // after ScrollView's clamp
+    let mut left_column_state = ScrollViewState::with_offset(Position::new(0, off_y));
+    frame.render_stateful_widget(left_column, left_column_area, &mut left_column_state);
+}
