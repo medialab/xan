@@ -21,16 +21,17 @@ pub struct ViewApp {
     name: String,
     scroll_table: ScrollTable,
     show_info: bool,
+    all_records: bool,
     quit: bool,
 }
 
 impl ViewApp {
     pub fn new(name: String, headers: StringRecord,
         rows: Vec<(StringRecord, Vec<DataType>)>, cols: Vec<DisplayedColumn>,
-        frame: FrameTheme, style: Option<&'static ViewStyle>) -> Self {
+        all_records: bool, frame: FrameTheme, style: Option<&'static ViewStyle>) -> Self {
         let viewstyle = style.unwrap_or(&CLASSIC_VIEWSTYLE);
         let scroll_table = ScrollTable::new(headers, rows, cols, &viewstyle.scroll_table, frame);
-        Self { name, scroll_table, show_info: false, quit: false }
+        Self { name, scroll_table, show_info: false, all_records, quit: false }
     }
 
     pub fn n_rows(&self) -> usize {
@@ -39,6 +40,12 @@ impl ViewApp {
 
     pub fn n_cols(&self) -> usize {
         self.scroll_table.n_cols()
+    }
+
+    fn header(&self) -> Text<'static> {
+        let limited_txt = if self.all_records { " first" } else { "" };
+        Text::raw(format!(
+            " {} cols from {}{} rows of {} ", self.n_cols(), self.n_rows(), limited_txt, self.name))
     }
 
     fn footer(&self) -> Text<'static> {
@@ -101,22 +108,12 @@ impl ViewApp {
 
     pub fn draw(&mut self, frame: &mut Frame) {
 
-        let [main, footer] =
-            Layout::vertical([Constraint::Min(3), Constraint::Length(1)]).areas(frame.area());
+        let [header, main, footer] =
+            Layout::vertical([Constraint::Length(1), Constraint::Min(3), Constraint::Length(1)]).areas(frame.area());
 
-        let frame_theme = self.scroll_table.frame();
-        let block = if frame_theme.external_borders {
-            Block::bordered()
-                .border_type(frame_theme.border_type)
-                .border_style(frame_theme.style)
-        } else {
-            Block::new().borders(Borders::NONE)
-        }
-        .title(format!(" {} ", self.name));
-        let inner = block.inner(main);
-        frame.render_widget(block, main);
+        frame.render_widget(Paragraph::new(self.header()),header);
 
-        scroll_table::draw(frame, &mut self.scroll_table, inner);
+        scroll_table::draw(frame, &mut self.scroll_table, main);
 
         frame.render_widget(Paragraph::new(self.footer()), footer);
 

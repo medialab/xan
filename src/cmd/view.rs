@@ -234,6 +234,10 @@ impl ViewTheme {
             vertical: self.vertical(),
             horizontal: self.box_chars[BoxChar::Horizontal as usize],
             cross: self.cross_full(),
+            tee_down: self.cross_bottom(),
+            tee_up: self.cross_up(),
+            tee_right: self.cross_right(),
+            tee_left: self.cross_left(),
             padding: self.padding.chars().count(),
             external_borders: self.external_borders,
             border_type: if self.box_chars == ROUNDED_BOX_CHARS {
@@ -845,6 +849,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             headers,
             records,
             displayed_columns.left,
+            all_records_buffered,
             theme.tui_frame(args.flag_frame_intensity),
             None,
         )

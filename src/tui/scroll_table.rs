@@ -569,7 +569,19 @@ fn draw_header_ruler(buf: &mut Buffer, table: &ScrollTable, area: Rect) {
     }
 }
 
-pub fn draw(frame: &mut Frame, table: &mut ScrollTable, area: Rect) {
+pub fn draw(frame: &mut Frame, table: &mut ScrollTable, outer: Rect) {
+    let area = if table.frame.external_borders {
+        let border = Block::new()
+            .borders(Borders::ALL)
+            .border_type(table.frame.border_type)
+            .border_style(table.frame.style);
+        let inner = border.inner(outer);
+        frame.render_widget(border, outer);
+        inner
+    } else {
+        outer
+    };
+
     let scrollable_cols = table.scrollable_columns();
     let left_w = table.get_frozen_space();
     let [left, right] =
@@ -639,11 +651,69 @@ pub fn draw(frame: &mut Frame, table: &mut ScrollTable, area: Rect) {
     if let Some(frozen_col) = table.frozen() {
         draw_frozen(frame, frozen_col, table, left);
     }
+
+    draw_junctions(frame.buffer_mut(), table, outer, left, right, off.x);
+}
+
+fn set_symbol_at(buf: &mut Buffer, x: u16, y: u16, c: char) {
+    let mut tmp = [0u8; 4];
+    if let Some(cell) = buf.cell_mut(Position::new(x, y)) {
+        cell.set_symbol(c.encode_utf8(&mut tmp));
+    }
+}
+
+fn draw_junctions(buf: &mut Buffer, table: &ScrollTable, outer: Rect, left: Rect, right: Rect, off_x: u16) {
+    let ruler_y = (table.hr_height() > 0).then_some(right.top() + 1);
+    // last column of `right` is taken by the vertical scrollbar
+    let right_end = right.right().saturating_sub(1);
+    let separator_x = table.frozen().map(|_| left.right().saturating_sub(1));
+
+    if table.frame.external_borders {
+        // scrollable column delimiters only reach the top border
+        // (the horizontal scrollbar sits between them and the bottom border)
+        for d in table.delimiter_positions() {
+            if d < off_x {
+                continue;
+            }
+            let x = right.x.saturating_add(d - off_x);
+            if x >= right_end {
+                break;
+            }
+            set_symbol_at(buf, x, outer.top(), table.frame.tee_down);
+        }
+
+        // frozen separator spans the whole height
+        if let Some(x) = separator_x {
+            set_symbol_at(buf, x, outer.top(), table.frame.tee_down);
+            set_symbol_at(buf, x, outer.bottom().saturating_sub(1), table.frame.tee_up);
+        }
+
+        if let Some(y) = ruler_y {
+            set_symbol_at(buf, outer.left(), y, table.frame.tee_right);
+            // extend the ruler up to the right border (past the last column
+            // and above the vertical scrollbar)
+            let mut tmp = [0u8; 4];
+            let horizontal = table.frame.horizontal.encode_utf8(&mut tmp);
+            for x in right.left()..right.right() {
+                if let Some(cell) = buf.cell_mut(Position::new(x, y))
+                    && cell.symbol() == " "
+                {
+                    cell.set_symbol(horizontal).set_style(table.frame.style);
+                }
+            }
+            set_symbol_at(buf, outer.right().saturating_sub(1), y, table.frame.tee_left);
+        }
+    }
+
+    if let (Some(x), Some(y)) = (separator_x, ruler_y) {
+        set_symbol_at(buf, x, y, table.frame.cross);
+    }
 }
 
 pub fn draw_frozen(frame: &mut Frame, frozen: usize, table: &ScrollTable, area: Rect) {
     let separator = Block::new()
         .borders(Borders::RIGHT)
+        .border_type(table.frame.border_type)
         .style(table.style.separator);
     let left_inner = separator.inner(area);
     frame.render_widget(separator, area);
