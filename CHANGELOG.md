@@ -49,6 +49,7 @@ The **laminated** update.
 * Adding `xan parallel map --inplace, --replace, --atomicity & --tmp-dir`.
 * Adding support for Zstandard seekable format.
 * Adding the `to_iso_timestamp` moonblade function.
+* Adding `xan c` alias for `xan count`.
 
 *Fixes*
 

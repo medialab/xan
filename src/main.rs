@@ -40,7 +40,7 @@ macro_rules! command_list {
     --version   Print the tool's version
 
 ## Explore & visualize
-    count       Count rows in file
+    count   (c) Count rows in file
     headers (h) Show header names
     view    (v) Preview a CSV file in a human-friendly way
     flatten (f) Display a flattened version of each row of a file
@@ -290,6 +290,7 @@ enum Command {
     Compgen,
     Complete,
     Completions,
+    C,
     Count,
     Dedup,
     Drop,
@@ -375,7 +376,7 @@ impl Command {
             }
             Command::Complete => cmd::complete::run(argv),
             Command::Completions => cmd::completions::run(argv),
-            Command::Count => cmd::count::run(argv),
+            Command::Count | Command::C => cmd::count::run(argv),
             Command::Dedup => cmd::dedup::run(argv),
             Command::Drop => cmd::drop::run(argv),
             Command::Enum => cmd::enumerate::run(argv),

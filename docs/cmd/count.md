@@ -23,6 +23,7 @@ out of the box.
 
 Usage:
     xan count [options] [<input>]
+    xan c [options] [<input>]
 
 count options:
     -H, --human-readable     Format the count so it is easier to read.
