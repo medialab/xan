@@ -628,6 +628,12 @@
         "help": "Interpret given int as milliseconds timestamp."
       },
       {
+        "name": "to_iso_timestamp",
+        "arguments": ["zoned_datetime"],
+        "returns": "string",
+        "help": "Convert given datetime to an ISO format timestamp (e.g. 2007-08-21T12:24:09Z). Will error if given datetime has no timezone info."
+      },
+      {
         "name": "to_timestamp",
         "arguments": ["zoned_datetime"],
         "returns": "int_or_float",

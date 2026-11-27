@@ -244,6 +244,7 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **now**() -> `zoned_datetime`: Return current datetime in local timezone.
 - **from_timestamp**(*int_or_float*) -> `zoned_datetime`: Interpret given int as seconds timestamp, or given float as seconds timestamp with fractional subseconds component.
 - **from_timestamp_ms**(*int*) -> `zoned_datetime`: Interpret given int as milliseconds timestamp.
+- **to_iso_timestamp**(*zoned_datetime*) -> `string`: Convert given datetime to an ISO format timestamp (e.g. 2007-08-21T12:24:09Z). Will error if given datetime has no timezone info.
 - **to_timestamp**(*zoned_datetime*) -> `int_or_float`: Convert given datetime to seconds timestamp or seconds with fractional subseconds timestamp if datetime has enough precision. Will error if given datetime has no timezone info.
 - **to_timestamp_ms**(*zoned_datetime*) -> `int`: Convert given datetime to milliseconds timestamp. Will error if given datetime has no timezone info.
 - **earliest**(*t1*, *t2*, *\*tn*) -> `temporal`: Return the earliest point in time. Expects homogeneous types (all dates, all datetimes etc.).

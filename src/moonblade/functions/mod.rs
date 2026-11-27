@@ -302,6 +302,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         ),
         "time" => (temporal::time, FunctionArguments::with_range(1..=2)),
         "to_fixed" => (fmt::to_fixed, FunctionArguments::binary()),
+        "to_iso_timestamp" => (temporal::to_iso_timestamp, FunctionArguments::unary()),
         "to_timestamp" => (temporal::to_timestamp, FunctionArguments::unary()),
         "to_timestamp_ms" => (temporal::to_timestamp_ms, FunctionArguments::unary()),
         "to_timezone" | "to_tz" => (temporal::to_timezone, FunctionArguments::binary()),

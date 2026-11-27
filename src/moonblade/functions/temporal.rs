@@ -342,6 +342,13 @@ pub fn from_timestamp_ms(mut args: BoundArguments) -> FunctionResult {
     }
 }
 
+pub fn to_iso_timestamp(mut args: BoundArguments) -> FunctionResult {
+    let zoned = args.pop1().try_as_zoned()?;
+    let timestamp = zoned.timestamp();
+
+    Ok(timestamp.to_string().into())
+}
+
 pub fn to_timestamp(mut args: BoundArguments) -> FunctionResult {
     let zoned = args.pop1().try_as_zoned()?;
     let timestamp = zoned.timestamp();
