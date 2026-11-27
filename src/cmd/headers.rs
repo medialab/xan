@@ -1,13 +1,12 @@
-use std::collections::BTreeMap;
-
 use colored::Colorize;
 
 use crate::CliResult;
+use crate::collections::new_index_map;
 use crate::config::{Config, Delimiter};
 use crate::utils::{self, ColorMode};
 
 fn find_duplicates(headers: &[String]) -> Vec<String> {
-    let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
+    let mut counts = new_index_map::<&str, usize>();
 
     for h in headers.iter() {
         counts.entry(h).and_modify(|c| *c += 1).or_insert(1);
@@ -128,7 +127,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut out = Config::new(&args.flag_output).io_writer()?;
 
-    let mut name_counts = BTreeMap::<String, usize>::new();
+    let mut name_counts = new_index_map::<String, usize>();
 
     for headers in headers_per_input.iter() {
         for name in headers.iter() {
@@ -231,29 +230,42 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 "\nAll files don't have the same headers!".yellow()
             )?;
 
-            let diverging_headers = name_counts
+            let (common_headers, diverging_headers): (Vec<_>, Vec<_>) = name_counts
                 .iter()
-                .filter_map(|(name, count)| {
-                    if *count < configs.len() {
-                        Some(
-                            utils::highlight_problematic_string_features(
-                                &utils::sanitize_text_for_single_line_printing(name),
-                            )
-                            .cyan()
-                            .to_string(),
+                .map(|(name, count)| {
+                    (
+                        utils::highlight_problematic_string_features(
+                            &utils::sanitize_text_for_single_line_printing(name),
                         )
-                    } else {
-                        None
-                    }
+                        .cyan()
+                        .to_string(),
+                        *count,
+                    )
                 })
-                .collect::<Vec<_>>()
-                .join(", ");
+                .partition(|(_, count)| *count == configs.len());
+
+            if !common_headers.is_empty() {
+                writeln!(
+                    &mut out,
+                    "{} {}",
+                    "\nCommon headers:".yellow(),
+                    common_headers
+                        .into_iter()
+                        .map(|(h, _)| h)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )?;
+            }
 
             writeln!(
                 &mut out,
                 "{} {}",
-                "Diverging headers:".yellow(),
+                "\nDiverging headers:".yellow(),
                 diverging_headers
+                    .into_iter()
+                    .map(|(h, _)| h)
+                    .collect::<Vec<_>>()
+                    .join(", ")
             )?;
         }
     }

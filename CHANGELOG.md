@@ -84,6 +84,10 @@ The **laminated** update.
 * Improving performance of `xan matrix`.
 * Improving performance of `xan from -f=(parquet|ndjson|npy)`.
 
+*Quality of Life*
+
+* `xan headers` will now also report common headers when file diverge.
+
 ## 0.61.0
 
 *Features*

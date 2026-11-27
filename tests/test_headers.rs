@@ -71,6 +71,9 @@ h2
 h3
 
 All files don't have the same headers!
+
+Common headers: h2
+
 Diverging headers: h1, h3";
     assert_eq!(got, expected.to_string());
 }
