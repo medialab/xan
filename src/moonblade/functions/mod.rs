@@ -149,7 +149,8 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         ),
         "index_by" => (maps::index_by, FunctionArguments::binary()),
         "int" => (ops::parse_int, FunctionArguments::unary()),
-        "isfile" => (io::isfile, FunctionArguments::unary()),
+        "is_empty" => (sequences::is_empty, FunctionArguments::unary()),
+        "is_file" => (io::is_file, FunctionArguments::unary()),
         "join" => (strings::join, FunctionArguments::binary()),
         "keys" => (maps::keys, FunctionArguments::unary()),
         "latest" => (

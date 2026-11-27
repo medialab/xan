@@ -202,6 +202,7 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **contains**(*list*, *item*) -> `bool`: If target is a string: return whether substring can be found in it or return whether given regular expression matched.<br>If target is a list, returns whether given item was found in it.<br>If target is a map, returns whether given key was found in it.
 - **contains**(*map*, *key*) -> `bool`: If target is a string: return whether substring can be found in it or return whether given regular expression matched.<br>If target is a list, returns whether given item was found in it.<br>If target is a map, returns whether given key was found in it.
 - **first**(*seq*) -> `T`: Get first char of string or first item of list.
+- **is_empty**(*seq*) -> `bool`: Returns whether target is empty.
 - **last**(*seq*) -> `T`: Get last char of string or first item of list.
 - **len**(*seq*) -> `int`: Get number of chars in string or number of items in list.
 - **get**(*string*, *index*, *default?*) -> `any`: If target is a string, return the nth unicode char. If target is a list, return the nth item. Indices are zero-based and can be negative to access items in reverse. If target is a map, return the value associated with given key. All variants can also take a default value when desired item is not found.

@@ -426,6 +426,12 @@
         "help": "Get first char of string or first item of list."
       },
       {
+        "name": "is_empty",
+        "arguments": ["seq"],
+        "returns": "bool",
+        "help": "Returns whether target is empty."
+      },
+      {
         "name": "last",
         "arguments": ["seq"],
         "returns": "T",

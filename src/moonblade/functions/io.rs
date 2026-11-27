@@ -46,7 +46,7 @@ fn decoder_trap_from_str(name: &str) -> Result<DecoderTrap, EvaluationError> {
     })
 }
 
-pub fn isfile(args: BoundArguments) -> FunctionResult {
+pub fn is_file(args: BoundArguments) -> FunctionResult {
     let path = args.get1_str()?;
     let path = Path::new(path.as_ref());
 

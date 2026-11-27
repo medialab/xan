@@ -129,6 +129,11 @@ impl BoundArgument<'_> {
     }
 
     #[inline]
+    pub fn is_nullish(&self) -> bool {
+        self.map(DynamicValue::is_nullish, |cell| cell.is_empty())
+    }
+
+    #[inline]
     pub fn try_as_number(&self) -> Result<DynamicNumber, EvaluationError> {
         self.map(DynamicValue::try_as_number, |cell| {
             if let Ok(n) = DynamicNumber::try_from(cell) {

@@ -18,6 +18,18 @@ pub fn len(mut args: BoundArguments) -> FunctionResult {
     Ok(l.into())
 }
 
+pub fn is_empty(mut args: BoundArguments) -> FunctionResult {
+    let arg = args.pop1();
+
+    let yes = match arg.as_value() {
+        Some(DynamicValue::List(list)) => list.is_empty(),
+        Some(DynamicValue::Map(map)) => map.is_empty(),
+        _ => arg.is_nullish(),
+    };
+
+    Ok(yes.into())
+}
+
 pub fn range(args: BoundArguments) -> FunctionResult {
     let (start, stop, step): (i64, i64, i64) = if args.len() == 3 {
         (

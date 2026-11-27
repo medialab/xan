@@ -21,6 +21,7 @@ The **laminated** update.
 * Better integration of value post-processing in `xan scrape -e` DSL.
 * `xan scrape -F/--foreach` becomes `-S/--foreach-selector`.
 * Moonblade `//` becomes infix `idiv` and `//` can now be used as well as `#` to write comments.
+* Renaming moonblade `isfile` function to `is_file`.
 
 *Features*
 
@@ -28,8 +29,7 @@ The **laminated** update.
 * `xan count` & `xan headers` parquet integration.
 * Adding `xan count --row-groups`.
 * Adding `xan matrix bivar`.
-* Adding the `ord`, `chr`, `chars` & `graphemes` moonblade functions.
-* Adding the `coalesce` moonblade function.
+* Adding the `is_empty`, `to_iso_timestamp`, `coalesce`, `ord`, `chr`, `chars` & `graphemes` moonblade functions.
 * Adding `xan from -f=ndjson -p/-t`.
 * Adding `xan from -f=parquet -s/--select & --row-group-index`.
 * Adding `xan from -D/--output-delimiter`.
@@ -48,7 +48,6 @@ The **laminated** update.
 * Adding `xan join --strict`.
 * Adding `xan parallel map --inplace, --replace, --atomicity & --tmp-dir`.
 * Adding support for Zstandard seekable format.
-* Adding the `to_iso_timestamp` moonblade function.
 * Adding `xan c` alias for `xan count`.
 
 *Fixes*
