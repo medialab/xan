@@ -1,8 +1,7 @@
-use simd_csv::ByteRecord;
+use simd_csv::{ByteRecord, Selector};
 
 use crate::CliResult;
 use crate::config::{Config, Delimiter};
-use crate::select::SelectedColumns;
 use crate::utils;
 
 // TODO: some --pivot option, that blanks hierarchically
@@ -36,7 +35,7 @@ Common options:
 #[derive(Deserialize)]
 struct Args {
     arg_input: Option<String>,
-    flag_select: SelectedColumns,
+    flag_select: Selector,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_output: Option<String>,
@@ -47,21 +46,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = utils::get_args(USAGE, argv)?;
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
-        .no_headers(args.flag_no_headers)
-        .select(args.flag_select);
+        .no_headers(args.flag_no_headers);
 
     let redacted_string = args.flag_redact.unwrap_or("".to_string());
 
     let mut rdr = rconf.simd_reader()?;
     let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
-    let headers = rdr.byte_headers()?;
-
-    let sel = rconf.selection(headers)?;
-    let mask = sel.mask(headers.len());
+    let sel = rdr.select(&args.flag_select)?;
+    let mask = sel.mask();
 
     if !rconf.no_headers {
-        wtr.write_byte_record(headers)?;
+        wtr.write_byte_record(rdr.byte_headers()?)?;
     }
 
     let mut record = ByteRecord::new();
